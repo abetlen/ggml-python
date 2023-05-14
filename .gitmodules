@@ -1,0 +1,3 @@
+[submodule "vendor/ggml"]
+	path = vendor/ggml
+	url = git@github.com:ggerganov/ggml.git
