@@ -1,1 +1,1 @@
-from ggml import *
+from .ggml import *
