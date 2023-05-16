@@ -2,7 +2,7 @@ from skbuild import setup
 
 setup(
     name="ggml_python",
-    description="A Python wrapper for ggml",
+    description="Python bindings for ggml",
     long_description_content_type="text/markdown",
     version="0.0.1",
     author="Andrei Betlen",
