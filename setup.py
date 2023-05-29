@@ -4,7 +4,7 @@ setup(
     name="ggml_python",
     description="Python bindings for ggml",
     long_description_content_type="text/markdown",
-    version="0.0.2",
+    version="0.0.3",
     author="Andrei Betlen",
     author_email="abetlen@gmail.com",
     license="MIT",
