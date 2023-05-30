@@ -15,9 +15,8 @@ test:
 clean:
 	- rm -rf _skbuild
 	- rm -rf dist
-	- rm ggml/*.so
-	- rm ggml/*.dll
-	- rm ggml/*.dylib
+	- rm ggml/*.{so,dll,dylib}
+	- rm vendor/ggml/*.{so,dll,dylib}
 	- cd vendor/ggml && make clean
 
-.PHONY: all build sdist test clean
+.PHONY: all build sdist deploy test clean
