@@ -246,8 +246,8 @@ GGML_FTYPE_MOSTLY_Q5_1 = ctypes.c_int(9)
 #     GGML_OP_ROPE_BACK,
 #     GGML_OP_ALIBI,
 #     GGML_OP_CLAMP,
-#     GGML_OP_CONV_1D_1S,
-#     GGML_OP_CONV_1D_2S,
+#     GGML_OP_CONV_1D_1S_PH,
+#     GGML_OP_CONV_1D_2S_PH,
 
 #     GGML_OP_FLASH_ATTN,
 #     GGML_OP_FLASH_FF,
@@ -305,8 +305,8 @@ GGML_OP_ROPE = ctypes.c_int(41)
 GGML_OP_ROPE_BACK = ctypes.c_int(42)
 GGML_OP_ALIBI = ctypes.c_int(43)
 GGML_OP_CLAMP = ctypes.c_int(44)
-GGML_OP_CONV_1D_1S = ctypes.c_int(45)
-GGML_OP_CONV_1D_2S = ctypes.c_int(46)
+GGML_OP_CONV_1D_1S_PH = ctypes.c_int(45)
+GGML_OP_CONV_1D_2S_PH = ctypes.c_int(46)
 
 GGML_OP_FLASH_ATTN = ctypes.c_int(47)
 GGML_OP_FLASH_FF = ctypes.c_int(48)
@@ -683,7 +683,7 @@ lib.ggml_set_scratch.restype = ctypes.c_size_t
 
 
 # GGML_API void    ggml_set_no_alloc(struct ggml_context * ctx, bool no_alloc);
-def ggml_set_no_alloc(ctx: ggml_context_p, no_alloc: bool):
+def ggml_set_no_alloc(ctx: ggml_context_p, no_alloc: ctypes.c_bool):
     return lib.ggml_set_no_alloc(ctx, no_alloc)
 
 
@@ -2365,48 +2365,50 @@ lib.ggml_clamp.argtypes = [
 lib.ggml_clamp.restype = ctypes.POINTER(ggml_tensor)
 
 
-# // padding = 1
+# // padding = half
 # // TODO: we don't support extra parameters for now
 # //       that's why we are hard-coding the stride, padding, and dilation
 # //       not great ..
-# GGML_API struct ggml_tensor * ggml_conv_1d_1s(
-#         struct ggml_context * ctx,
-#         struct ggml_tensor  * a,
-#         struct ggml_tensor  * b);
-def ggml_conv_1d_1s(
+# // example:
+# // a:      3   80  768    1
+# // b:   3000   80    1    1
+# // res: 3000  768    1    1
+# // used in whisper
+def ggml_conv_1d_s1_ph(
     ctx: ggml_context_p,
     a,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
     b,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
 ):  # type: (...) -> ctypes._Pointer[ggml_tensor] # type: ignore
-    return lib.ggml_conv_1d_1s(ctx, a, b)
+    return lib.ggml_conv_1d_s1_ph(ctx, a, b)
 
 
-lib.ggml_conv_1d_1s.argtypes = [
+lib.ggml_conv_1d_s1_ph.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_tensor),
     ctypes.POINTER(ggml_tensor),
 ]
-lib.ggml_conv_1d_1s.restype = ctypes.POINTER(ggml_tensor)
+lib.ggml_conv_1d_s1_ph.restype = ctypes.POINTER(ggml_tensor)
 
 
-# GGML_API struct ggml_tensor * ggml_conv_1d_2s(
+# // used in whisper
+# GGML_API struct ggml_tensor * ggml_conv_1d_s2_ph(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a,
 #         struct ggml_tensor  * b);
-def ggml_conv_1d_2s(
+def ggml_conv_1d_s2_ph(
     ctx: ggml_context_p,
     a,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
     b,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
 ):  # type: (...) -> ctypes._Pointer[ggml_tensor] # type: ignore
-    return lib.ggml_conv_1d_2s(ctx, a, b)
+    return lib.ggml_conv_1d_s2_ph(ctx, a, b)
 
 
-lib.ggml_conv_1d_2s.argtypes = [
+lib.ggml_conv_1d_s2_ph.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_tensor),
     ctypes.POINTER(ggml_tensor),
 ]
-lib.ggml_conv_1d_2s.restype = ctypes.POINTER(ggml_tensor)
+lib.ggml_conv_1d_s2_ph.restype = ctypes.POINTER(ggml_tensor)
 
 
 # GGML_API struct ggml_tensor * ggml_flash_attn(
