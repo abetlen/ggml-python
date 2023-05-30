@@ -6,6 +6,9 @@ build:
 sdist:
 	python3 setup.py sdist
 
+deploy:
+	twine upload dist/*
+
 test:
 	pytest
 
