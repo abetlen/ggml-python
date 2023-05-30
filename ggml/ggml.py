@@ -718,7 +718,7 @@ def ggml_new_tensor(
     ctx: ggml_context_p,
     type: ctypes.c_int,
     n_dims: ctypes.c_int,
-    ne,  # type: ctypes._Pointer[ctypes.c_int64] # type: ignore
+    ne,  # type: ctypes.Array[ctypes.c_int64] # type: ignore
 ):  # type: (...) -> ctypes._Pointer[ggml_tensor] # type: ignore
     return lib.ggml_new_tensor(ctx, type, n_dims, ne)
 
@@ -737,7 +737,7 @@ lib.ggml_new_tensor.restype = ctypes.POINTER(ggml_tensor)
 #         enum   ggml_type type,
 #         int64_t ne0);
 def ggml_new_tensor_1d(
-    ctx: ggml_context_p, type: ctypes.c_int, ne0  # type: ctypes.c_int64
+    ctx: ggml_context_p, type: ctypes.c_int, ne0: ctypes.c_int64
 ):  # type: (...) -> ctypes._Pointer[ggml_tensor] # type: ignore
     return lib.ggml_new_tensor_1d(ctx, type, ne0)
 
