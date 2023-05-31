@@ -2488,7 +2488,7 @@ ggml_binary_op_f32_t = ctypes.CFUNCTYPE(
 def ggml_map_unary_f32(
     ctx: ggml_context_p,
     a,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
-    fun,  # type: ctypes._Pointer[ggml_unary_op_f32_t] # type: ignore
+    fun, # type: ctypes._CFuncPtr # type: ignore
 ):  # type: (...) -> ctypes._Pointer[ggml_tensor] # type: ignore
     return lib.ggml_map_unary_f32(ctx, a, fun)
 
@@ -2510,7 +2510,7 @@ def ggml_map_binary_f32(
     ctx: ggml_context_p,
     a,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
     b,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
-    fun,  # type: ctypes._Pointer[ggml_binary_op_f32_t] # type: ignore
+    fun,  # type: ctypes._CFuncPtr # type: ignore
 ):  # type: (...) -> ctypes._Pointer[ggml_tensor] # type: ignore
     return lib.ggml_map_binary_f32(ctx, a, b, fun)
 
