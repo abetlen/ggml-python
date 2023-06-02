@@ -69,7 +69,7 @@ GGML_MAX_OPT = ctypes.c_int(4)
 # #define GGML_MAX_NAME          32
 GGML_MAX_NAME = ctypes.c_int(32)
 # #define GGML_DEFAULT_N_THREADS 4
-GGML_DEFAULT_N_THREADS = 4
+GGML_DEFAULT_N_THREADS = ctypes.c_int(4)
 
 
 # TODO: Check if this is correct
