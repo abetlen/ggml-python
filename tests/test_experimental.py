@@ -1,5 +1,5 @@
 import numpy as np
-from ggml.experimental import CGraph, Tensor, DType
+from ggml.experimental import CGraph, Tensor, GGML_TYPE
 
 
 def test_tensor():
@@ -7,7 +7,7 @@ def test_tensor():
     assert x.shape == (3,)
     t = Tensor.from_numpy(x)
     assert t.shape == (3,)
-    assert t.dtype == DType.F32
+    assert t.ggml_type == GGML_TYPE.F32
     assert np.allclose(t.numpy(), x)
 
 def test_tensor_compute():

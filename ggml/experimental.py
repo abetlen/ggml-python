@@ -19,10 +19,15 @@ def default_context() -> "Context":
 
 
 class InitParams:
-    def __init__(self):
-        self.mem_size = 16 * 1024 * 1024
-        self.mem_buffer = None
-        self.no_alloc = False
+    def __init__(
+        self,
+        mem_size: int = 16 * 1024 * 1024,
+        mem_buffer: Optional[ctypes.c_void_p] = None,
+        no_alloc: bool = False,
+    ):
+        self.mem_size = mem_size
+        self.mem_buffer = mem_buffer
+        self.no_alloc = no_alloc
         self.params = ggml.ggml_init_params(
             mem_size=self.mem_size,
             mem_buffer=self.mem_buffer,
@@ -39,12 +44,13 @@ class Context:
         ggml.ggml_free(self.context)
 
 
-class DType(enum.Enum):
+class GGML_TYPE(enum.Enum):
     F32 = ggml.GGML_TYPE_F32.value
     F16 = ggml.GGML_TYPE_F16.value
     Q4_0 = ggml.GGML_TYPE_Q4_0.value
     Q4_1 = ggml.GGML_TYPE_Q4_1.value
     Q5_0 = ggml.GGML_TYPE_Q5_0.value
+    Q5_1 = ggml.GGML_TYPE_Q5_1.value
     Q8_0 = ggml.GGML_TYPE_Q8_0.value
     Q8_1 = ggml.GGML_TYPE_Q8_1.value
     I8 = ggml.GGML_TYPE_I8.value
@@ -52,17 +58,26 @@ class DType(enum.Enum):
     I32 = ggml.GGML_TYPE_I32.value
 
 
-NUMPY_DTYPE_TO_GGML_DTYPE = {
-    np.float32: DType.F32,
-    np.float16: DType.F16,
-    np.uint8: DType.Q8_0,
-    np.uint8: DType.Q8_1,
-    np.int8: DType.I8,
-    np.int16: DType.I16,
-    np.int32: DType.I32,
+NUMPY_DTYPE_TO_GGML_TYPE = {
+    np.float16: GGML_TYPE.F16,
+    np.float32: GGML_TYPE.F32,
+    np.int8: GGML_TYPE.I8,
+    np.int16: GGML_TYPE.I16,
+    np.int32: GGML_TYPE.I32,
 }
 
-GGML_DTYPE_TO_NUMPY_DTYPE = {v: k for k, v in NUMPY_DTYPE_TO_GGML_DTYPE.items()}
+GGML_TYPE_TO_NUMPY_DTYPE = {v: k for k, v in NUMPY_DTYPE_TO_GGML_TYPE.items()}
+
+
+class GGML_FTYPE(enum.Enum):
+    UNKNOWN = ggml.GGML_FTYPE_UNKNOWN.value
+    ALL_F32 = ggml.GGML_FTYPE_ALL_F32.value
+    MOSTLY_F16 = ggml.GGML_FTYPE_MOSTLY_F16.value
+    MOSTLY_Q4_0 = ggml.GGML_FTYPE_MOSTLY_Q4_0.value
+    MOSTLY_Q4_1_SOME_F16 = ggml.GGML_FTYPE_MOSTLY_Q4_1_SOME_F16.value
+    MOSTLY_Q8_0 = ggml.GGML_FTYPE_MOSTLY_Q8_0.value
+    MOSTLY_Q5_0 = ggml.GGML_FTYPE_MOSTLY_Q5_0.value
+    MOSTLY_Q5_1 = ggml.GGML_FTYPE_MOSTLY_Q5_1.value
 
 
 class Tensor:
@@ -74,8 +89,14 @@ class Tensor:
         self.tensor = tensor
         self.ctx = ctx or default_context()
 
-    def n_elements(self):
+    def nelements(self):
         return ggml.ggml_nelements(self.tensor)
+
+    def nbytes(self):
+        return ggml.ggml_nbytes(self.tensor)
+
+    def element_size(self):
+        return ggml.ggml_element_size(self.tensor)
 
     @property
     def name(self):
@@ -86,23 +107,31 @@ class Tensor:
         ggml.ggml_set_name(self.tensor, name)
 
     @property
-    def dtype(self):
-        return DType(self.tensor.contents.type)
+    def ggml_type(self):
+        return GGML_TYPE(self.tensor.contents.type)
 
     @property
     def shape(self) -> Tuple[int, ...]:
         return tuple(self.tensor.contents.ne[: self.tensor.contents.n_dims])
 
+    @property
+    def data(self):
+        return ggml.ggml_get_data(self.tensor)
+
+    def set_data(self, data: bytes):
+        return ctypes.memmove(self.data, data, self.nbytes())
+
     def numpy(self):
-        ctypes_type = np.ctypeslib.as_ctypes_type(GGML_DTYPE_TO_NUMPY_DTYPE[self.dtype])
-        array = ctypes.cast(
-            ggml.ggml_get_data(self.tensor), ctypes.POINTER(ctypes_type)
+        ctypes_type = np.ctypeslib.as_ctypes_type(
+            GGML_TYPE_TO_NUMPY_DTYPE[self.ggml_type]
         )
-        return np.ctypeslib.as_array(array, shape=self.shape)
+        array = ctypes.cast(self.data, ctypes.POINTER(ctypes_type))
+        shape = tuple(reversed(self.shape))
+        return np.ctypeslib.as_array(array, shape=shape).T
 
     # Magic methods
     def __len__(self):
-        return self.n_elements()
+        return self.nelements()
 
     def __add__(self, other: "Tensor"):
         op = ggml.ggml_add(self.ctx.context, self.tensor, other.tensor)
@@ -130,12 +159,12 @@ class Tensor:
 
     @classmethod
     def with_shape(
-        cls, shape: Sequence[int], dtype: DType, ctx: Optional[Context] = None
+        cls, shape: Sequence[int], ggml_type: GGML_TYPE, ctx: Optional[Context] = None
     ):
         ctx = ctx or default_context()
         tensor = ggml.ggml_new_tensor(
             ctx.context,
-            ctypes.c_int(dtype.value),
+            ctypes.c_int(ggml_type.value),
             ctypes.c_int(len(shape)),
             (ctypes.c_int64 * len(shape))(*shape),
         )
@@ -143,15 +172,116 @@ class Tensor:
 
     @classmethod
     def from_numpy(cls, x: npt.NDArray[Any], ctx: Optional[Context] = None):
-        dtype = NUMPY_DTYPE_TO_GGML_DTYPE[x.dtype.type]
+        ggml_type = NUMPY_DTYPE_TO_GGML_TYPE[x.dtype.type]
         ctypes_type = np.ctypeslib.as_ctypes_type(x.dtype)
-        tensor = cls.with_shape(shape=x.shape, dtype=dtype, ctx=ctx)
+        tensor = cls.with_shape(shape=x.shape, ggml_type=ggml_type, ctx=ctx)
         array = ctypes.cast(
             ggml.ggml_get_data(tensor.tensor), ctypes.POINTER(ctypes_type)
         )
         arr = np.ctypeslib.as_array(array, shape=x.shape)
         arr[:] = x
         return tensor
+
+    @staticmethod
+    def new_tensor(
+        ggml_type: GGML_TYPE = GGML_TYPE.F32,
+        shape: Sequence[int] = (),
+        ctx: Optional[Context] = None,
+    ):
+        ctx = ctx or default_context()
+        tensor = ggml.ggml_new_tensor(
+            ctx.context,
+            ctypes.c_int(ggml_type.value),
+            ctypes.c_int(len(shape)),
+            (ctypes.c_int64 * len(shape))(*shape),
+        )
+        return Tensor(tensor=tensor, ctx=ctx)
+
+    @staticmethod
+    def new_tensor_1d(
+        ggml_type: GGML_TYPE = GGML_TYPE.F32,
+        ne0: int = 0,
+        ctx: Optional[Context] = None,
+    ):
+        ctx = ctx or default_context()
+        tensor = ggml.ggml_new_tensor_1d(
+            ctx.context,
+            ctypes.c_int(ggml_type.value),
+            ctypes.c_int64(ne0),
+        )
+        return Tensor(tensor=tensor, ctx=ctx)
+
+    @staticmethod
+    def new_tensor_2d(
+        ggml_type: GGML_TYPE = GGML_TYPE.F32,
+        ne0: int = 0,
+        ne1: int = 0,
+        ctx: Optional[Context] = None,
+    ):
+        ctx = ctx or default_context()
+        tensor = ggml.ggml_new_tensor_2d(
+            ctx.context,
+            ctypes.c_int(ggml_type.value),
+            ctypes.c_int64(ne0),
+            ctypes.c_int64(ne1),
+        )
+        return Tensor(tensor=tensor, ctx=ctx)
+
+    @staticmethod
+    def new_tensor_3d(
+        ggml_type: GGML_TYPE = GGML_TYPE.F32,
+        ne0: int = 0,
+        ne1: int = 0,
+        ne2: int = 0,
+        ctx: Optional[Context] = None,
+    ):
+        ctx = ctx or default_context()
+        tensor = ggml.ggml_new_tensor_3d(
+            ctx.context,
+            ctypes.c_int(ggml_type.value),
+            ctypes.c_int64(ne0),
+            ctypes.c_int64(ne1),
+            ctypes.c_int64(ne2),
+        )
+        return Tensor(tensor=tensor, ctx=ctx)
+
+    @staticmethod
+    def new_tensor_4d(
+        ggml_type: GGML_TYPE = GGML_TYPE.F32,
+        ne0: int = 0,
+        ne1: int = 0,
+        ne2: int = 0,
+        ne3: int = 0,
+        ctx: Optional[Context] = None,
+    ):
+        ctx = ctx or default_context()
+        tensor = ggml.ggml_new_tensor_4d(
+            ctx.context,
+            ctypes.c_int(ggml_type.value),
+            ctypes.c_int64(ne0),
+            ctypes.c_int64(ne1),
+            ctypes.c_int64(ne2),
+            ctypes.c_int64(ne3),
+        )
+        return Tensor(tensor=tensor, ctx=ctx)
+
+    @staticmethod
+    def new_i32(
+        value: int,
+        ctx: Optional[Context] = None,
+    ):
+        ctx = ctx or default_context()
+        tensor = ggml.ggml_new_i32(ctx.context, ctypes.c_int32(value))
+        return Tensor(tensor=tensor, ctx=ctx)
+
+    @staticmethod
+    def new_f32(
+        value: float,
+        ctx: Optional[Context] = None,
+    ):
+        ctx = ctx or default_context()
+        tensor = ggml.ggml_new_f32(ctx.context, ctypes.c_float(value))
+        return Tensor(tensor=tensor, ctx=ctx)
 
     @staticmethod
     def dup_tensor(a: "Tensor", ctx: Optional[Context] = None):
@@ -523,37 +653,41 @@ class Tensor:
         )
         return Tensor(tensor=op, ctx=ctx)
 
-    def cpy(self, a: "Tensor", b: "Tensor", ctx: Optional[Context] = None):
+    @staticmethod
+    def cpy(a: "Tensor", b: "Tensor", ctx: Optional[Context] = None):
         ctx = ctx or default_context()
         op = ggml.ggml_cpy(ctx.context, a.tensor, b.tensor)
         return Tensor(tensor=op, ctx=ctx)
 
-    def cont(self, a: "Tensor", ctx: Optional[Context] = None):
+    @staticmethod
+    def cont(a: "Tensor", ctx: Optional[Context] = None):
         ctx = ctx or default_context()
         op = ggml.ggml_cont(ctx.context, a.tensor)
         return Tensor(tensor=op, ctx=ctx)
 
-    def reshape(self, a: "Tensor", b: "Tensor", ctx: Optional[Context] = None):
+    @staticmethod
+    def reshape(a: "Tensor", b: "Tensor", ctx: Optional[Context] = None):
         ctx = ctx or default_context()
         op = ggml.ggml_reshape(ctx.context, a.tensor, b.tensor)
         return Tensor(tensor=op, ctx=ctx)
 
-    def reshape_1d(self, a: "Tensor", ne0: int, ctx: Optional[Context] = None):
+    @staticmethod
+    def reshape_1d(a: "Tensor", ne0: int, ctx: Optional[Context] = None):
         ctx = ctx or default_context()
         op = ggml.ggml_reshape_1d(ctx.context, a.tensor, ctypes.c_int64(ne0))
         return Tensor(tensor=op, ctx=ctx)
 
-    def reshape_2d(
-        self, a: "Tensor", ne0: int, ne1: int, ctx: Optional[Context] = None
-    ):
+    @staticmethod
+    def reshape_2d(a: "Tensor", ne0: int, ne1: int, ctx: Optional[Context] = None):
         ctx = ctx or default_context()
         op = ggml.ggml_reshape_2d(
             ctx.context, a.tensor, ctypes.c_int64(ne0), ctypes.c_int64(ne1)
         )
         return Tensor(tensor=op, ctx=ctx)
 
+    @staticmethod
     def reshape_3d(
-        self, a: "Tensor", ne0: int, ne1: int, ne2: int, ctx: Optional[Context] = None
+        a: "Tensor", ne0: int, ne1: int, ne2: int, ctx: Optional[Context] = None
     ):
         ctx = ctx or default_context()
         op = ggml.ggml_reshape_3d(
@@ -565,8 +699,8 @@ class Tensor:
         )
         return Tensor(tensor=op, ctx=ctx)
 
+    @staticmethod
     def reshape_4d(
-        self,
         a: "Tensor",
         ne0: int,
         ne1: int,
@@ -928,6 +1062,10 @@ class Tensor:
         op = ggml.ggml_set_param(ctx.context, a.tensor)
         return Tensor(tensor=op, ctx=ctx)
 
+    @staticmethod
+    def ggml_ftype_to_ggml_type(ftype: int):
+        return GGML_TYPE(ggml.ggml_ftype_to_ggml_type(ctypes.c_int(ftype)))
+
 
 class CGraph:
     def __init__(self, cgraph: ggml.ggml_cgraph, ctx: Optional[Context] = None):
@@ -949,6 +1087,9 @@ class CGraph:
     def graph_export(self, fname: bytes):
         ggml.ggml_graph_export(ctypes.pointer(self.cgraph), fname)
 
+    def build_forward_expand(self, tensor: Tensor):
+        ggml.ggml_build_forward_expand(ctypes.pointer(self.cgraph), tensor.tensor)
+
     @staticmethod
     def print(a: "CGraph"):
         ggml.ggml_graph_print(ctypes.pointer(a.cgraph))
@@ -956,11 +1097,12 @@ class CGraph:
     @staticmethod
     def dump_dot(
         gb: "CGraph",
-        gf: "CGraph",
+        gf: Optional["CGraph"],
         filename: bytes,
     ):
+        gf_p = ctypes.pointer(gf.cgraph) if gf else None
         ggml.ggml_graph_dump_dot(
-            ctypes.pointer(gb.cgraph), ctypes.pointer(gf.cgraph), filename
+            ctypes.pointer(gb.cgraph), gf_p, filename  # type: ignore
         )
 
     @classmethod
@@ -986,39 +1128,4 @@ class CGraph:
                 fname, ctypes.pointer(ctx.context), ctypes.pointer(ctx.context)
             ),
             ctx=ctx,
-        )
-
-
-class OptType(enum.Enum):
-    ADAM = ggml.GGML_OPT_ADAM.value
-    LBFGS = ggml.GGML_OPT_LBFGS.value
-
-
-class OptResult(enum.Enum):
-    OK = ggml.GGML_OPT_OK.value
-    DID_NOT_CONVERGE = ggml.GGML_OPT_DID_NOT_CONVERGE.value
-    NO_CONTEXT = ggml.GGML_OPT_NO_CONTEXT.value
-    INVALID_WOLFE = ggml.GGML_OPT_INVALID_WOLFE.value
-    FAIL = ggml.GGML_OPT_FAIL.value
-    LINESEARCH_FAIL = ggml.GGML_LINESEARCH_FAIL.value
-    LINESEARCH_MINIMUM_STEP = ggml.GGML_LINESEARCH_MINIMUM_STEP.value
-    LINESEARCH_MAXIMUM_STEP = ggml.GGML_LINESEARCH_MAXIMUM_STEP.value
-    LINESEARCH_MAXIMUM_ITERATIONS = ggml.GGML_LINESEARCH_MAXIMUM_ITERATIONS.value
-    LINESEARCH_INVALID_PARAMETERS = ggml.GGML_LINESEARCH_INVALID_PARAMETERS.value
-
-
-class Optimizer:
-    def __init__(self, opt_params: ggml.ggml_opt_params, ctx: Optional[Context] = None):
-        self.opt_params = opt_params
-        self.ctx = ctx or default_context()
-
-    def opt(self, f: "Tensor"):
-        result = ggml.ggml_opt(self.ctx.context, self.opt_params, f.tensor)
-        return OptResult(result)
-
-    @classmethod
-    def default(cls, type: OptType = OptType.ADAM, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
-        return Optimizer(
-            opt_params=ggml.ggml_opt_default_params(ctypes.c_int(type.value)), ctx=ctx
         )
