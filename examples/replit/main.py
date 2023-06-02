@@ -101,34 +101,6 @@ class ReplitModel:
         tokens.appendleft(token_id)
         return list(tokens), score
 
-    @staticmethod
-    def sample_top_p_top_k(
-        logits: List[float],
-        top_p: float = 0.9,
-        top_k: int = 0,
-        temperature: float = 1.0,
-    ):
-        logits_array = np.asarray(logits, dtype=np.float32)
-        if temperature == 0.0:
-            return int(np.argmax(logits_array))
-        logits_array /= temperature
-        if top_k > 0:
-            indices_to_remove = logits_array < np.sort(logits_array)[-top_k]
-            logits_array[indices_to_remove] = -np.inf
-        if top_p > 0.0:
-            sorted_logits = np.sort(logits_array)[::-1]
-            sorted_indices = np.argsort(logits_array)[::-1]
-            cumulative_probs = np.cumsum(
-                np.exp(sorted_logits) / np.sum(np.exp(sorted_logits))
-            )
-            sorted_indices_to_remove = cumulative_probs > top_p
-            sorted_indices_to_remove[1:] = sorted_indices_to_remove[:-1]
-            sorted_indices_to_remove[0] = False
-            indices_to_remove = sorted_indices[sorted_indices_to_remove]
-            logits_array[indices_to_remove] = -np.inf
-        probs = np.exp(logits_array) / np.sum(np.exp(logits_array))
-        return np.random.choice(len(logits_array), p=probs)
-
     def tokenize(self, text: str) -> List[int]:
         ws_symbol = b"\342\226\201"
         piece_map = {piece: (i, -score) for i, piece, score in self.vocab}
@@ -657,7 +629,7 @@ if __name__ == "__main__":
         scores = model.eval(tokens, n_past, 6)
         # sample
         logits = scores[:, -1]
-        token_id = int(logits.argmax())
+        token_id = int(np.argmax(logits))
         # update
         all_tokens.append(token_id)
         print(model.detokenize([token_id]), end="", flush=True)
