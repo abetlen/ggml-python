@@ -3,6 +3,9 @@ all: build
 build:
 	python3 setup.py develop
 
+build.cuda:
+	CMAKE_ARGS="-DGGML_CUBLAS=On" python3 setup.py develop
+
 sdist:
 	python3 setup.py sdist
 
