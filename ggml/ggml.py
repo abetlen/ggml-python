@@ -399,7 +399,7 @@ ggml_tensor._fields_ = [
     ("perf_runs", ctypes.c_int),
     ("perf_cycles", ctypes.c_int64),
     ("perf_time_us", ctypes.c_int64),
-    ("data", ctypes.POINTER(ctypes.c_void_p)),
+    ("data", ctypes.c_void_p),
     ("name", ctypes.c_char * int(GGML_MAX_NAME.value)),
     ("padding", ctypes.c_char * 16),
 ]
@@ -450,7 +450,7 @@ class ggml_scratch(ctypes.Structure):
     _fields_ = [
         ("offs", ctypes.c_size_t),
         ("size", ctypes.c_size_t),
-        ("data", ctypes.POINTER(ctypes.c_void_p)),
+        ("data", ctypes.c_void_p),
     ]
 
 
@@ -463,7 +463,7 @@ class ggml_scratch(ctypes.Structure):
 class ggml_init_params(ctypes.Structure):
     _fields_ = [
         ("mem_size", ctypes.c_size_t),
-        ("mem_buffer", ctypes.POINTER(ctypes.c_void_p)),
+        ("mem_buffer", ctypes.c_void_p),
         ("no_alloc", ctypes.c_bool),
     ]
 
@@ -978,7 +978,7 @@ def ggml_get_data(
 
 
 lib.ggml_get_data.argtypes = [ctypes.POINTER(ggml_tensor)]
-lib.ggml_get_data.restype = ctypes.POINTER(ctypes.c_void_p)
+lib.ggml_get_data.restype = ctypes.c_void_p
 
 
 # GGML_API float * ggml_get_data_f32(const struct ggml_tensor * tensor);
