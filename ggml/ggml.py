@@ -248,9 +248,12 @@ GGML_FTYPE_MOSTLY_Q5_1 = ctypes.c_int(9)
 #     GGML_OP_CLAMP,
 #     GGML_OP_CONV_1D_1S_PH,
 #     GGML_OP_CONV_1D_2S_PH,
+#     GGML_OP_CONV_2D_SK_P0,
 
 #     GGML_OP_FLASH_ATTN,
 #     GGML_OP_FLASH_FF,
+#     GGML_OP_WIN_PART,
+#     GGML_OP_WIN_UNPART,
 
 #     GGML_OP_MAP_UNARY,
 #     GGML_OP_MAP_BINARY,
@@ -307,14 +310,17 @@ GGML_OP_ALIBI = ctypes.c_int(43)
 GGML_OP_CLAMP = ctypes.c_int(44)
 GGML_OP_CONV_1D_1S_PH = ctypes.c_int(45)
 GGML_OP_CONV_1D_2S_PH = ctypes.c_int(46)
+GGML_OP_CONV_2D_SK_P0 = ctypes.c_int(47)
 
-GGML_OP_FLASH_ATTN = ctypes.c_int(47)
-GGML_OP_FLASH_FF = ctypes.c_int(48)
+GGML_OP_FLASH_ATTN = ctypes.c_int(48)
+GGML_OP_FLASH_FF = ctypes.c_int(49)
+GGML_OP_WIN_PART = ctypes.c_int(50)
+GGML_OP_WIN_UNPART = ctypes.c_int(51)
 
-GGML_OP_MAP_UNARY = ctypes.c_int(49)
-GGML_OP_MAP_BINARY = ctypes.c_int(50)
+GGML_OP_MAP_UNARY = ctypes.c_int(52)
+GGML_OP_MAP_BINARY = ctypes.c_int(53)
 
-GGML_OP_COUNT = ctypes.c_int(51)
+GGML_OP_COUNT = ctypes.c_int(54)
 
 
 # struct ggml_object {
@@ -2410,6 +2416,31 @@ lib.ggml_conv_1d_s2_ph.argtypes = [
 ]
 lib.ggml_conv_1d_s2_ph.restype = ctypes.POINTER(ggml_tensor)
 
+# // kernel size is a->ne[0] x a->ne[1]
+# // stride is equal to kernel size
+# // padding is zero
+# // example:
+# // a:     16   16    3  768
+# // b:   1024 1024    3    1
+# // res:   64   64  768    1
+# // used in sam
+# GGML_API struct ggml_tensor * ggml_conv_2d_sk_p0(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b);
+def ggml_conv_2d_sk_p0(
+    ctx: ggml_context_p,
+    a,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+    b,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+):  # type: (...) -> ctypes._Pointer[ggml_tensor] # type: ignore
+    return lib.ggml_conv_2d_sk_p0(ctx, a, b)
+
+lib.ggml_conv_2d_sk_p0.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+]
+lib.ggml_conv_2d_sk_p0.restype = ctypes.POINTER(ggml_tensor)
 
 # GGML_API struct ggml_tensor * ggml_flash_attn(
 #         struct ggml_context * ctx,
@@ -2464,6 +2495,56 @@ lib.ggml_flash_ff.argtypes = [
     ctypes.POINTER(ggml_tensor),
 ]
 lib.ggml_flash_ff.restype = ctypes.POINTER(ggml_tensor)
+
+# // partition into non-overlapping windows with padding if needed
+# // example:
+# // a:   768   64   64    1
+# // w:    14
+# // res: 768   14   14    25
+# // used in sam
+# GGML_API struct ggml_tensor * ggml_win_part(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         int                   w);
+def ggml_win_part(
+    ctx: ggml_context_p,
+    a,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+    w: ctypes.c_int,
+):  # type: (...) -> ctypes._Pointer[ggml_tensor] # type: ignore
+    return lib.ggml_win_part(ctx, a, w)
+
+lib.ggml_win_part.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.c_int,
+]
+lib.ggml_win_part.restype = ctypes.POINTER(ggml_tensor)
+
+# // reverse of ggml_win_part
+# // used in sam
+# GGML_API struct ggml_tensor * ggml_win_unpart(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         int                   w0,
+#         int                   h0,
+#         int                   w);
+def ggml_win_unpart(
+    ctx: ggml_context_p,
+    a,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+    w0: ctypes.c_int,
+    h0: ctypes.c_int,
+    w: ctypes.c_int,
+):  # type: (...) -> ctypes._Pointer[ggml_tensor] # type: ignore
+    return lib.ggml_win_unpart(ctx, a, w0, h0, w)
+
+lib.ggml_win_unpart.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+]
+lib.ggml_win_unpart.restype = ctypes.POINTER(ggml_tensor)
 
 # // Mapping operations
 # typedef void (*ggml_unary_op_f32_t)(const int, float *, const float *);
