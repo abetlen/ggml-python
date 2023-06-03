@@ -3142,3 +3142,24 @@ def ggml_cpu_has_vsx() -> int:
 
 lib.ggml_cpu_has_vsx.argtypes = []
 lib.ggml_cpu_has_vsx.restype = ctypes.c_int
+
+# Cuda
+GGML_CUDA = hasattr(lib, "ggml_init_cublas")
+
+
+# void ggml_cuda_load_data(const char * fname, struct ggml_tensor * tensors, size_t offset);
+def ggml_cuda_load_data(
+    fname: bytes,
+    tensors,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+    offset: ctypes.c_size_t,
+):
+    return lib.ggml_cuda_load_data(fname, tensors, offset)
+
+
+if GGML_CUDA:
+    lib.ggml_cuda_load_data.argtypes = [
+        ctypes.c_char_p,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_size_t,
+    ]
+    lib.ggml_cuda_load_data.restype = None
