@@ -457,6 +457,8 @@ class ReplitModel:
             # Model Weights
             wtype = GGML_TYPE(ggml.ggml_ftype_to_ggml_type(ctypes.c_int(ftype.value)))
             wtype_sizef = ggml.ggml_type_sizef(ctypes.c_int(wtype.value))
+            f32_sizef = ggml.ggml_type_sizef(ctypes.c_int(GGML_TYPE.F32.value))
+            f16_sizef = ggml.ggml_type_sizef(ctypes.c_int(GGML_TYPE.F16.value))
 
             ctx_size = 0
 
@@ -467,31 +469,31 @@ class ReplitModel:
 
             # compute ctx size
             ctx_size += n_embd * n_vocab * wtype_sizef
-            ctx_size += n_embd * ggml.ggml_type_sizef(ggml.GGML_TYPE_F32)
+            ctx_size += n_embd * f32_sizef
 
-            ctx_size += n_layer * (n_embd * ggml.ggml_type_sizef(ggml.GGML_TYPE_F32))
+            ctx_size += n_layer * (n_embd * f32_sizef)
             ctx_size += n_layer * (3 * n_embd * n_embd * wtype_sizef)
             ctx_size += n_layer * (n_embd * n_embd * wtype_sizef)
-            ctx_size += n_layer * (n_embd * ggml.ggml_type_sizef(ggml.GGML_TYPE_F32))
+            ctx_size += n_layer * (n_embd * f32_sizef)
             ctx_size += n_layer * (4 * n_embd * n_embd * wtype_sizef)
             ctx_size += n_layer * (n_embd * n_embd * 4 * wtype_sizef)
 
-            ctx_size += (
-                n_ctx * n_layer * n_embd * ggml.ggml_type_sizef(ggml.GGML_TYPE_F16)
-            )
-            ctx_size += (
-                n_ctx * n_layer * n_embd * ggml.ggml_type_sizef(ggml.GGML_TYPE_F16)
-            )
+            ctx_size += n_ctx * n_layer * n_embd * f16_sizef
+            ctx_size += n_ctx * n_layer * n_embd * f16_sizef
 
             ctx_size += (1 + 6 * n_layer) * 512
             ctx_size = int(ctx_size)
 
-            # create context
-            init_params = InitParams(mem_size=ctx_size)
-            ctx = Context(init_params=init_params)
-
             if verbose:
-                print("ctx_size     =", ctx_size // (1024 * 1024), "MB")
+                print("ctx size     =", ctx_size // (1024 * 1024), "MB")
+
+            # create context
+            mem_buffer = np.empty(ctx_size, dtype=np.uint8)
+            init_params = InitParams(
+                mem_size=ctx_size,
+                mem_buffer=mem_buffer.ctypes.data_as(ctypes.c_void_p),
+            )
+            ctx = Context(init_params=init_params)
 
             hparams = MPTParams(
                 d_model=d_model,
@@ -561,7 +563,7 @@ class ReplitModel:
             n_tensors = 0
             total_size = 0
 
-            while fin.readable():
+            while True:
                 nbytes = struct.calcsize("iii")
                 data = fin.read(nbytes)
                 if len(data) != nbytes:
@@ -597,15 +599,22 @@ class ReplitModel:
                     raise ValueError(
                         f"Tensor {name} has {ggml.ggml_nbytes(tensor.tensor)} bytes, but {(nelements * bpe) / ggml.ggml_blck_size(tensor.tensor.contents.type)} expected"
                     )
-                tensor.set_data(fin.read(tensor.nbytes()))
+                buf = (ctypes.c_char * tensor.nbytes()).from_address(tensor.data)
+                fin.readinto(buf)
 
                 total_size += tensor.nbytes()
-                n_tensors += 1
                 if n_tensors % 8 == 0:
                     print(".", end="", flush=True)
+                n_tensors += 1
             print("done")
-            print("model size =", total_size // (1024 * 1024), "MB", "num tensors =", n_tensors)
-        
+            print(
+                "model size =",
+                total_size // (1024 * 1024),
+                "MB",
+                "num tensors =",
+                n_tensors,
+            )
+
         return model
 
 
