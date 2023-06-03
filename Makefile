@@ -1,10 +1,15 @@
+submodules = vendor/ggml
+
 all: build
 
-build:
-	python3 setup.py develop
+${submodules}:
+	git submodule update --init --recursive
 
-build.cuda:
-	CMAKE_ARGS="-DGGML_CUBLAS=On" python3 setup.py develop
+build: ${submodules}
+	python3 -m pip install --verbose --editable .
+
+build.cuda: ${submodules}
+	CMAKE_ARGS="-DGGML_CUBLAS=On" python3 -m pip install --verbose --editable .
 
 sdist:
 	python3 setup.py sdist
@@ -19,7 +24,7 @@ clean:
 	- rm -rf _skbuild
 	- rm -rf dist
 	- rm ggml/*.{so,dll,dylib}
-	- rm vendor/ggml/*.{so,dll,dylib}
-	- cd vendor/ggml && make clean
+	- rm ${submodules}/*.{so,dll,dylib}
+	- cd ${submodules} && make clean
 
 .PHONY: all build sdist deploy test clean
