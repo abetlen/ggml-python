@@ -127,11 +127,12 @@ class ReplitModel:
         n_vocab = self.hparams.vocab_size
 
         buf_size = 256 * 1024 * 1024
-        buf = (ctypes.c_char * buf_size)()
+        if not hasattr(self, "buf"):
+            self.buf = (ctypes.c_char * buf_size)()
 
         init_params = InitParams(
             mem_size=buf_size,
-            mem_buffer=ctypes.c_void_p(ctypes.addressof(buf)),
+            mem_buffer=ctypes.c_void_p(ctypes.addressof(self.buf)),
             no_alloc=False,
         )
         ctx0 = Context(init_params=init_params)
