@@ -9,6 +9,7 @@ https://github.com/ggerganov/ggml/tree/master/examples/replit
 import math
 import struct
 import ctypes
+import argparse
 from collections import deque
 from dataclasses import dataclass
 from typing import Deque, List, Tuple, Dict
@@ -636,10 +637,22 @@ class ReplitModel:
 
 
 if __name__ == "__main__":
-    model_file = "../../models/replit-code-v1-3b-q4_0.bin"
-    model = ReplitModel.init_from_file(model_file, n_gpu_layers=32)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-m", "--model", type=str, default=None)
+    parser.add_argument("-p", "--prompt", type=str, default="def fib(n):")
+    parser.add_argument("--n_threads", type=int, default=1)
+    parser.add_argument("--n_gpu_layers", type=int, default=0)
+    parser.add_argument("--max_tokens", type=int, default=32)
+    parser.add_argument("-q", "--queiet", action="store_true", default=False)
+    args = parser.parse_args()
 
-    prompt = "def fib(n):"
+    model_file = args.model
+    n_threads = args.n_threads
+    n_gpu_layers = args.n_gpu_layers
+
+    model = ReplitModel.init_from_file(model_file, n_gpu_layers=n_gpu_layers)
+
+    prompt = args.prompt
     prompt_tokens = model.tokenize(prompt)
     all_tokens: List[int] = prompt_tokens[:]  # type: ignore
     n_past = 0
@@ -653,7 +666,7 @@ if __name__ == "__main__":
     print(prompt, end="", flush=True)
     for i in range(32):
         # eval
-        scores = model.eval(tokens, n_past, 6)
+        scores = model.eval(tokens, n_past, n_threads)
         # sample
         logits = scores[:, -1]
         token_id = int(np.argmax(logits))
