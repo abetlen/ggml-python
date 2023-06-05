@@ -640,6 +640,8 @@ if __name__ == "__main__":
         # sample
         logits = scores[:, -1]
         token_id = int(np.argmax(logits))
+        if token_id == 1:
+            break
         # update
         all_tokens.append(token_id)
         print(model.detokenize([token_id]), end="", flush=True)
