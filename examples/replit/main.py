@@ -423,7 +423,7 @@ class ReplitModel:
         return embd_w
 
     @staticmethod
-    def init_from_file(model_file: str, verbose: bool = True) -> "ReplitModel":
+    def init_from_file(model_file: str, n_gpu_layers: int = 0, verbose: bool = True) -> "ReplitModel":
         verbose = True
 
         with open(model_file, "rb") as fin:
@@ -599,8 +599,25 @@ class ReplitModel:
                     raise ValueError(
                         f"Tensor {name} has {ggml.ggml_nbytes(tensor.tensor)} bytes, but {(nelements * bpe) / ggml.ggml_blck_size(tensor.tensor.contents.type)} expected"
                     )
+                offset = fin.tell()
+                fname = fin.name.encode("utf-8")
                 buf = (ctypes.c_char * tensor.nbytes()).from_address(tensor.data)
                 fin.readinto(buf)
+                # TODO: figure out why offloading norm layers causes segfault
+                should_offload_suffix = [
+                    # "norm_1.weight",
+                    "attn.Wqkv.weight",
+                    "attn.out_proj.weight",
+                    # "norm_2.weight",
+                    "ffn.up_proj.weight",
+                    "ffn.down_proj.weight",
+                ]
+                if name.startswith("transformer.blocks.") and any(name.endswith(suffix) for suffix in should_offload_suffix):
+                    layer_number = int(name.split(".")[2])
+                    if layer_number >= n_gpu_layers:
+                        continue
+                    tensor.tensor.contents.backend = ggml.GGML_BACKEND_CUDA.value
+                    ggml.ggml_cuda_load_data(fname, tensor.tensor, ctypes.c_size_t(offset))
 
                 total_size += tensor.nbytes()
                 if n_tensors % 8 == 0:
@@ -619,8 +636,8 @@ class ReplitModel:
 
 
 if __name__ == "__main__":
-    model_file = "../../models/replit-code-v1-3b/ggml-model-q4_0.bin"
-    model = ReplitModel.init_from_file(model_file)
+    model_file = "../../models/replit-code-v1-3b-q4_0.bin"
+    model = ReplitModel.init_from_file(model_file, n_gpu_layers=32)
 
     prompt = "def fib(n):"
     prompt_tokens = model.tokenize(prompt)
