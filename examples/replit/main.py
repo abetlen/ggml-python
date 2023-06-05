@@ -9,6 +9,7 @@ https://github.com/ggerganov/ggml/tree/master/examples/replit
 import math
 import struct
 import ctypes
+import argparse
 from collections import deque
 from dataclasses import dataclass
 from typing import Deque, List, Tuple, Dict
@@ -619,7 +620,16 @@ class ReplitModel:
 
 
 if __name__ == "__main__":
-    model_file = "../../models/replit-code-v1-3b/ggml-model-q4_0.bin"
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-m", "--model", type=str, default=None)
+    parser.add_argument("--n_threads", type=int, default=1)
+    parser.add_argument("--max_tokens", type=int, default=32)
+    parser.add_argument("-q", "--queiet", action="store_true", default=False)
+    args = parser.parse_args()
+
+    model_file = args.model
+    n_threads = args.n_threads
+
     model = ReplitModel.init_from_file(model_file)
 
     prompt = "def fib(n):"
@@ -636,7 +646,7 @@ if __name__ == "__main__":
     print(prompt, end="", flush=True)
     for i in range(32):
         # eval
-        scores = model.eval(tokens, n_past, 6)
+        scores = model.eval(tokens, n_past, n_threads)
         # sample
         logits = scores[:, -1]
         token_id = int(np.argmax(logits))
