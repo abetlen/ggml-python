@@ -2416,6 +2416,7 @@ lib.ggml_conv_1d_s2_ph.argtypes = [
 ]
 lib.ggml_conv_1d_s2_ph.restype = ctypes.POINTER(ggml_tensor)
 
+
 # // kernel size is a->ne[0] x a->ne[1]
 # // stride is equal to kernel size
 # // padding is zero
@@ -2435,12 +2436,14 @@ def ggml_conv_2d_sk_p0(
 ):  # type: (...) -> ctypes._Pointer[ggml_tensor] # type: ignore
     return lib.ggml_conv_2d_sk_p0(ctx, a, b)
 
+
 lib.ggml_conv_2d_sk_p0.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_tensor),
     ctypes.POINTER(ggml_tensor),
 ]
 lib.ggml_conv_2d_sk_p0.restype = ctypes.POINTER(ggml_tensor)
+
 
 # GGML_API struct ggml_tensor * ggml_flash_attn(
 #         struct ggml_context * ctx,
@@ -2496,6 +2499,7 @@ lib.ggml_flash_ff.argtypes = [
 ]
 lib.ggml_flash_ff.restype = ctypes.POINTER(ggml_tensor)
 
+
 # // partition into non-overlapping windows with padding if needed
 # // example:
 # // a:   768   64   64    1
@@ -2513,12 +2517,14 @@ def ggml_win_part(
 ):  # type: (...) -> ctypes._Pointer[ggml_tensor] # type: ignore
     return lib.ggml_win_part(ctx, a, w)
 
+
 lib.ggml_win_part.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_tensor),
     ctypes.c_int,
 ]
 lib.ggml_win_part.restype = ctypes.POINTER(ggml_tensor)
+
 
 # // reverse of ggml_win_part
 # // used in sam
@@ -2536,6 +2542,7 @@ def ggml_win_unpart(
     w: ctypes.c_int,
 ):  # type: (...) -> ctypes._Pointer[ggml_tensor] # type: ignore
     return lib.ggml_win_unpart(ctx, a, w0, h0, w)
+
 
 lib.ggml_win_unpart.argtypes = [
     ggml_context_p,
@@ -2569,7 +2576,7 @@ ggml_binary_op_f32_t = ctypes.CFUNCTYPE(
 def ggml_map_unary_f32(
     ctx: ggml_context_p,
     a,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
-    fun, # type: ctypes._CFuncPtr # type: ignore
+    fun,  # type: ctypes._CFuncPtr # type: ignore
 ):  # type: (...) -> ctypes._Pointer[ggml_tensor] # type: ignore
     return lib.ggml_map_unary_f32(ctx, a, fun)
 
@@ -3223,3 +3230,24 @@ def ggml_cpu_has_vsx() -> int:
 
 lib.ggml_cpu_has_vsx.argtypes = []
 lib.ggml_cpu_has_vsx.restype = ctypes.c_int
+
+# Cuda
+GGML_CUDA = hasattr(lib, "ggml_init_cublas")
+
+
+# void ggml_cuda_load_data(const char * fname, struct ggml_tensor * tensors, size_t offset);
+def ggml_cuda_load_data(
+    fname: bytes,
+    tensors,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+    offset: ctypes.c_size_t,
+):
+    return lib.ggml_cuda_load_data(fname, tensors, offset)
+
+
+if GGML_CUDA:
+    lib.ggml_cuda_load_data.argtypes = [
+        ctypes.c_char_p,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_size_t,
+    ]
+    lib.ggml_cuda_load_data.restype = None
