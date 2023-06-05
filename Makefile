@@ -8,6 +8,9 @@ ${submodules}:
 build: ${submodules}
 	python3 -m pip install --verbose --editable .
 
+build.openblas: ${submodules}
+	CMAKE_ARGS="-DGGML_OPENBLAS=On" python3 -m pip install --verbose --editable .
+
 build.cuda: ${submodules}
 	CMAKE_ARGS="-DGGML_CUBLAS=On" python3 -m pip install --verbose --editable .
 
