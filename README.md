@@ -40,3 +40,7 @@ If you are having trouble installing `ggml-python` or activating specific featur
 ```bash
 [options] pip install ggml-python --verbose --no-cache-dir --force-reinstall --upgrade
 ```
+
+# License
+
+This project is licensed under the terms of the MIT license.
