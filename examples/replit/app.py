@@ -98,7 +98,7 @@ class CreateCompletionRequest(BaseModel):
         }
 
 
-settings = Settings() # type: ignore
+settings = Settings()  # type: ignore
 app = FastAPI()
 model = ReplitModel.init_from_file(
     model_file=settings.model_file, n_gpu_layers=settings.n_gpu_layers
@@ -149,11 +149,15 @@ async def create_completion(
     if body.stream:
         send_chan, recv_chan = anyio.create_memory_object_stream(10)
 
-        async def event_publisher(inner_send_chan: MemoryObjectSendStream[Dict[str, Union[str, bool]]]):
+        async def event_publisher(
+            inner_send_chan: MemoryObjectSendStream[Dict[str, Union[str, bool]]]
+        ):
             async with inner_send_chan:
                 try:
                     iterator: Iterator[CompletionChunk] = await run_in_threadpool(model.create_completion, **kwargs)  # type: ignore
-                    async_iterator: AsyncIterator[CompletionChunk] = iterate_in_threadpool(iterator)
+                    async_iterator: AsyncIterator[
+                        CompletionChunk
+                    ] = iterate_in_threadpool(iterator)
                     async for chunk in async_iterator:
                         await inner_send_chan.send(dict(data=json.dumps(chunk)))
                         if await request.is_disconnected():
