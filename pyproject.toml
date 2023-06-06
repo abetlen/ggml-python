@@ -1,8 +1,37 @@
 [build-system]
 requires = [
-    "setuptools>=42",
-    "scikit-build>=0.13",
+    "scikit-build-core>=0.4.4",
     "cmake>=3.18",
     "ninja",
 ]
-build-backend = "setuptools.build_meta"
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "ggml_python"
+version = "0.0.4"
+description = "Python bindings for ggml"
+readme = "README.md"
+license = { file = "LICENSE.md" }
+authors = [
+    { name = "Andrei Betlen", email = "abetlen@gmail.com" },
+]
+requires-python = ">=3.7"
+dependencies = [
+    "numpy>=1.20.0",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
+[tool.scikit-build]
+wheel.packages = ["ggml"]
+wheel.expand-macos-universal-tags = true
+cmake.verbose = true
+
+[project.optional-dependencies]
+test = ["pytest"]
