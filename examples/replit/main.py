@@ -424,7 +424,9 @@ class ReplitModel:
         return embd_w
 
     @staticmethod
-    def init_from_file(model_file: str, n_gpu_layers: int = 0, verbose: bool = True) -> "ReplitModel":
+    def init_from_file(
+        model_file: str, n_gpu_layers: int = 0, verbose: bool = True
+    ) -> "ReplitModel":
         verbose = True
 
         with open(model_file, "rb") as fin:
@@ -613,12 +615,16 @@ class ReplitModel:
                     "ffn.up_proj.weight",
                     "ffn.down_proj.weight",
                 ]
-                if name.startswith("transformer.blocks.") and any(name.endswith(suffix) for suffix in should_offload_suffix):
+                if name.startswith("transformer.blocks.") and any(
+                    name.endswith(suffix) for suffix in should_offload_suffix
+                ):
                     layer_number = int(name.split(".")[2])
                     if layer_number >= n_gpu_layers:
                         continue
                     tensor.tensor.contents.backend = ggml.GGML_BACKEND_CUDA.value
-                    ggml.ggml_cuda_load_data(fname, tensor.tensor, ctypes.c_size_t(offset))
+                    ggml.ggml_cuda_load_data(
+                        fname, tensor.tensor, ctypes.c_size_t(offset)
+                    )
 
                 total_size += tensor.nbytes()
                 if n_tensors % 8 == 0:
