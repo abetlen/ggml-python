@@ -690,6 +690,8 @@ class ReplitModel:
         )
         model_name: str = model if model is not None else "replit-code-v1-3b"
 
+        # Truncate prompt if it is too long
+        max_tokens = min(max_tokens, max(0, self.max_seq_len - len(prompt_tokens)))
         if len(prompt_tokens) + max_tokens > self.max_seq_len:
             raise ValueError(
                 f"Requested tokens exceed context window of {self.max_seq_len}"

@@ -2,7 +2,7 @@ import json
 import multiprocessing
 from functools import partial
 from threading import Lock
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Iterator, AsyncIterator
 
 from main import ReplitModel, Completion, CompletionChunk
 
@@ -98,11 +98,17 @@ class CreateCompletionRequest(BaseModel):
         }
 
 
-settings = Settings()
+settings = Settings() # type: ignore
 app = FastAPI()
 model = ReplitModel.init_from_file(
     model_file=settings.model_file, n_gpu_layers=settings.n_gpu_layers
 )
+model_lock = Lock()
+
+
+def get_model():
+    with model_lock:
+        yield model
 
 
 # Used to support copilot.vim
@@ -114,11 +120,6 @@ def get_copilot_token():
 
 CreateCompletionResponse = create_model_from_typeddict(Completion)
 
-lock = Lock()
-
-def get_model():
-    with lock:
-        yield model
 
 # Used to support copilot.vim
 @app.post(
@@ -132,7 +133,7 @@ def get_model():
 async def create_completion(
     request: Request,
     body: CreateCompletionRequest,
-    model: ReplitModel = Depends(get_model)
+    model: ReplitModel = Depends(get_model),
 ):
     if isinstance(body.prompt, list):
         assert len(body.prompt) <= 1
@@ -148,11 +149,12 @@ async def create_completion(
     if body.stream:
         send_chan, recv_chan = anyio.create_memory_object_stream(10)
 
-        async def event_publisher(inner_send_chan: MemoryObjectSendStream):
+        async def event_publisher(inner_send_chan: MemoryObjectSendStream[Dict[str, Union[str, bool]]]):
             async with inner_send_chan:
                 try:
                     iterator: Iterator[CompletionChunk] = await run_in_threadpool(model.create_completion, **kwargs)  # type: ignore
-                    async for chunk in iterate_in_threadpool(iterator):
+                    async_iterator: AsyncIterator[CompletionChunk] = iterate_in_threadpool(iterator)
+                    async for chunk in async_iterator:
                         await inner_send_chan.send(dict(data=json.dumps(chunk)))
                         if await request.is_disconnected():
                             raise anyio.get_cancelled_exc_class()()
