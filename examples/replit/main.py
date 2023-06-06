@@ -642,6 +642,76 @@ class ReplitModel:
         return model
 
 
+def sample(
+    logits: np.ndarray,
+    last_tokens: List[int] = [],
+    presence_penalty: float = 0.0,
+    frequency_penalty: float = 0.0,
+    temperature: float = 1.0,
+    top_p: float = 0.0,
+) -> int:
+    if temperature == 0.0:
+        return np.argmax(logits)
+    logits = frequency_and_presence_penalties(
+        logits, last_tokens, frequency_penalty, presence_penalty
+    )
+    return nucleus_sampling(logits, p=top_p, temperature=temperature)
+
+# TODO: this is likely incorrect
+def frequency_and_presence_penalties(
+    logits, last_tokens, alpha_frequency, alpha_presence
+):
+    if len(last_tokens) == 0:
+        return logits
+
+    if alpha_frequency == 0.0 and alpha_presence == 0.0:
+        return logits
+    # Calculate the frequency penalty contribution
+    frequency_penalty = alpha_frequency * np.log(last_tokens.count(None) + 1)
+
+    # Calculate the presence penalty contribution
+    presence_penalty = alpha_presence * np.array(
+        [float(token is not None) for token in last_tokens]
+    )
+
+    # Apply penalties to the logits
+    penalized_logits = logits - frequency_penalty - presence_penalty
+
+    return penalized_logits
+
+
+def nucleus_sampling(logits, p, temperature=1.0):
+    # Apply temperature to logits
+    logits /= temperature
+
+    # Subtract the maximum value for numerical stability
+    logits -= np.max(logits)
+
+    # Calculate probabilities using softmax function with epsilon
+    epsilon = 1e-8
+    probabilities = np.exp(logits) / (np.sum(np.exp(logits)) + epsilon)
+
+    # Filter out NaN values from probabilities
+    probabilities = np.nan_to_num(probabilities)
+
+    # Sort the probabilities in descending order and get the corresponding indices
+    sorted_indices = np.argsort(probabilities)[::-1]
+
+    # Select the indices within the nucleus
+    nucleus_indices = sorted_indices[: int(len(sorted_indices) * p)]
+
+    # Calculate the updated probabilities within the nucleus
+    nucleus_probabilities = probabilities[nucleus_indices]
+
+    # Normalize the probabilities within the nucleus
+    nucleus_probabilities /= np.sum(nucleus_probabilities)
+
+    # Sample from the updated probabilities
+    selected_token = np.random.choice(nucleus_indices, p=nucleus_probabilities)
+
+    return selected_token
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-m", "--model", type=str, default=None)
@@ -675,7 +745,7 @@ if __name__ == "__main__":
         scores = model.eval(tokens, n_past, n_threads)
         # sample
         logits = scores[:, -1]
-        token_id = int(np.argmax(logits))
+        token_id = sample(logits, all_tokens, temperature=0.0, top_p=0.9)
         if token_id == 1:
             break
         # update
