@@ -657,6 +657,7 @@ def sample(
     )
     return nucleus_sampling(logits, p=top_p, temperature=temperature)
 
+
 # TODO: this is likely incorrect
 def frequency_and_presence_penalties(
     logits, last_tokens, alpha_frequency, alpha_presence
@@ -719,12 +720,21 @@ if __name__ == "__main__":
     parser.add_argument("--n_threads", type=int, default=1)
     parser.add_argument("--n_gpu_layers", type=int, default=0)
     parser.add_argument("--max_tokens", type=int, default=32)
+    parser.add_argument("--temperature", type=float, default=1.0)
+    parser.add_argument("--top_p", type=float, default=1.0)
+    parser.add_argument("--presence_penalty", type=float, default=0.0)
+    parser.add_argument("--frequency_penalty", type=float, default=0.0)
     parser.add_argument("-q", "--queiet", action="store_true", default=False)
     args = parser.parse_args()
 
     model_file = args.model
     n_threads = args.n_threads
     n_gpu_layers = args.n_gpu_layers
+    max_tokens = args.max_tokens
+    temperature = args.temperature
+    top_p = args.top_p
+    presence_penalty = args.presence_penalty
+    frequency_penalty = args.frequency_penalty
 
     model = ReplitModel.init_from_file(model_file, n_gpu_layers=n_gpu_layers)
 
@@ -740,12 +750,19 @@ if __name__ == "__main__":
 
     print()
     print(prompt, end="", flush=True)
-    for i in range(32):
+    for i in range(max_tokens):
         # eval
         scores = model.eval(tokens, n_past, n_threads)
         # sample
         logits = scores[:, -1]
-        token_id = sample(logits, all_tokens, temperature=0.0, top_p=0.9)
+        token_id = sample(
+            logits,
+            last_tokens=all_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            presence_penalty=presence_penalty,
+            frequency_penalty=frequency_penalty,
+        )
         if token_id == 1:
             break
         # update
