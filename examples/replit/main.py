@@ -10,6 +10,7 @@ import math
 import struct
 import ctypes
 import argparse
+import multiprocessing
 from collections import deque
 from dataclasses import dataclass
 from typing import Deque, List, Sequence, Tuple, Dict
@@ -656,7 +657,7 @@ def sample(
     top_p: float = 0.0,
 ) -> int:
     if temperature == 0.0:
-        return np.argmax(logits)
+        return int(np.argmax(logits))
     logits = frequency_and_presence_penalties(
         logits, last_tokens, frequency_penalty, presence_penalty
     )
@@ -675,12 +676,13 @@ def frequency_and_presence_penalties(
 
     if alpha_frequency == 0.0 and alpha_presence == 0.0:
         return logits
+
     # Calculate the frequency penalty contribution
-    frequency_penalty = alpha_frequency * np.log(last_tokens.count(None) + 1)
+    frequency_penalty = alpha_frequency * np.log(np.unique(last_tokens).size + 1)
 
     # Calculate the presence penalty contribution
     presence_penalty = alpha_presence * np.array(
-        [float(token is not None) for token in last_tokens]
+        [float(token in last_tokens) for token in range(len(logits))]
     )
 
     # Apply penalties to the logits
@@ -696,11 +698,11 @@ def nucleus_sampling(
     logits /= temperature
 
     # Subtract the maximum value for numerical stability
-    logits -= np.max(logits)
+    logits -= np.max(logits)  # type: ignore
 
     # Calculate probabilities using softmax function with epsilon
     epsilon = 1e-8
-    probabilities = np.exp(logits) / (np.sum(np.exp(logits)) + epsilon)
+    probabilities = np.exp(logits) / (np.sum(np.exp(logits)) + epsilon)  # type: ignore
 
     # Filter out NaN values from probabilities
     probabilities = np.nan_to_num(probabilities)
@@ -727,7 +729,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-m", "--model", type=str, default=None)
     parser.add_argument("-p", "--prompt", type=str, default="def fib(n):")
-    parser.add_argument("--n_threads", type=int, default=1)
+    parser.add_argument("--n_threads", type=int, default=max(1, multiprocessing.cpu_count() // 2))
     parser.add_argument("--n_gpu_layers", type=int, default=0)
     parser.add_argument("--max_tokens", type=int, default=32)
     parser.add_argument("--temperature", type=float, default=1.0)
