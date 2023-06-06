@@ -12,7 +12,6 @@ import ctypes
 import argparse
 import multiprocessing
 from collections import deque
-from dataclasses import dataclass
 from typing import Deque, List, Sequence, Tuple, Dict
 
 import numpy as np
@@ -22,46 +21,86 @@ import ggml
 from ggml.experimental import GGML_FTYPE, Context, InitParams, Tensor, GGML_TYPE, CGraph
 
 
-@dataclass
-class MPTParams:
-    d_model: int
-    max_seq_len: int
-    n_heads: int
-    n_layers: int
-    vocab_size: int
-    ftype: int
-
-
-@dataclass
 class ReplitLayer:
-    # pre normalization
-    ln_1_weight: Tensor
-    # attention
-    c_attn_wqkv_weight: Tensor
-    c_attn_out_proj_weight: Tensor
-    # post normalization
-    ln_2_weight: Tensor
-    # ff
-    c_mlp_mlp_up_weight: Tensor
-    c_mlp_mlp_down_weight: Tensor
+    def __init__(self, wtype: GGML_TYPE, n_embd: int, ctx: Context):
+        self.ln_1_weight = Tensor.new_tensor_1d(GGML_TYPE.F32, n_embd, ctx=ctx)
+        self.c_attn_wqkv_weight = Tensor.new_tensor_2d(
+            wtype, n_embd, 3 * n_embd, ctx=ctx
+        )
+        self.c_attn_out_proj_weight = Tensor.new_tensor_2d(
+            wtype, n_embd, n_embd, ctx=ctx
+        )
+        self.ln_2_weight = Tensor.new_tensor_1d(GGML_TYPE.F32, n_embd, ctx=ctx)
+        self.c_mlp_mlp_up_weight = Tensor.new_tensor_2d(
+            wtype, n_embd, 4 * n_embd, ctx=ctx
+        )
+        self.c_mlp_mlp_down_weight = Tensor.new_tensor_2d(
+            wtype, 4 * n_embd, n_embd, ctx=ctx
+        )
 
 
-@dataclass
 class ReplitModel:
-    hparams: MPTParams
-    wte_weight: Tensor
-    ln_f_weight: Tensor
+    def __init__(
+        self,
+        d_model: int,
+        max_seq_len: int,
+        n_heads: int,
+        n_layers: int,
+        vocab_size: int,
+        ftype: int,
+        vocab: List[Tuple[int, str, float]],
+        ctx: Context,
+    ):
+        self.d_model = d_model
+        self.max_seq_len = max_seq_len
+        self.n_heads = n_heads
+        self.n_layers = n_layers
+        self.vocab_size = vocab_size
+        self.ftype = ftype
+        self.ctx = ctx
+        self.layers: List[ReplitLayer] = []
+        self.tensors: Dict[str, Tensor] = {}
+        self.vocab = vocab
 
-    layers: List[ReplitLayer]
+        n_layer = self.n_layers
+        n_embd = self.d_model
+        n_ctx = self.max_seq_len
+        n_vocab = self.vocab_size
+        wtype = GGML_TYPE(ggml.ggml_ftype_to_ggml_type(ctypes.c_int(ftype)))
 
-    # key + value memory
-    memory_k: Tensor
-    memory_v: Tensor
+        n_mem = n_layer * n_ctx
+        n_elements = n_embd * n_mem
 
-    ctx: Context
-    tensors: Dict[str, Tensor]
+        self.memory_k = Tensor.new_tensor_1d(GGML_TYPE.F16, n_elements, ctx=ctx)
+        self.memory_v = Tensor.new_tensor_1d(GGML_TYPE.F16, n_elements, ctx=ctx)
 
-    vocab: List[Tuple[int, str, float]]
+        self.wte_weight = Tensor.new_tensor_2d(wtype, n_embd, n_vocab, ctx=ctx)
+        self.ln_f_weight = Tensor.new_tensor_1d(GGML_TYPE.F32, n_embd, ctx=ctx)
+        self.tensors["transformer.wte.weight"] = self.wte_weight
+        self.tensors["transformer.norm_f.weight"] = self.ln_f_weight
+
+        for i in range(n_layer):
+            layer = ReplitLayer(
+                wtype=wtype,
+                n_embd=n_embd,
+                ctx=ctx,
+            )
+            self.layers.append(layer)
+
+            self.tensors[f"transformer.blocks.{i}.norm_1.weight"] = layer.ln_1_weight
+            self.tensors[
+                f"transformer.blocks.{i}.attn.Wqkv.weight"
+            ] = layer.c_attn_wqkv_weight
+            self.tensors[
+                f"transformer.blocks.{i}.attn.out_proj.weight"
+            ] = layer.c_attn_out_proj_weight
+            self.tensors[f"transformer.blocks.{i}.norm_2.weight"] = layer.ln_2_weight
+            self.tensors[
+                f"transformer.blocks.{i}.ffn.up_proj.weight"
+            ] = layer.c_mlp_mlp_up_weight
+            self.tensors[
+                f"transformer.blocks.{i}.ffn.down_proj.weight"
+            ] = layer.c_mlp_mlp_down_weight
 
     @staticmethod
     def encode_word(
@@ -120,14 +159,14 @@ class ReplitModel:
         detokenized = text.replace(ws_symbol.decode("utf-8"), " ")
         return detokenized
 
-    def eval(self, embd_inp: List[int], n_past: int, n_threads: int):
+    def _eval_internal(self, embd_inp: List[int], n_past: int, n_threads: int):
         N = len(embd_inp)
 
-        n_embd = self.hparams.d_model
-        n_layer = self.hparams.n_layers
-        n_ctx = self.hparams.max_seq_len
-        n_head = self.hparams.n_heads
-        n_vocab = self.hparams.vocab_size
+        n_embd = self.d_model
+        n_layer = self.n_layers
+        n_ctx = self.max_seq_len
+        n_head = self.n_heads
+        n_vocab = self.vocab_size
 
         buf_size = 256 * 1024 * 1024
         if not hasattr(self, "buf"):
@@ -465,33 +504,19 @@ class ReplitModel:
                 vocab.append((i, s, score))
             # Model Weights
             wtype = GGML_TYPE(ggml.ggml_ftype_to_ggml_type(ctypes.c_int(ftype.value)))
-            wtype_sizef = ggml.ggml_type_sizef(ctypes.c_int(wtype.value))
-            f32_sizef = ggml.ggml_type_sizef(ctypes.c_int(GGML_TYPE.F32.value))
-            f16_sizef = ggml.ggml_type_sizef(ctypes.c_int(GGML_TYPE.F16.value))
-
-            ctx_size = 0
 
             n_embd = d_model
             n_layer = n_layers
             n_ctx = max_seq_len
             n_vocab = vocab_size
 
-            # compute ctx size
-            ctx_size += n_embd * n_vocab * wtype_sizef
-            ctx_size += n_embd * f32_sizef
-
-            ctx_size += n_layer * (n_embd * f32_sizef)
-            ctx_size += n_layer * (3 * n_embd * n_embd * wtype_sizef)
-            ctx_size += n_layer * (n_embd * n_embd * wtype_sizef)
-            ctx_size += n_layer * (n_embd * f32_sizef)
-            ctx_size += n_layer * (4 * n_embd * n_embd * wtype_sizef)
-            ctx_size += n_layer * (n_embd * n_embd * 4 * wtype_sizef)
-
-            ctx_size += n_ctx * n_layer * n_embd * f16_sizef
-            ctx_size += n_ctx * n_layer * n_embd * f16_sizef
-
-            ctx_size += (1 + 6 * n_layer) * 512
-            ctx_size = int(ctx_size)
+            ctx_size = ReplitModel.compute_ctx_size(
+                n_embd=n_embd,
+                n_layer=n_layer,
+                n_ctx=n_ctx,
+                n_vocab=n_vocab,
+                wtype=wtype,
+            )
 
             if verbose:
                 print("ctx size     =", ctx_size // (1024 * 1024), "MB")
@@ -504,70 +529,18 @@ class ReplitModel:
             )
             ctx = Context(init_params=init_params)
 
-            hparams = MPTParams(
+            model = ReplitModel(
+                # hyperparameters
                 d_model=d_model,
                 max_seq_len=max_seq_len,
                 n_heads=n_heads,
                 n_layers=n_layers,
                 vocab_size=vocab_size,
                 ftype=ftype.value,
-            )
-
-            n_mem = n_layer * n_ctx
-            n_elements = n_embd * n_mem
-
-            model = ReplitModel(
-                hparams=hparams,
-                wte_weight=Tensor.new_tensor_2d(wtype, n_embd, n_vocab, ctx=ctx),
-                ln_f_weight=Tensor.new_tensor_1d(GGML_TYPE.F32, n_embd, ctx=ctx),
-                memory_k=Tensor.new_tensor_1d(GGML_TYPE.F16, n_elements, ctx=ctx),
-                memory_v=Tensor.new_tensor_1d(GGML_TYPE.F16, n_elements, ctx=ctx),
-                ctx=ctx,
-                layers=[],
-                tensors={},
+                # vocabulary
                 vocab=vocab,
+                ctx=ctx,
             )
-
-            model.tensors["transformer.wte.weight"] = model.wte_weight
-            model.tensors["transformer.norm_f.weight"] = model.ln_f_weight
-
-            for i in range(n_layer):
-                layer = ReplitLayer(
-                    ln_1_weight=Tensor.new_tensor_1d(GGML_TYPE.F32, n_embd, ctx=ctx),
-                    c_attn_wqkv_weight=Tensor.new_tensor_2d(
-                        wtype, n_embd, 3 * n_embd, ctx=ctx
-                    ),
-                    c_attn_out_proj_weight=Tensor.new_tensor_2d(
-                        wtype, n_embd, n_embd, ctx=ctx
-                    ),
-                    ln_2_weight=Tensor.new_tensor_1d(GGML_TYPE.F32, n_embd, ctx=ctx),
-                    c_mlp_mlp_up_weight=Tensor.new_tensor_2d(
-                        wtype, n_embd, 4 * n_embd, ctx=ctx
-                    ),
-                    c_mlp_mlp_down_weight=Tensor.new_tensor_2d(
-                        wtype, 4 * n_embd, n_embd, ctx=ctx
-                    ),
-                )
-                model.layers.append(layer)
-
-                model.tensors[
-                    f"transformer.blocks.{i}.norm_1.weight"
-                ] = layer.ln_1_weight
-                model.tensors[
-                    f"transformer.blocks.{i}.attn.Wqkv.weight"
-                ] = layer.c_attn_wqkv_weight
-                model.tensors[
-                    f"transformer.blocks.{i}.attn.out_proj.weight"
-                ] = layer.c_attn_out_proj_weight
-                model.tensors[
-                    f"transformer.blocks.{i}.norm_2.weight"
-                ] = layer.ln_2_weight
-                model.tensors[
-                    f"transformer.blocks.{i}.ffn.up_proj.weight"
-                ] = layer.c_mlp_mlp_up_weight
-                model.tensors[
-                    f"transformer.blocks.{i}.ffn.down_proj.weight"
-                ] = layer.c_mlp_mlp_down_weight
 
             n_tensors = 0
             total_size = 0
@@ -585,8 +558,6 @@ class ReplitModel:
                     ne[i] = dim
                     nelements *= ne[i]
                 name = fin.read(length).decode("utf-8")
-                # if verbose:
-                #     print(name, ne, ttype)
                 if name not in model.tensors:
                     raise ValueError(f"Tensor {name} not found in model")
                 tensor = model.tensors[name]
@@ -646,6 +617,36 @@ class ReplitModel:
             )
 
         return model
+
+    @staticmethod
+    def compute_ctx_size(
+        n_embd: int,
+        n_layer: int,
+        n_ctx: int,
+        n_vocab: int,
+        wtype: GGML_TYPE,
+    ) -> int:
+        wtype_sizef = ggml.ggml_type_sizef(ctypes.c_int(wtype.value))
+        f32_sizef = ggml.ggml_type_sizef(ctypes.c_int(GGML_TYPE.F32.value))
+        f16_sizef = ggml.ggml_type_sizef(ctypes.c_int(GGML_TYPE.F16.value))
+
+        ctx_size = 0
+        ctx_size += n_embd * n_vocab * wtype_sizef
+        ctx_size += n_embd * f32_sizef
+
+        ctx_size += n_layer * (n_embd * f32_sizef)
+        ctx_size += n_layer * (3 * n_embd * n_embd * wtype_sizef)
+        ctx_size += n_layer * (n_embd * n_embd * wtype_sizef)
+        ctx_size += n_layer * (n_embd * f32_sizef)
+        ctx_size += n_layer * (4 * n_embd * n_embd * wtype_sizef)
+        ctx_size += n_layer * (n_embd * n_embd * 4 * wtype_sizef)
+
+        ctx_size += n_ctx * n_layer * n_embd * f16_sizef
+        ctx_size += n_ctx * n_layer * n_embd * f16_sizef
+
+        ctx_size += (1 + 6 * n_layer) * 512
+        ctx_size = int(ctx_size)
+        return ctx_size
 
 
 def sample(
@@ -717,7 +718,7 @@ def nucleus_sampling(
     nucleus_probabilities = probabilities[nucleus_indices]
 
     # Normalize the probabilities within the nucleus
-    nucleus_probabilities /= np.sum(nucleus_probabilities)
+    nucleus_probabilities /= np.sum(nucleus_probabilities)  # type: ignore
 
     # Sample from the updated probabilities
     selected_token = np.random.choice(nucleus_indices, p=nucleus_probabilities)
@@ -729,14 +730,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-m", "--model", type=str, default=None)
     parser.add_argument("-p", "--prompt", type=str, default="def fib(n):")
-    parser.add_argument("--n_threads", type=int, default=max(1, multiprocessing.cpu_count() // 2))
+    parser.add_argument(
+        "--n_threads", type=int, default=max(1, multiprocessing.cpu_count() // 2)
+    )
     parser.add_argument("--n_gpu_layers", type=int, default=0)
     parser.add_argument("--max_tokens", type=int, default=32)
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--top_p", type=float, default=1.0)
     parser.add_argument("--presence_penalty", type=float, default=0.0)
     parser.add_argument("--frequency_penalty", type=float, default=0.0)
-    parser.add_argument("-q", "--queiet", action="store_true", default=False)
     args = parser.parse_args()
 
     model_file = args.model
@@ -764,7 +766,7 @@ if __name__ == "__main__":
     print(prompt, end="", flush=True)
     for i in range(max_tokens):
         # eval
-        scores = model.eval(tokens, n_past, n_threads)
+        scores = model._eval_internal(tokens, n_past, n_threads)
         # sample
         logits = scores[:, -1]
         token_id = sample(
