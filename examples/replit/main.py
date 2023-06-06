@@ -12,9 +12,10 @@ import ctypes
 import argparse
 from collections import deque
 from dataclasses import dataclass
-from typing import Deque, List, Tuple, Dict
+from typing import Deque, List, Sequence, Tuple, Dict
 
 import numpy as np
+import numpy.typing as npt
 
 import ggml
 from ggml.experimental import GGML_FTYPE, Context, InitParams, Tensor, GGML_TYPE, CGraph
@@ -424,6 +425,10 @@ class ReplitModel:
         return embd_w
 
     @staticmethod
+    def eos_token():
+        return 1
+
+    @staticmethod
     def init_from_file(
         model_file: str, n_gpu_layers: int = 0, verbose: bool = True
     ) -> "ReplitModel":
@@ -643,7 +648,7 @@ class ReplitModel:
 
 
 def sample(
-    logits: np.ndarray,
+    logits: npt.NDArray[np.float32],
     last_tokens: List[int] = [],
     presence_penalty: float = 0.0,
     frequency_penalty: float = 0.0,
@@ -655,12 +660,15 @@ def sample(
     logits = frequency_and_presence_penalties(
         logits, last_tokens, frequency_penalty, presence_penalty
     )
-    return nucleus_sampling(logits, p=top_p, temperature=temperature)
+    return nucleus_sampling(logits, top_p=top_p, temperature=temperature)
 
 
 # TODO: this is likely incorrect
 def frequency_and_presence_penalties(
-    logits, last_tokens, alpha_frequency, alpha_presence
+    logits: npt.NDArray[np.float32],
+    last_tokens: Sequence[int],
+    alpha_frequency: float,
+    alpha_presence: float,
 ):
     if len(last_tokens) == 0:
         return logits
@@ -681,7 +689,9 @@ def frequency_and_presence_penalties(
     return penalized_logits
 
 
-def nucleus_sampling(logits, p, temperature=1.0):
+def nucleus_sampling(
+    logits: npt.NDArray[np.float32], top_p: float, temperature: float = 1.0
+):
     # Apply temperature to logits
     logits /= temperature
 
@@ -699,7 +709,7 @@ def nucleus_sampling(logits, p, temperature=1.0):
     sorted_indices = np.argsort(probabilities)[::-1]
 
     # Select the indices within the nucleus
-    nucleus_indices = sorted_indices[: int(len(sorted_indices) * p)]
+    nucleus_indices = sorted_indices[: int(len(sorted_indices) * top_p)]
 
     # Calculate the updated probabilities within the nucleus
     nucleus_probabilities = probabilities[nucleus_indices]
@@ -763,7 +773,7 @@ if __name__ == "__main__":
             presence_penalty=presence_penalty,
             frequency_penalty=frequency_penalty,
         )
-        if token_id == 1:
+        if token_id == model.eos_token():
             break
         # update
         all_tokens.append(token_id)
