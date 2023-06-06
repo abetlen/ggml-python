@@ -1,8 +1,14 @@
 from skbuild import setup
 
+from pathlib import Path
+
+this_directory = Path(__file__).parent
+long_description = (this_directory / "README.md").read_text(encoding="utf-8")
+
 setup(
     name="ggml_python",
     description="Python bindings for ggml",
+    long_description=long_description,
     long_description_content_type="text/markdown",
     version="0.0.4",
     author="Andrei Betlen",
