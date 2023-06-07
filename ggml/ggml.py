@@ -1094,6 +1094,26 @@ lib.ggml_add1.argtypes = [
 lib.ggml_add1.restype = ctypes.POINTER(ggml_tensor)
 
 
+# GGML_API struct ggml_tensor * ggml_add1_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b);
+def ggml_add1_inplace(
+    ctx: ggml_context_p,
+    a,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+    b,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+):  # type: (...) -> ctypes._Pointer[ggml_tensor] # type: ignore
+    return lib.ggml_add1_inplace(ctx, a, b)
+
+
+lib.ggml_add1_inplace.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+]
+lib.ggml_add1_inplace.restype = ctypes.POINTER(ggml_tensor)
+
+
 # GGML_API struct ggml_tensor * ggml_acc(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a,
@@ -1178,6 +1198,26 @@ lib.ggml_sub.argtypes = [
 lib.ggml_sub.restype = ctypes.POINTER(ggml_tensor)
 
 
+# GGML_API struct ggml_tensor * ggml_sub_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b);
+def ggml_sub_inplace(
+    ctx: ggml_context_p,
+    a,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+    b,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+):  # type: (...) -> ctypes._Pointer[ggml_tensor] # type: ignore
+    return lib.ggml_sub_inplace(ctx, a, b)
+
+
+lib.ggml_sub_inplace.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+]
+lib.ggml_sub_inplace.restype = ctypes.POINTER(ggml_tensor)
+
+
 # GGML_API struct ggml_tensor * ggml_mul(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a,
@@ -1196,6 +1236,26 @@ lib.ggml_mul.argtypes = [
     ctypes.POINTER(ggml_tensor),
 ]
 lib.ggml_mul.restype = ctypes.POINTER(ggml_tensor)
+
+
+# GGML_API struct ggml_tensor * ggml_mul_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b);
+def ggml_mul_inplace(
+    ctx: ggml_context_p,
+    a,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+    b,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+):  # type: (...) -> ctypes._Pointer[ggml_tensor] # type: ignore
+    return lib.ggml_mul_inplace(ctx, a, b)
+
+
+lib.ggml_mul_inplace.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+]
+lib.ggml_mul_inplace.restype = ctypes.POINTER(ggml_tensor)
 
 
 # GGML_API struct ggml_tensor * ggml_div(
@@ -1218,6 +1278,26 @@ lib.ggml_div.argtypes = [
 lib.ggml_div.restype = ctypes.POINTER(ggml_tensor)
 
 
+# GGML_API struct ggml_tensor * ggml_div_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b);
+def ggml_div_inplace(
+    ctx: ggml_context_p,
+    a,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+    b,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+):  # type: (...) -> ctypes._Pointer[ggml_tensor] # type: ignore
+    return lib.ggml_div_inplace(ctx, a, b)
+
+
+lib.ggml_div_inplace.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+]
+lib.ggml_div_inplace.restype = ctypes.POINTER(ggml_tensor)
+
+
 # GGML_API struct ggml_tensor * ggml_sqr(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
@@ -1232,6 +1312,20 @@ lib.ggml_sqr.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
 lib.ggml_sqr.restype = ctypes.POINTER(ggml_tensor)
 
 
+# GGML_API struct ggml_tensor * ggml_sqr_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+def ggml_sqr_inplace(
+    ctx: ggml_context_p,
+    a,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+):  # type: (...) -> ctypes._Pointer[ggml_tensor] # type: ignore
+    return lib.ggml_sqr_inplace(ctx, a)
+
+
+lib.ggml_sqr_inplace.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
+lib.ggml_sqr_inplace.restype = ctypes.POINTER(ggml_tensor)
+
+
 # GGML_API struct ggml_tensor * ggml_sqrt(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
@@ -1244,6 +1338,20 @@ def ggml_sqrt(
 
 lib.ggml_sqrt.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
 lib.ggml_sqrt.restype = ctypes.POINTER(ggml_tensor)
+
+
+# GGML_API struct ggml_tensor * ggml_sqrt_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+def ggml_sqrt_inplace(
+    ctx: ggml_context_p,
+    a,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+):  # type: (...) -> ctypes._Pointer[ggml_tensor] # type: ignore
+    return lib.ggml_sqrt_inplace(ctx, a)
+
+
+lib.ggml_sqrt_inplace.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
+lib.ggml_sqrt_inplace.restype = ctypes.POINTER(ggml_tensor)
 
 
 # GGML_API struct ggml_tensor * ggml_log(
@@ -1350,6 +1458,20 @@ lib.ggml_abs.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
 lib.ggml_abs.restype = ctypes.POINTER(ggml_tensor)
 
 
+# GGML_API struct ggml_tensor * ggml_abs_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+def ggml_abs_inplace(
+    ctx: ggml_context_p,
+    a,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+):  # type: (...) -> ctypes.POINTER[ggml_tensor] # type: ignore
+    return lib.ggml_abs_inplace(ctx, a)
+
+
+lib.ggml_abs_inplace.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
+lib.ggml_abs_inplace.restype = ctypes.POINTER(ggml_tensor)
+
+
 # GGML_API struct ggml_tensor * ggml_sgn(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
@@ -1363,6 +1485,20 @@ lib.ggml_sgn.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
 lib.ggml_sgn.restype = ctypes.POINTER(ggml_tensor)
 
 
+# GGML_API struct ggml_tensor * ggml_sgn_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+def ggml_sgn_inplace(
+    ctx: ggml_context_p,
+    a,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+):  # type: (...) -> ctypes.POINTER[ggml_tensor] # type: ignore
+    return lib.ggml_sgn_inplace(ctx, a)
+
+
+lib.ggml_sgn_inplace.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
+lib.ggml_sgn_inplace.restype = ctypes.POINTER(ggml_tensor)
+
+
 # GGML_API struct ggml_tensor * ggml_neg(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
@@ -1374,6 +1510,20 @@ def ggml_neg(
 
 lib.ggml_neg.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
 lib.ggml_neg.restype = ctypes.POINTER(ggml_tensor)
+
+
+# GGML_API struct ggml_tensor * ggml_neg_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+def ggml_neg_inplace(
+    ctx: ggml_context_p,
+    a,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+):  # type: (...) -> ctypes.POINTER[ggml_tensor] # type: ignore
+    return lib.ggml_neg_inplace(ctx, a)
+
+
+lib.ggml_neg_inplace.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
+lib.ggml_neg_inplace.restype = ctypes.POINTER(ggml_tensor)
 
 
 # GGML_API struct ggml_tensor * ggml_step(
@@ -1402,6 +1552,20 @@ lib.ggml_relu.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
 lib.ggml_relu.restype = ctypes.POINTER(ggml_tensor)
 
 
+# GGML_API struct ggml_tensor * ggml_relu_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+def ggml_relu_inplace(
+    ctx: ggml_context_p,
+    a,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+):  # type: (...) -> ctypes.POINTER[ggml_tensor] # type: ignore
+    return lib.ggml_relu_inplace(ctx, a)
+
+
+lib.ggml_relu_inplace.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
+lib.ggml_relu_inplace.restype = ctypes.POINTER(ggml_tensor)
+
+
 # // TODO: double-check this computation is correct
 # GGML_API struct ggml_tensor * ggml_gelu(
 #         struct ggml_context * ctx,
@@ -1416,6 +1580,20 @@ lib.ggml_gelu.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
 lib.ggml_gelu.restype = ctypes.POINTER(ggml_tensor)
 
 
+# GGML_API struct ggml_tensor * ggml_gelu_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+def ggml_gelu_inplace(
+    ctx: ggml_context_p,
+    a,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+):  # type: (...) -> ctypes.POINTER[ggml_tensor] # type: ignore
+    return lib.ggml_gelu_inplace(ctx, a)
+
+
+lib.ggml_gelu_inplace.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
+lib.ggml_gelu_inplace.restype = ctypes.POINTER(ggml_tensor)
+
+
 # GGML_API struct ggml_tensor * ggml_silu(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
@@ -1427,6 +1605,20 @@ def ggml_silu(
 
 lib.ggml_silu.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
 lib.ggml_silu.restype = ctypes.POINTER(ggml_tensor)
+
+
+# GGML_API struct ggml_tensor * ggml_silu_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+def ggml_silu_inplace(
+    ctx: ggml_context_p,
+    a,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+):  # type: (...) -> ctypes.POINTER[ggml_tensor] # type: ignore
+    return lib.ggml_silu_inplace(ctx, a)
+
+
+lib.ggml_silu_inplace.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
+lib.ggml_silu_inplace.restype = ctypes.POINTER(ggml_tensor)
 
 
 # // a - x
@@ -1466,6 +1658,20 @@ lib.ggml_norm.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
 lib.ggml_norm.restype = ctypes.POINTER(ggml_tensor)
 
 
+# GGML_API struct ggml_tensor * ggml_norm_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+def ggml_norm_inplace(
+    ctx: ggml_context_p,
+    a,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+):  # type: (...) -> ctypes.POINTER[ggml_tensor] # type: ignore
+    return lib.ggml_norm_inplace(ctx, a)
+
+
+lib.ggml_norm_inplace.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
+lib.ggml_norm_inplace.restype = ctypes.POINTER(ggml_tensor)
+
+
 # GGML_API struct ggml_tensor * ggml_rms_norm(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
@@ -1477,6 +1683,20 @@ def ggml_rms_norm(
 
 lib.ggml_rms_norm.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
 lib.ggml_rms_norm.restype = ctypes.POINTER(ggml_tensor)
+
+
+# GGML_API struct ggml_tensor * ggml_rms_norm_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+def ggml_rms_norm_inplace(
+    ctx: ggml_context_p,
+    a,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+):  # type: (...) -> ctypes.POINTER[ggml_tensor] # type: ignore
+    return lib.ggml_rms_norm_inplace(ctx, a)
+
+
+lib.ggml_rms_norm_inplace.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
+lib.ggml_rms_norm_inplace.restype = ctypes.POINTER(ggml_tensor)
 
 
 # // a - x
