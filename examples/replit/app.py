@@ -17,7 +17,7 @@ from sse_starlette.sse import EventSourceResponse
 class Settings(BaseSettings):
     model_file: str
     n_gpu_layers: int = 32
-    n_batch: int = 512
+    n_batch: int = 2048
     n_threads: int = max(multiprocessing.cpu_count() // 2, 1)
 
 
