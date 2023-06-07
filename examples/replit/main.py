@@ -212,6 +212,10 @@ class ReplitModel:
         self.tensors["transformer.wte.weight"] = self.wte_weight
         self.tensors["transformer.norm_f.weight"] = self.ln_f_weight
 
+        self.mem_per_token = 0
+        self.memory_buffer_size = 0
+        self.memory_buffer = None
+
         for i in range(n_layer):
             layer = ReplitLayer(
                 wtype=wtype,
@@ -299,7 +303,7 @@ class ReplitModel:
         self._input_ids = np.array([], dtype=np.intc)
         self._scores = np.ndarray((self.vocab_size, 0), dtype=np.single)
 
-    def _eval_internal(self, embd_inp: Sequence[int], n_past: int, n_threads: int):
+    def _eval_internal(self, embd_inp: Sequence[int], n_past: int, n_threads: int, ctx: Optional[Context] = None):
         N = len(embd_inp)
 
         n_embd = self.d_model
@@ -308,16 +312,20 @@ class ReplitModel:
         n_head = self.n_heads
         n_vocab = self.vocab_size
 
-        buf_size = 256 * 1024 * 1024
-        if not hasattr(self, "buf"):
-            self.buf = (ctypes.c_char * buf_size)()
+        if self.memory_buffer is None:
+            self.memory_buffer_size = 256 * 1024 * 1024
+            self.memory_buffer = (ctypes.c_char * self.memory_buffer_size)()
+        
+        if self.mem_per_token > 0 and self.memory_buffer_size < self.mem_per_token * N:
+            self.memory_buffer_size = int(self.mem_per_token * N * 2.0)
+            ctypes.resize(self.memory_buffer, self.memory_buffer_size)
 
         init_params = InitParams(
-            mem_size=buf_size,
-            mem_buffer=ctypes.c_void_p(ctypes.addressof(self.buf)),
+            mem_size=self.memory_buffer_size,
+            mem_buffer=ctypes.c_void_p(ctypes.addressof(self.memory_buffer)),
             no_alloc=False,
         )
-        ctx0 = Context(init_params=init_params)
+        ctx0 = Context(init_params=init_params) if ctx is None else ctx
         gf = CGraph(
             cgraph=ggml.ggml_cgraph(
                 n_threads=n_threads,
@@ -602,9 +610,14 @@ class ReplitModel:
 
         embd_w = inpL.numpy().reshape(n_vocab, -1).copy()
 
+        if self.mem_per_token == 0:
+            self.mem_per_token = int(ggml.ggml_used_mem(ctx0.context) / N)
+
         return embd_w
 
     def eval(self, tokens: Sequence[int]):
+        if self.mem_per_token == 0:
+            self._eval_internal([1, 2, 3, 4], n_past=0, n_threads=self.n_threads)
         n_ctx = self.max_seq_len
         for i in range(0, len(tokens), self.n_batch):
             batch = tokens[i : min(len(tokens), i + self.n_batch)]
@@ -1171,6 +1184,8 @@ class ReplitModel:
                 n_tensors,
             )
 
+        model.eval([1, 2, 3, 4])
+        print("mem_per_token =", model.mem_per_token)
         return model
 
     @staticmethod
