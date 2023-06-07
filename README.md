@@ -1,5 +1,6 @@
 # Python bindings for [`ggml`](https://github.com/ggerganov/ggml)
 
+[![Tests](https://github.com/abetlen/ggml-python/actions/workflows/test.yaml/badge.svg)](https://github.com/abetlen/ggml-python/actions/workflows/test.yaml)
 [![PyPI](https://img.shields.io/pypi/v/ggml-python)](https://pypi.org/project/ggml-python/)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/ggml-python)](https://pypi.org/project/ggml-python/)
 [![PyPI - License](https://img.shields.io/pypi/l/ggml-python)](https://pypi.org/project/ggml-python/)
