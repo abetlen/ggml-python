@@ -303,7 +303,7 @@ class ReplitModel:
         self._input_ids = np.array([], dtype=np.intc)
         self._scores = np.ndarray((self.vocab_size, 0), dtype=np.single)
 
-    def _eval_internal(self, embd_inp: Sequence[int], n_past: int, n_threads: int, ctx: Optional[Context] = None):
+    def _eval_internal(self, embd_inp: Sequence[int], n_past: int, n_threads: int):
         N = len(embd_inp)
 
         n_embd = self.d_model
@@ -316,8 +316,10 @@ class ReplitModel:
             self.memory_buffer_size = 256 * 1024 * 1024
             self.memory_buffer = (ctypes.c_char * self.memory_buffer_size)()
         
-        if self.mem_per_token > 0 and self.memory_buffer_size < self.mem_per_token * N:
+        if self.mem_per_token > 0 and self.memory_buffer_size < int(self.mem_per_token * N * 2.0):
             self.memory_buffer_size = int(self.mem_per_token * N * 2.0)
+
+
             ctypes.resize(self.memory_buffer, self.memory_buffer_size)
 
         init_params = InitParams(
@@ -325,7 +327,7 @@ class ReplitModel:
             mem_buffer=ctypes.c_void_p(ctypes.addressof(self.memory_buffer)),
             no_alloc=False,
         )
-        ctx0 = Context(init_params=init_params) if ctx is None else ctx
+        ctx0 = Context(init_params=init_params)
         gf = CGraph(
             cgraph=ggml.ggml_cgraph(
                 n_threads=n_threads,
@@ -610,8 +612,7 @@ class ReplitModel:
 
         embd_w = inpL.numpy().reshape(n_vocab, -1).copy()
 
-        if self.mem_per_token == 0:
-            self.mem_per_token = int(ggml.ggml_used_mem(ctx0.context) / N)
+        self.mem_per_token = int(ggml.ggml_used_mem(ctx0.context) / N)
 
         return embd_w
 
