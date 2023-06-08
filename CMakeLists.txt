@@ -6,7 +6,6 @@ project(
 )
 
 set(BUILD_SHARED_LIBS "On")
-set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 add_subdirectory(vendor/ggml)
 install(
     TARGETS ggml 
