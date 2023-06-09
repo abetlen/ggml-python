@@ -14,8 +14,11 @@ build: ${submodules} update-pip
 build.openblas: ${submodules} update-pip
 	CMAKE_ARGS="-DGGML_OPENBLAS=On" python3 -m pip install --verbose --editable .
 
-build.cuda: ${submodules} update-pip
+build.cublas: ${submodules} update-pip
 	CMAKE_ARGS="-DGGML_CUBLAS=On" python3 -m pip install --verbose --editable .
+
+build.clblast: ${submodules} update-pip
+	CMAKE_ARGS="-DGGML_CLBLAST=On" python3 -m pip install --verbose --editable .
 
 sdist:
 	python3 setup.py sdist
