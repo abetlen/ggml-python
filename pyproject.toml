@@ -11,7 +11,7 @@ name = "ggml_python"
 version = "0.0.5"
 description = "Python bindings for ggml"
 readme = "README.md"
-license = { file = "LICENSE.md" }
+license = { text = "MIT" }
 authors = [
     { name = "Andrei Betlen", email = "abetlen@gmail.com" },
 ]
