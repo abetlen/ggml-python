@@ -35,3 +35,7 @@ cmake.verbose = true
 
 [project.optional-dependencies]
 test = ["pytest"]
+
+[project.urls]
+Homepage = "https://github.com/abetlen/ggml-python"
+Issues = "https://github.com/abetlen/ggml-python/issues"
