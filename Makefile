@@ -21,7 +21,7 @@ build.clblast: ${submodules} update-pip
 	CMAKE_ARGS="-DGGML_CLBLAST=On" python3 -m pip install --verbose --editable .
 
 sdist:
-	python3 setup.py sdist
+	python3 -m build --sdist
 
 deploy:
 	twine upload dist/*
