@@ -2,28 +2,32 @@ import os
 import sys
 import ctypes
 import pathlib
+from typing import List
 
 
 # Load the library
 def load_shared_library(lib_base_name: str):
-    # Determine the file extension based on the platform
-    if sys.platform.startswith("linux"):
-        lib_ext = ".so"
-    elif sys.platform == "darwin":
-        lib_ext = ".dylib"
-    elif sys.platform == "win32":
-        lib_ext = ".dll"
-    else:
-        raise RuntimeError("Unsupported platform")
-
     # Construct the paths to the possible shared library names
     _base_path = pathlib.Path(__file__).parent.resolve()
     # Searching for the library in the current directory under the name "libllama" (default name
     # for llamacpp) and "llama" (default name for this repo)
-    _lib_paths = [
-        _base_path / f"lib{lib_base_name}{lib_ext}",
-        _base_path / f"{lib_base_name}{lib_ext}",
-    ]
+    _lib_paths: List[pathlib.Path] = []
+    # Determine the file extension based on the platform
+    if sys.platform.startswith("linux"):
+        _lib_paths += [
+            _base_path / f"lib{lib_base_name}.so",
+        ]
+    elif sys.platform == "darwin":
+        _lib_paths += [
+            _base_path / f"lib{lib_base_name}.so",
+            _base_path / f"lib{lib_base_name}.dylib",
+        ]
+    elif sys.platform == "win32":
+        _lib_paths += [
+            _base_path / f"{lib_base_name}.dll",
+        ]
+    else:
+        raise RuntimeError("Unsupported platform")
 
     cdll_args = dict()  # type: ignore
     # Add the library directory to the DLL search path on Windows (if needed)
