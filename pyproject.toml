@@ -8,7 +8,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "ggml_python"
-version = "0.0.4"
+version = "0.0.5"
 description = "Python bindings for ggml"
 readme = "README.md"
 license = { file = "LICENSE.md" }
