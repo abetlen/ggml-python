@@ -27,7 +27,7 @@ deploy:
 	twine upload dist/*
 
 test:
-	pytest
+	python3 -m pytest
 
 clean:
 	- rm -rf _skbuild
