@@ -1,14 +1,6 @@
 # Convert CLIP model from PyTorch to ggml format
 #
-# Usage: python convert-pt-to-ggml.py ~/.cache/clip/ViT-B-32.pt ~/path/to/repo/clip/ ./models/clip-ViT-B-32
-#
-# You need to clone the original repo in ~/path/to/repo/clip/
-#
-#  git clone https://github.com/openai/CLIP.git
-#
-# It is used to various assets needed by the algorithm:
-#
-#  - tokenizer
+# Usage: python convert-pt-to-ggml.py ViT-B-32 ./models
 #
 # This script loads the specified model and clip assets and saves them in ggml format.
 # The output is a single binary file containing the following information:
