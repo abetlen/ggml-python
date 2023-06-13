@@ -1,3 +1,6 @@
 [submodule "vendor/ggml"]
 	path = vendor/ggml
 	url = git@github.com:ggerganov/ggml.git
+[submodule "examples/clip/CLIP"]
+    path = examples/clip/CLIP
+    url = git@github.com:openai/CLIP.git
