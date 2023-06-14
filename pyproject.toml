@@ -1,6 +1,6 @@
 [build-system]
 requires = [
-    "scikit-build-core>=0.4.4",
+    "scikit-build-core>=0.4.5",
     "cmake>=3.18",
     "ninja",
 ]
@@ -8,7 +8,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "ggml_python"
-version = "0.0.5"
+version = "0.0.6"
 description = "Python bindings for ggml"
 readme = "README.md"
 license = { text = "MIT" }
@@ -35,3 +35,7 @@ cmake.verbose = true
 
 [project.optional-dependencies]
 test = ["pytest"]
+
+[project.urls]
+Homepage = "https://github.com/abetlen/ggml-python"
+Issues = "https://github.com/abetlen/ggml-python/issues"
