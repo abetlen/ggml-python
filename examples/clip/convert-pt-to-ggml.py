@@ -73,6 +73,19 @@ transformer_heads = transformer_width // 64
 transformer_layers = len(
     set(k.split(".")[2] for k in state_dict if k.startswith("transformer.resblocks"))
 )
+print("HParams:")
+print("  vision_width:", vision_width)
+print("  vision_layers:", vision_layers)
+print("  vision_patch_size:", vision_patch_size)
+print("  grid_size:", grid_size)
+print("  image_resolution:", image_resolution)
+print("  embed_dim:", embed_dim)
+print("  context_length:", context_length)
+print("  vocab_size:", vocab_size)
+print("  transformer_width:", transformer_width)
+print("  transformer_heads:", transformer_heads)
+print("  transformer_layers:", transformer_layers)
+
 
 ftype = 0
 
