@@ -74,6 +74,8 @@ transformer_layers = len(
     set(k.split(".")[2] for k in state_dict if k.startswith("transformer.resblocks"))
 )
 
+ftype = 0
+
 # Write hparams
 fout.write(struct.pack("i", 0x67676D6C))  # magic: ggml in hex
 fout.write(struct.pack("i", vision_width))
@@ -87,11 +89,12 @@ fout.write(struct.pack("i", vocab_size))
 fout.write(struct.pack("i", transformer_width))
 fout.write(struct.pack("i", transformer_heads))
 fout.write(struct.pack("i", transformer_layers))
-
+fout.write(struct.pack("i", ftype))  # ftype: 0 = float32, 1 = float16
 bpe_path = "CLIP/clip/bpe_simple_vocab_16e6.txt.gz"
 merges = gzip.open(bpe_path).read().decode("utf-8").split("\n")
 merges = merges[1 : 49152 - 256 - 2 + 1]
 merges = [tuple(merge.split()) for merge in merges]
+
 vocab = list(clip.simple_tokenizer.bytes_to_unicode().values())
 tokens = vocab + [v + "</w>" for v in vocab]
 for merge in merges:
@@ -108,7 +111,9 @@ for key in tokens:
 for name in state_dict.keys():
     data = state_dict[name].squeeze().numpy()
     print("Processing variable: " + name + " with shape: ", data.shape)
-
+    if name == "visual.conv1.weight":
+        # reshape [B, C, H, W] -> [H, W, C, B]
+        data = np.transpose(data, (2, 3, 1, 0))
     n_dims = len(data.shape)
 
     # ftype == 0 -> float32, ftype == 1 -> float16
