@@ -85,7 +85,6 @@ fout.write(struct.pack("i", grid_size))
 fout.write(struct.pack("i", image_resolution))
 fout.write(struct.pack("i", embed_dim))
 fout.write(struct.pack("i", context_length))
-fout.write(struct.pack("i", vocab_size))
 fout.write(struct.pack("i", transformer_width))
 fout.write(struct.pack("i", transformer_heads))
 fout.write(struct.pack("i", transformer_layers))
@@ -100,11 +99,12 @@ tokens = vocab + [v + "</w>" for v in vocab]
 for merge in merges:
     tokens.append("".join(merge))
 tokens.extend(["<|startoftext|>", "<|endoftext|>"])
-byte_decoder = {v: k for k, v in clip.simple_tokenizer.bytes_to_unicode().items()}
+# byte_decoder = {v: k for k, v in clip.simple_tokenizer.bytes_to_unicode().items()}
+
 fout.write(struct.pack("i", len(tokens)))
 
 for key in tokens:
-    text = bytearray([byte_decoder[c] for c in key])
+    text = key.encode("utf-8")
     fout.write(struct.pack("i", len(text)))
     fout.write(text)
 

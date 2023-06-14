@@ -1,12 +1,11 @@
-"""ggml-python implementation of the CLIP model.
-
+"""ggml-python implemention of the CLIP model
 """
-
 import ctypes
 import struct
 import argparse
+import numpy as np
 from typing import List, Tuple
-
+from CLIP.clip import simple_tokenizer
 import ggml
 from ggml.experimental import GGML_FTYPE, Context, InitParams, Tensor, GGML_TYPE, CGraph
 
@@ -14,9 +13,8 @@ from ggml.experimental import GGML_FTYPE, Context, InitParams, Tensor, GGML_TYPE
 class ClipModel:
     def __init__(
         self,
-        d_model: int,
     ):
-        self.d_model = d_model
+        pass
 
     @staticmethod
     def init_from_file(model_file: str, verbose=True):
@@ -35,11 +33,11 @@ class ClipModel:
                 image_resolution,
                 embed_dim,
                 context_length,
-                vocab_size,
                 transformer_width,
                 transformer_heads,
                 transformer_layers,
                 ftype,
+                vocab_size,
             ) = struct.unpack("iiiiiiiiiiii", fin.read(struct.calcsize("iiiiiiiiiiii")))
             qntvr = ftype // ggml.GGML_QNT_VERSION_FACTOR.value
             if verbose:
@@ -50,13 +48,14 @@ class ClipModel:
                 print("image_resolution =", image_resolution)
                 print("embed_dim       =", embed_dim)
                 print("context_length  =", context_length)
-                print("vocab_size      =", vocab_size)
                 print("transformer_width =", transformer_width)
                 print("transformer_heads =", transformer_heads)
                 print("transformer_layers =", transformer_layers)
                 print("ftype           =", ftype)
                 print("qntvr           =", qntvr)
+                print("vocab_size      =", vocab_size)
             ftype %= ggml.GGML_QNT_VERSION_FACTOR.value
+            ftype = GGML_FTYPE(int(ftype))
 
             # Vocabulary
             vocab: List[Tuple[int, str]] = []
@@ -64,10 +63,11 @@ class ClipModel:
                 (s_len,) = struct.unpack("i", fin.read(struct.calcsize("i")))
                 s = fin.read(s_len).decode("utf-8")
                 vocab.append((i, s))
-            breakpoint()
 
             # Model Weights
             wtype = GGML_TYPE(ggml.ggml_ftype_to_ggml_type(ctypes.c_int(ftype.value)))
+
+            # mem_buffer = np.empty(ctx_size, dtype=np.uint8)
 
 
 if __name__ == "__main__":
