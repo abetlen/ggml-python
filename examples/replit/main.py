@@ -729,7 +729,7 @@ class ReplitModel:
             completion_tokens.append(token)
 
             all_text = self.detokenize(completion_tokens)
-            any_stop = [s for s in stop_sequences if s in all_text]:
+            any_stop = [s for s in stop_sequences if s in all_text]
             if len(any_stop) > 0:
                 first_stop = any_stop[0]
                 text = all_text[: all_text.index(first_stop)]
