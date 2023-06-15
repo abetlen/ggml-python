@@ -1,6 +1,7 @@
 [build-system]
 requires = [
     "scikit-build-core>=0.4.5",
+    "swig",
     "cmake>=3.18",
     "ninja",
 ]
