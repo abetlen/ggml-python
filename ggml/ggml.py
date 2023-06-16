@@ -23,8 +23,9 @@ def load_shared_library(module_name: str, lib_base_name: str):
     for lib_name in lib_names:
         try:
             with importlib.resources.path(module_name, lib_name) as p:
-                path = p
-                break
+                if os.path.exists(p):
+                    path = p
+                    break
         except FileNotFoundError:
             pass
 
