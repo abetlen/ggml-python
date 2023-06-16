@@ -32,6 +32,7 @@ classifiers = [
 [tool.scikit-build]
 wheel.packages = ["ggml"]
 wheel.expand-macos-universal-tags = true
+wheel.install-dir = "ggml"
 cmake.verbose = true
 
 [project.optional-dependencies]
