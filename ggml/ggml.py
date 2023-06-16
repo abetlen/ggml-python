@@ -2,54 +2,53 @@ import os
 import sys
 import ctypes
 import pathlib
-from typing import List
+import importlib.resources
+from typing import List, Optional
 
 
 # Load the library
-def load_shared_library(lib_base_name: str):
+def load_shared_library(module_name: str, lib_base_name: str):
     # Construct the paths to the possible shared library names
-    _base_path = pathlib.Path(__file__).parent.resolve()
-    # Searching for the library in the current directory under the name "libllama" (default name
-    # for llamacpp) and "llama" (default name for this repo)
-    _lib_paths: List[pathlib.Path] = []
-    # Determine the file extension based on the platform
-    if sys.platform.startswith("linux"):
-        _lib_paths += [
-            _base_path / f"lib{lib_base_name}.so",
-        ]
-    elif sys.platform == "darwin":
-        _lib_paths += [
-            _base_path / f"lib{lib_base_name}.so",
-            _base_path / f"lib{lib_base_name}.dylib",
-        ]
-    elif sys.platform == "win32":
-        _lib_paths += [
-            _base_path / f"{lib_base_name}.dll",
-        ]
-    else:
-        raise RuntimeError("Unsupported platform")
+    base_path = pathlib.Path(__file__).parent.resolve()
+    # Searching for the library in the current directory under the name "libggml" (default name
+    # for ggml) and "ggml" (default name for this repo)
+    lib_names: List[str] = [
+        f"lib{lib_base_name}.so",
+        f"lib{lib_base_name}.dylib",
+        f"{lib_base_name}.dll",
+    ]
+
+    path: Optional[pathlib.Path] = None
+
+    for lib_name in lib_names:
+        try:
+            with importlib.resources.path(module_name, lib_name) as p:
+                path = p
+                break
+        except FileNotFoundError:
+            pass
+
+    if path is None:
+        raise FileNotFoundError(
+            f"Shared library with base name '{lib_base_name}' not found"
+        )
 
     cdll_args = dict()  # type: ignore
     # Add the library directory to the DLL search path on Windows (if needed)
     if sys.platform == "win32" and sys.version_info >= (3, 8):
-        os.add_dll_directory(str(_base_path))
+        os.add_dll_directory(str(base_path))
         cdll_args["winmode"] = 0
 
     # Try to load the shared library, handling potential errors
-    for _lib_path in _lib_paths:
-        if _lib_path.exists():
-            try:
-                return ctypes.CDLL(str(_lib_path), **cdll_args)
-            except Exception as e:
-                raise RuntimeError(f"Failed to load shared library '{_lib_path}': {e}")
-
-    raise FileNotFoundError(
-        f"Shared library with base name '{lib_base_name}' not found"
-    )
+    try:
+        return ctypes.CDLL(str(path), **cdll_args)
+    except Exception as e:
+        raise RuntimeError(f"Failed to load shared library '{path}': {e}")
 
 
+module_name = "ggml"
 lib_base_name = "ggml"
-lib = load_shared_library(lib_base_name)
+lib = load_shared_library(module_name, lib_base_name)
 
 
 # #define GGML_FILE_MAGIC   0x67676d6c // "ggml"
