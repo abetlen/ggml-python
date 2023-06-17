@@ -13,6 +13,11 @@ Python bindings for the [`ggml`](https://github.com/ggerganov/ggml) tensor libra
 
 # Installation
 
+
+Requirements
+- Python 3.7+
+- C compiler (gcc, clang, msvc, etc)
+
 You can install `ggml-python` using `pip`:
 
 ```bash
