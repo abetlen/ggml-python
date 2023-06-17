@@ -224,6 +224,7 @@ GGML_FTYPE_MOSTLY_Q5_1 = ctypes.c_int(9)
 #     GGML_OP_STEP,
 #     GGML_OP_RELU,
 #     GGML_OP_GELU,
+#     GGML_OP_GELU_QUICK,
 #     GGML_OP_SILU,
 #     GGML_OP_SILU_BACK,
 #     GGML_OP_NORM, // normalize
@@ -286,45 +287,46 @@ GGML_OP_NEG = ctypes.c_int(17)
 GGML_OP_STEP = ctypes.c_int(18)
 GGML_OP_RELU = ctypes.c_int(19)
 GGML_OP_GELU = ctypes.c_int(20)
-GGML_OP_SILU = ctypes.c_int(21)
-GGML_OP_SILU_BACK = ctypes.c_int(22)
-GGML_OP_NORM = ctypes.c_int(23)
-GGML_OP_RMS_NORM = ctypes.c_int(24)
-GGML_OP_RMS_NORM_BACK = ctypes.c_int(25)
+GGML_OP_GELU_QUICK = ctypes.c_int(21)
+GGML_OP_SILU = ctypes.c_int(22)
+GGML_OP_SILU_BACK = ctypes.c_int(23)
+GGML_OP_NORM = ctypes.c_int(24)
+GGML_OP_RMS_NORM = ctypes.c_int(25)
+GGML_OP_RMS_NORM_BACK = ctypes.c_int(26)
 
-GGML_OP_MUL_MAT = ctypes.c_int(26)
+GGML_OP_MUL_MAT = ctypes.c_int(27)
 
-GGML_OP_SCALE = ctypes.c_int(27)
-GGML_OP_SET = ctypes.c_int(28)
-GGML_OP_CPY = ctypes.c_int(29)
-GGML_OP_CONT = ctypes.c_int(30)
-GGML_OP_RESHAPE = ctypes.c_int(31)
-GGML_OP_VIEW = ctypes.c_int(32)
-GGML_OP_PERMUTE = ctypes.c_int(33)
-GGML_OP_TRANSPOSE = ctypes.c_int(34)
-GGML_OP_GET_ROWS = ctypes.c_int(35)
-GGML_OP_GET_ROWS_BACK = ctypes.c_int(36)
-GGML_OP_DIAG = ctypes.c_int(37)
-GGML_OP_DIAG_MASK_INF = ctypes.c_int(38)
-GGML_OP_DIAG_MASK_ZERO = ctypes.c_int(39)
-GGML_OP_SOFT_MAX = ctypes.c_int(40)
-GGML_OP_ROPE = ctypes.c_int(41)
-GGML_OP_ROPE_BACK = ctypes.c_int(42)
-GGML_OP_ALIBI = ctypes.c_int(43)
-GGML_OP_CLAMP = ctypes.c_int(44)
-GGML_OP_CONV_1D_1S_PH = ctypes.c_int(45)
-GGML_OP_CONV_1D_2S_PH = ctypes.c_int(46)
-GGML_OP_CONV_2D_SK_P0 = ctypes.c_int(47)
+GGML_OP_SCALE = ctypes.c_int(28)
+GGML_OP_SET = ctypes.c_int(29)
+GGML_OP_CPY = ctypes.c_int(30)
+GGML_OP_CONT = ctypes.c_int(31)
+GGML_OP_RESHAPE = ctypes.c_int(32)
+GGML_OP_VIEW = ctypes.c_int(33)
+GGML_OP_PERMUTE = ctypes.c_int(34)
+GGML_OP_TRANSPOSE = ctypes.c_int(35)
+GGML_OP_GET_ROWS = ctypes.c_int(36)
+GGML_OP_GET_ROWS_BACK = ctypes.c_int(37)
+GGML_OP_DIAG = ctypes.c_int(38)
+GGML_OP_DIAG_MASK_INF = ctypes.c_int(39)
+GGML_OP_DIAG_MASK_ZERO = ctypes.c_int(40)
+GGML_OP_SOFT_MAX = ctypes.c_int(41)
+GGML_OP_ROPE = ctypes.c_int(42)
+GGML_OP_ROPE_BACK = ctypes.c_int(43)
+GGML_OP_ALIBI = ctypes.c_int(44)
+GGML_OP_CLAMP = ctypes.c_int(45)
+GGML_OP_CONV_1D_1S_PH = ctypes.c_int(46)
+GGML_OP_CONV_1D_2S_PH = ctypes.c_int(47)
+GGML_OP_CONV_2D_SK_P0 = ctypes.c_int(48)
 
-GGML_OP_FLASH_ATTN = ctypes.c_int(48)
-GGML_OP_FLASH_FF = ctypes.c_int(49)
-GGML_OP_WIN_PART = ctypes.c_int(50)
-GGML_OP_WIN_UNPART = ctypes.c_int(51)
+GGML_OP_FLASH_ATTN = ctypes.c_int(49)
+GGML_OP_FLASH_FF = ctypes.c_int(50)
+GGML_OP_WIN_PART = ctypes.c_int(51)
+GGML_OP_WIN_UNPART = ctypes.c_int(52)
 
-GGML_OP_MAP_UNARY = ctypes.c_int(52)
-GGML_OP_MAP_BINARY = ctypes.c_int(53)
+GGML_OP_MAP_UNARY = ctypes.c_int(53)
+GGML_OP_MAP_BINARY = ctypes.c_int(54)
 
-GGML_OP_COUNT = ctypes.c_int(54)
+GGML_OP_COUNT = ctypes.c_int(55)
 
 
 # struct ggml_object {
@@ -1002,7 +1004,7 @@ lib.ggml_get_data_f32.argtypes = [ctypes.POINTER(ggml_tensor)]
 lib.ggml_get_data_f32.restype = ctypes.POINTER(ctypes.c_float)
 
 
-# GGML_API const char * ggml_get_name(const struct ggml_tensor * tensor);
+# GGML_API const char *         ggml_get_name(const struct ggml_tensor * tensor);
 def ggml_get_name(
     tensor,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
 ) -> bytes:
@@ -1013,16 +1015,16 @@ lib.ggml_get_name.argtypes = [ctypes.POINTER(ggml_tensor)]
 lib.ggml_get_name.restype = ctypes.c_char_p
 
 
-# GGML_API void         ggml_set_name(struct ggml_tensor * tensor, const char * name);
+# GGML_API struct ggml_tensor * ggml_set_name(struct ggml_tensor * tensor, const char * name);
 def ggml_set_name(
     tensor,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
     name: bytes,
-):
+):  # type: (...) -> ctypes._Pointer[ggml_tensor] # type: ignore
     return lib.ggml_set_name(tensor, name)
 
 
 lib.ggml_set_name.argtypes = [ctypes.POINTER(ggml_tensor), ctypes.c_char_p]
-lib.ggml_set_name.restype = None
+lib.ggml_set_name.restype = ctypes.POINTER(ggml_tensor)
 
 
 # GGML_API struct ggml_tensor * ggml_dup(
@@ -1596,6 +1598,33 @@ def ggml_gelu_inplace(
 
 lib.ggml_gelu_inplace.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
 lib.ggml_gelu_inplace.restype = ctypes.POINTER(ggml_tensor)
+
+
+# GGML_API struct ggml_tensor * ggml_gelu_quick(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+def ggml_gelu_quick(
+    ctx: ggml_context_p, a  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+):  # type: (...) -> ctypes._Pointer[ggml_tensor] # type: ignore
+    return lib.ggml_gelu_quick(ctx, a)
+
+
+lib.ggml_gelu_quick.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
+lib.ggml_gelu_quick.restype = ctypes.POINTER(ggml_tensor)
+
+
+# GGML_API struct ggml_tensor * ggml_gelu_quick_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+def ggml_gelu_quick_inplace(
+    ctx: ggml_context_p,
+    a,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+):  # type: (...) -> ctypes.POINTER[ggml_tensor] # type: ignore
+    return lib.ggml_gelu_quick_inplace(ctx, a)
+
+
+lib.ggml_gelu_quick_inplace.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
+lib.ggml_gelu_quick_inplace.restype = ctypes.POINTER(ggml_tensor)
 
 
 # GGML_API struct ggml_tensor * ggml_silu(
