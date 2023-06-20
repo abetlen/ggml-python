@@ -29,6 +29,10 @@ deploy:
 test:
 	python3 -m pytest
 
+stub:
+	nanobind-stubgen ggml.ggml_ext
+	mv ggml.ggml_ext.pyi ggml/ggml_ext.pyi
+
 clean:
 	- rm -rf _skbuild
 	- rm -rf dist
