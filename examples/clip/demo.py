@@ -13,7 +13,8 @@ text = clip.tokenize(["a diagram", "a dog", "a cat"])
 
 # Only single image supported in ggml right now
 image_features = model.encode_image(image)
-breakpoint()
+
+IPython.embed()
 text_features = model.encode_text(text)
 
 

@@ -981,6 +981,12 @@ class Tensor:
         return Tensor(tensor=op, ctx=ctx)
 
     @staticmethod
+    def conv_2d_sk_p0(a: "Tensor", b: "Tensor", ctx: Optional[Context] = None):
+        ctx = ctx or default_context()
+        op = ggml.ggml_conv_2d_sk_p0(ctx.context, a.tensor, b.tensor)
+        return Tensor(tensor=op, ctx=ctx)
+
+    @staticmethod
     def conv_1d_s2_ph(
         a: "Tensor",
         b: "Tensor",

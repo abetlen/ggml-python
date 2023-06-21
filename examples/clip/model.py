@@ -164,8 +164,6 @@ class ResidualAttentionBlock:
             3,
             ctx=ctx,
         )
-        # attn_weight = torch.softmax((Q @ K.transpose(-2, -1) / math.sqrt(Q.size(-1))) + attn_mask, dim=-1)
-
         KQ = Tensor.mul_mat(K, Q, ctx=ctx)
 
         KQ_scaled = Tensor.scale(
@@ -178,8 +176,6 @@ class ResidualAttentionBlock:
         )
 
         KQ_soft_max = Tensor.soft_max(KQ_scaled, ctx=ctx)
-        # GOOD ^^^
-        # BAD  vvv Fix double copy
         V_trans = Tensor.cpy(
             Tensor.permute(
                 Tensor.cpy(
@@ -200,40 +196,8 @@ class ResidualAttentionBlock:
             ),
             ctx=ctx,
         )
-        gf.build_forward_expand(V_trans)
-        gf.compute()
 
-        IPython.embed()
-        exit(0)
-
-        # V_trans = Tensor.cpy(
-        #     Tensor.permute(
-        #         Tensor.reshape_3d(Vcur, n_embd // self.n_head, self.n_head, N, ctx=ctx),
-        #         1,
-        #         2,
-        #         0,
-        #         3,
-        #         ctx=ctx,
-        #     ),
-        #     Tensor.new_tensor_3d(
-        #         GGML_TYPE.F32, N, n_embd // self.n_head, self.n_head, ctx=ctx
-        #     ),
-        # )
-        # V_trans = Tensor.cpy(
-        #     Tensor.permute(
-        #         Vcur,
-        #         1,
-        #         2,
-        #         0,
-        #         3,
-        #         ctx=ctx,
-        #     ),
-        #     Tensor.new_tensor_3d(
-        #         GGML_TYPE.F32, N, n_embd // self.n_head, self.n_head, ctx=ctx
-        #     ),
-        # )
         KQV = Tensor.mul_mat(V_trans, KQ_soft_max, ctx=ctx)
-
         KQV_merged = Tensor.permute(
             KQV,
             0,
@@ -252,13 +216,6 @@ class ResidualAttentionBlock:
             ),
             ctx=ctx,
         )
-        # BAD
-        gf.build_forward_expand(cur)
-        gf.compute()
-
-        IPython.embed()
-        exit(0)
-
         cur = Tensor.mul_mat(
             self.out_proj_weight,
             cur,
@@ -276,21 +233,30 @@ class ResidualAttentionBlock:
             Tensor.repeat(self.ln_2_bias, cur, ctx=ctx),
             ctx=ctx,
         )
+
         # MLP
         # c_fc
         cur = Tensor.mul_mat(self.mlp_c_fc_weight, cur, ctx=ctx)
         cur = Tensor.add(Tensor.repeat(self.mlp_c_fc_bias, cur, ctx=ctx), cur, ctx=ctx)
-        # GELU
-        cur = Tensor.gelu(cur, ctx=ctx)
+
+        # QuickGELU -  x * sigmoid(1.702 * x)
+        # TODO: implement QuickGELU in ggml.c
+        sf = Tensor.new_tensor_1d(GGML_TYPE.F32, 1, ctx=ctx)
+        sf.set_data(struct.pack("f", 1.702))
+        sf_inv = Tensor.new_tensor_1d(GGML_TYPE.F32, 1, ctx=ctx)
+        sf_inv.set_data(struct.pack("f", 1 / 1.702))
+        cur = Tensor.scale(cur, sf, ctx=ctx)
+        cur = Tensor.silu(cur, ctx=ctx)
+        cur = Tensor.scale(cur, sf_inv, ctx=ctx)
+
         # c_proj
         cur = Tensor.mul_mat(self.mlp_c_proj_weight, cur, ctx=ctx)
         cur = Tensor.add(
             Tensor.repeat(self.mlp_c_proj_bias, cur, ctx=ctx), cur, ctx=ctx
         )
         # Add Residual
-        inpL = Tensor.add(inpL, cur, ctx=ctx)
-
-        return inpL
+        cur = Tensor.add(inpL, cur, ctx=ctx)
+        return cur
 
 
 class VisionTransformer:
@@ -352,7 +318,7 @@ class VisionTransformer:
         self.tensors["visual.ln_post.bias"] = self.visual_ln_post_bias
 
         # Visual Projection (visual.proj)
-        self.visual_proj = Tensor.new_tensor_2d(wtype, width, output_dim, ctx=ctx)
+        self.visual_proj = Tensor.new_tensor_2d(wtype, output_dim, width, ctx=ctx)
         self.tensors["visual.proj"] = self.visual_proj
 
 
@@ -437,6 +403,10 @@ class ClipModel:
         self.tensors["ln_final.bias"] = self.ln_final_bias
 
     def encode_image(self, image):
+        tensor = self._encode_image_internal(image)
+        return tensor.numpy().copy().reshape(1, -1)
+
+    def _encode_image_internal(self, image):
         wtype = GGML_TYPE(ggml.ggml_ftype_to_ggml_type(ctypes.c_int(0)))
         mem_size = np.prod(image.shape) * 4 + 256 + 256 * 1024 * 1024 * 2
         mem_buffer = np.empty(mem_size, dtype=np.uint8)
@@ -518,7 +488,10 @@ class ClipModel:
             cur = resblock.forward(cur, ctx=ctx0, gf=gf)
 
         # ln_post
-        cur = Tensor.norm(cur, ctx=ctx0)
+        cur = Tensor.norm(
+            Tensor.view_2d(Tensor.transpose(cur, ctx=ctx0), cur.shape[0], 1, 1, 0),
+            ctx=ctx0,
+        )
         cur = Tensor.add(
             Tensor.mul(
                 Tensor.repeat(self.visual.visual_ln_post_weight, cur, ctx=ctx0),
@@ -529,13 +502,24 @@ class ClipModel:
             ctx=ctx0,
         )
 
-        cur = Tensor.view_2d(cur, 1, cur.shape[0], 1, 0, ctx=ctx0)
-        cur = Tensor.mul_mat(cur, self.visual.visual_proj, ctx=ctx0)
+        cur = Tensor.mul_mat(
+            Tensor.cpy(
+                Tensor.transpose(self.visual.visual_proj),
+                Tensor.new_tensor_2d(
+                    wtype,
+                    self.visual.visual_proj.shape[1],
+                    self.visual.visual_proj.shape[0],
+                    ctx=ctx0,
+                ),
+                ctx=ctx0,
+            ),
+            Tensor.reshape_2d(cur, cur.shape[0], 1),
+            ctx=ctx0,
+        )
+
         # Token Projection
         gf.build_forward_expand(cur)
         gf.compute()
-
-        IPython.embed()
 
         return cur
 
@@ -545,9 +529,9 @@ class ClipModel:
 
     def _eval_internal(self, image: np.ndarray, text: np.ndarray):
         ## Encode Image
-        image_features = self.encode_image(image)
-        ## Encode Text
+        image_features = self._encode_image_internal(image)
 
+        ## Encode Text
         IPython.embed()
 
     def eval(self, image: np.ndarray, text: np.ndarray):

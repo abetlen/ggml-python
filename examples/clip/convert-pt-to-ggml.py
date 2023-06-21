@@ -124,13 +124,14 @@ for key in tokens:
 for name in state_dict.keys():
     data = state_dict[name].squeeze().numpy()
     print("Processing variable: " + name + " with shape: ", data.shape)
-    if name == "visual.conv1.weight":
-        # reshape [B, C, H, W] -> [H, W, C, B]
-        data = np.transpose(data, (2, 3, 1, 0))
-    n_dims = len(data.shape)
-
     # ftype == 0 -> float32, ftype == 1 -> float16
     ftype = 0
+
+    if name == "visual.conv1.weight":
+        data = data.astype(np.float16)
+        IPython.embed()
+        ftype = 1
+    n_dims = len(data.shape)
 
     # header
     str = name.encode("utf-8")
