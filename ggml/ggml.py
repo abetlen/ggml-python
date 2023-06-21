@@ -3965,6 +3965,30 @@ GGML_USE_CUBLAS = hasattr(lib, "ggml_init_cublas")
 GGML_CUDA_MAX_DEVICES = ctypes.c_int(16)
 
 
+# void * ggml_cuda_host_malloc(size_t size);
+def ggml_cuda_host_malloc(
+    size: ctypes.c_size_t,
+) -> ctypes.c_void_p:
+    return lib.ggml_cuda_host_malloc(size)
+
+
+if GGML_USE_CUBLAS:
+    lib.ggml_cuda_host_malloc.argtypes = [ctypes.c_size_t]
+    lib.ggml_cuda_host_malloc.restype = ctypes.c_void_p
+
+
+# void   ggml_cuda_host_free(void * ptr);
+def ggml_cuda_host_free(
+    ptr: ctypes.c_void_p,
+):
+    return lib.ggml_cuda_host_free(ptr)
+
+
+if GGML_USE_CUBLAS:
+    lib.ggml_cuda_host_free.argtypes = [ctypes.c_void_p]
+    lib.ggml_cuda_host_free.restype = None
+
+
 # void   ggml_cuda_transform_tensor(void * data, struct ggml_tensor * tensor);
 def ggml_cuda_transform_tensor(
     data: ctypes.c_void_p,
