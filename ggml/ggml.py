@@ -52,6 +52,12 @@ lib_base_name = "ggml"
 lib = load_shared_library(module_name, lib_base_name)
 
 
+#####################################################
+# GGML API
+# source: ggml.h
+#####################################################
+
+
 # #define GGML_FILE_MAGIC   0x67676d6c // "ggml"
 GGML_FILE_MAGIC = ctypes.c_int(int("0x67676d6c", 16))
 # #define GGML_FILE_VERSION 1
@@ -3946,8 +3952,18 @@ def ggml_cpu_has_vsx() -> int:
 lib.ggml_cpu_has_vsx.argtypes = []
 lib.ggml_cpu_has_vsx.restype = ctypes.c_int
 
-# Cuda
-GGML_CUDA = hasattr(lib, "ggml_init_cublas")
+
+#####################################################
+# GGML CUDA API
+# source: ggml-cuda.h
+#####################################################
+
+
+GGML_USE_CUBLAS = hasattr(lib, "ggml_init_cublas")
+
+
+GGML_CUDA_MAX_DEVICES = ctypes.c_int(16)
+
 
 # void   ggml_cuda_transform_tensor(void * data, struct ggml_tensor * tensor);
 def ggml_cuda_transform_tensor(
@@ -3957,9 +3973,236 @@ def ggml_cuda_transform_tensor(
     return lib.ggml_cuda_transform_tensor(data, tensor)
 
 
-if GGML_CUDA:
+if GGML_USE_CUBLAS:
     lib.ggml_cuda_transform_tensor.argtypes = [
         ctypes.c_void_p,
         ctypes.POINTER(ggml_tensor),
     ]
     lib.ggml_cuda_transform_tensor.restype = None
+
+
+# void   ggml_cuda_set_tensor_split(const float * tensor_split);
+def ggml_cuda_set_tensor_split(
+    tensor_split,  # type: ctypes.Array[ctypes.c_float] # type: ignore
+):
+    return lib.ggml_cuda_set_tensor_split(tensor_split)
+
+
+if GGML_USE_CUBLAS:
+    lib.ggml_cuda_set_tensor_split.argtypes = [ctypes.POINTER(ctypes.c_float)]
+    lib.ggml_cuda_set_tensor_split.restype = None
+
+
+# void   ggml_cuda_free_data(struct ggml_tensor * tensor);
+def ggml_cuda_free_data(
+    tensor,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+):
+    return lib.ggml_cuda_free_data(tensor)
+
+
+if GGML_USE_CUBLAS:
+    lib.ggml_cuda_free_data.argtypes = [
+        ctypes.POINTER(ggml_tensor),
+    ]
+    lib.ggml_cuda_free_data.restype = None
+
+
+# void   ggml_cuda_assign_buffers(struct ggml_tensor * tensor);
+def ggml_cuda_assign_buffers(
+    tensor,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+):
+    return lib.ggml_cuda_assign_buffers(tensor)
+
+
+if GGML_USE_CUBLAS:
+    lib.ggml_cuda_assign_buffers.argtypes = [
+        ctypes.POINTER(ggml_tensor),
+    ]
+    lib.ggml_cuda_assign_buffers.restype = None
+
+
+# void   ggml_cuda_assign_buffers_no_scratch(struct ggml_tensor * tensor);
+def ggml_cuda_assign_buffers_no_scratch(
+    tensor,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+):
+    return lib.ggml_cuda_assign_buffers_no_scratch(tensor)
+
+
+if GGML_USE_CUBLAS:
+    lib.ggml_cuda_assign_buffers_no_scratch.argtypes = [
+        ctypes.POINTER(ggml_tensor),
+    ]
+    lib.ggml_cuda_assign_buffers_no_scratch.restype = None
+
+
+# void   ggml_cuda_set_main_device(int main_device);
+def ggml_cuda_set_main_device(
+    main_device: ctypes.c_int,
+):
+    return lib.ggml_cuda_set_main_device(main_device)
+
+
+if GGML_USE_CUBLAS:
+    lib.ggml_cuda_set_main_device.argtypes = [
+        ctypes.c_int,
+    ]
+    lib.ggml_cuda_set_main_device.restype = None
+
+
+# void   ggml_cuda_set_scratch_size(size_t scratch_size);
+def ggml_cuda_set_scratch_size(
+    scratch_size: ctypes.c_size_t,
+):
+    return lib.ggml_cuda_set_scratch_size(scratch_size)
+
+
+if GGML_USE_CUBLAS:
+    lib.ggml_cuda_set_scratch_size.argtypes = [
+        ctypes.c_size_t,
+    ]
+    lib.ggml_cuda_set_scratch_size.restype = None
+
+
+# void   ggml_cuda_free_scratch(void);
+def ggml_cuda_free_scratch():
+    return lib.ggml_cuda_free_scratch()
+
+
+if GGML_USE_CUBLAS:
+    lib.ggml_cuda_free_scratch.argtypes = []
+    lib.ggml_cuda_free_scratch.restype = None
+
+
+#####################################################
+# GGML METAL API
+# source: ggml-metal.h
+#####################################################
+
+
+GGML_USE_METAL = hasattr(lib, "ggml_metal_init")
+
+
+GGML_METAL_MAX_BUFFERS = ctypes.c_int(16)
+
+# struct ggml_metal_context;
+ggml_metal_context_p = ctypes.c_void_p
+
+
+# struct ggml_metal_context * ggml_metal_init(void);
+def ggml_metal_init() -> ggml_metal_context_p:
+    return lib.ggml_metal_init()
+
+
+if GGML_USE_METAL:
+    lib.ggml_metal_init.argtypes = []
+    lib.ggml_metal_init.restype = ggml_metal_context_p
+
+# void ggml_metal_free(struct ggml_metal_context * ctx);
+
+
+# // creates a mapping between a host memory buffer and a device memory buffer
+# // - make sure to map all buffers used in the graph before calling ggml_metal_graph_compute
+# // - the mapping is used during computation to determine the arguments of the compute kernels
+# // - you don't need to keep the host memory buffer allocated as it is never accessed by Metal
+# // - max_size specifies the maximum size of a tensor and is used to create shared views such
+# //   that it is guaranteed that the tensor will fit in at least one of the views
+# //
+# bool ggml_metal_add_buffer(
+#         struct ggml_metal_context * ctx,
+#                        const char * name,
+#                              void * data,
+#                            size_t   size,
+#                            size_t   max_size);
+def ggml_metal_add_buffer(
+    ctx: ggml_metal_context_p,
+    name: ctypes.c_char_p,
+    data: ctypes.c_void_p,
+    size: ctypes.c_size_t,
+    max_size: ctypes.c_size_t,
+) -> ctypes.c_bool:
+    return lib.ggml_metal_add_buffer(ctx, name, data, size, max_size)
+
+
+if GGML_USE_METAL:
+    lib.ggml_metal_add_buffer.argtypes = [
+        ggml_metal_context_p,
+        ctypes.c_char_p,
+        ctypes.c_void_p,
+        ctypes.c_size_t,
+        ctypes.c_size_t,
+    ]
+    lib.ggml_metal_add_buffer.restype = ctypes.c_bool
+
+
+# // get data from the device into host memory
+# void ggml_metal_get_tensor(struct ggml_metal_context * ctx, struct ggml_tensor * t);
+def ggml_metal_get_tensor(
+    ctx: ggml_metal_context_p,
+    t,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+):
+    return lib.ggml_metal_get_tensor(ctx, t)
+
+
+if GGML_USE_METAL:
+    lib.ggml_metal_get_tensor.argtypes = [
+        ggml_metal_context_p,
+        ctypes.POINTER(ggml_tensor),
+    ]
+    lib.ggml_metal_get_tensor.restype = None
+
+
+# // same as ggml_graph_compute but uses Metal
+# // creates gf->n_threads command buffers in parallel
+# void ggml_metal_graph_compute(struct ggml_metal_context * ctx, struct ggml_cgraph * gf);
+def ggml_metal_graph_compute(
+    ctx: ggml_metal_context_p,
+    gf,  # type: ctypes._Pointer[ggml_cgraph] # type: ignore
+):
+    return lib.ggml_metal_graph_compute(ctx, gf)
+
+
+if GGML_USE_METAL:
+    lib.ggml_metal_graph_compute.argtypes = [
+        ggml_metal_context_p,
+        ctypes.POINTER(ggml_cgraph),
+    ]
+    lib.ggml_metal_graph_compute.restype = None
+
+
+#####################################################
+# GGML OPENCL API
+# source: ggml-opencl.h
+#####################################################
+
+
+GGML_USE_CLBLAST = hasattr(lib, "ggml_cl_init")
+
+
+# void ggml_cl_free_data(const struct ggml_tensor* tensor);
+def ggml_cl_free_data(
+    tensor,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+):
+    return lib.ggml_cl_free_data(tensor)
+
+
+if GGML_USE_CLBLAST:
+    lib.ggml_cl_free_data.argtypes = [
+        ctypes.POINTER(ggml_tensor),
+    ]
+    lib.ggml_cl_free_data.restype = None
+
+
+# void ggml_cl_transform_tensor(void * data, struct ggml_tensor * tensor);
+def ggml_cl_transform_tensor(
+    data: ctypes.c_void_p,
+    tensor,  # type: ctypes._Pointer[ggml_tensor] # type: ignore
+):
+    return lib.ggml_cl_transform_tensor(data, tensor)
+
+
+if GGML_USE_CLBLAST:
+    lib.ggml_cl_transform_tensor.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(ggml_tensor),
+    ]
+    lib.ggml_cl_transform_tensor.restype = None
