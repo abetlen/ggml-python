@@ -90,9 +90,9 @@ class ResidualAttentionBlock:
 
     def forward(self, inpL: Tensor, ctx: Context, gf: CGraph) -> Tensor:
         N = inpL.shape[1]
-
         # [768, N]
         cur = Tensor.norm(inpL, ctx=ctx)
+
         # cur = ln_1_weight * cur + ln_1_bias
         # [768, N]
         cur = Tensor.add(
@@ -164,8 +164,10 @@ class ResidualAttentionBlock:
             3,
             ctx=ctx,
         )
+        # attn_weight = torch.softmax((Q @ K.transpose(-2, -1) / math.sqrt(Q.size(-1))) + attn_mask, dim=-1)
 
         KQ = Tensor.mul_mat(K, Q, ctx=ctx)
+
         KQ_scaled = Tensor.scale(
             KQ,
             Tensor.new_f32(
@@ -174,11 +176,19 @@ class ResidualAttentionBlock:
             ),
             ctx=ctx,
         )
-        KQ_soft_max = Tensor.soft_max(KQ_scaled, ctx=ctx)
 
+        KQ_soft_max = Tensor.soft_max(KQ_scaled, ctx=ctx)
+        # GOOD ^^^
+        # BAD  vvv Fix double copy
         V_trans = Tensor.cpy(
             Tensor.permute(
-                Vcur,
+                Tensor.cpy(
+                    Vcur,
+                    Tensor.new_tensor_3d(
+                        GGML_TYPE.F32, n_embd // self.n_head, self.n_head, N, ctx=ctx
+                    ),
+                    ctx=ctx,
+                ),
                 1,
                 2,
                 0,
@@ -188,8 +198,42 @@ class ResidualAttentionBlock:
             Tensor.new_tensor_3d(
                 GGML_TYPE.F32, N, n_embd // self.n_head, self.n_head, ctx=ctx
             ),
+            ctx=ctx,
         )
+        gf.build_forward_expand(V_trans)
+        gf.compute()
+
+        IPython.embed()
+        exit(0)
+
+        # V_trans = Tensor.cpy(
+        #     Tensor.permute(
+        #         Tensor.reshape_3d(Vcur, n_embd // self.n_head, self.n_head, N, ctx=ctx),
+        #         1,
+        #         2,
+        #         0,
+        #         3,
+        #         ctx=ctx,
+        #     ),
+        #     Tensor.new_tensor_3d(
+        #         GGML_TYPE.F32, N, n_embd // self.n_head, self.n_head, ctx=ctx
+        #     ),
+        # )
+        # V_trans = Tensor.cpy(
+        #     Tensor.permute(
+        #         Vcur,
+        #         1,
+        #         2,
+        #         0,
+        #         3,
+        #         ctx=ctx,
+        #     ),
+        #     Tensor.new_tensor_3d(
+        #         GGML_TYPE.F32, N, n_embd // self.n_head, self.n_head, ctx=ctx
+        #     ),
+        # )
         KQV = Tensor.mul_mat(V_trans, KQ_soft_max, ctx=ctx)
+
         KQV_merged = Tensor.permute(
             KQV,
             0,
@@ -208,6 +252,13 @@ class ResidualAttentionBlock:
             ),
             ctx=ctx,
         )
+        # BAD
+        gf.build_forward_expand(cur)
+        gf.compute()
+
+        IPython.embed()
+        exit(0)
+
         cur = Tensor.mul_mat(
             self.out_proj_weight,
             cur,
@@ -414,101 +465,41 @@ class ClipModel:
             cur.shape[2],
             ctx=ctx0,
         )
-
         concat = Tensor.new_tensor_2d(wtype, cur.shape[0] + 1, cur.shape[1], ctx=ctx0)
 
         concat = Tensor.set_1d(
             concat,
-            Tensor.view_1d(self.visual.visual_class_embedding, 768, 0),
+            Tensor.view_1d(
+                self.visual.visual_class_embedding,
+                self.visual.visual_class_embedding.shape[0],
+                0,
+            ),
             0,
             ctx=ctx0,
         )
-
-        # concat = Tensor.set_1d(
-        #     concat,
-        #     cur,
-        #     self.visual.visual_class_embedding.nbytes(),
-        #     ctx=ctx0,
-        # )
-        cur = Tensor.cpy(
-            Tensor.permute(
-                concat,
-                0,
-                1,
-                2,
-                3,
+        # Copy in the visual features
+        concat = Tensor.set_2d(
+            concat,
+            Tensor.cpy(
+                Tensor.transpose(cur, ctx=ctx0),
+                Tensor.new_tensor_2d(wtype, cur.shape[0], cur.shape[1]),
+                ctx=ctx0,
             ),
+            cur.tensor.contents.nb[1],
+            self.visual.visual_class_embedding.nbytes(),
+            ctx=ctx0,
+        )
+
+        # Copy in the positional embeddings
+        cur = Tensor.cpy(
+            concat,
             Tensor.new_tensor_2d(wtype, concat.shape[1], concat.shape[0], ctx=ctx0),
             ctx=ctx0,
         )
-        gf.build_forward_expand(cur)
-        gf.compute()
-
-        IPython.embed()
-
-        cur = Tensor.cpy(
-            Tensor.permute(
-                Tensor.reshape_3d(
-                    cur,
-                    cur.shape[0] * cur.shape[1],
-                    cur.shape[2],
-                    cur.shape[3],
-                    ctx=ctx0,
-                ),
-                1,
-                0,
-                2,
-                3,
-            ),
-            Tensor.new_tensor_3d(
-                wtype, cur.shape[1], cur.shape[0], cur.shape[2], ctx=ctx0
-            ),
-            ctx=ctx0,
-        )
-        gf.build_forward_expand(cur)
-        gf.compute()
-
-        IPython.embed()
-
-        concat = Tensor.new_tensor_3d(
-            wtype, cur.shape[0] + 1, cur.shape[1], cur.shape[2], ctx=ctx0
-        )
-
-        # IPython.embed()
-        cur = Tensor.set(
-            concat,
-            cur,
-            concat.tensor.contents.nb[0],
-            concat.tensor.contents.nb[1],
-            concat.tensor.contents.nb[2],
-            0,
-            ctx=ctx0,
-        )
-        cur = Tensor.set(
-            concat,
-            self.visual.visual_class_embedding,
-            concat.tensor.contents.nb[0],
-            concat.tensor.contents.nb[1],
-            concat.tensor.contents.nb[2],
-            49,
-            ctx=ctx0,
-        )
-        gf.build_forward_expand(cur)
-        gf.compute()
-
-        IPython.embed()
 
         pEmb = self.visual.visual_positional_embedding
 
-        cur = Tensor.reshape_2d(cur, cur.shape[0], cur.shape[1], ctx=ctx0)
-
         cur = Tensor.add(cur, pEmb, ctx=ctx0)
-
-        cur = Tensor.cpy(
-            Tensor.transpose(cur, ctx=ctx0),
-            Tensor.new_tensor_2d(wtype, cur.shape[1], cur.shape[0], ctx=ctx0),
-            ctx=ctx0,
-        )
 
         # ln_pre
         cur = Tensor.norm(cur, ctx=ctx0)
@@ -521,7 +512,6 @@ class ClipModel:
             Tensor.repeat(self.visual.visual_ln_pre_bias, cur, ctx=ctx0),
             ctx=ctx0,
         )
-
         # Transformer
         for il in range(self.visual.layers):
             resblock = self.visual.resblocks[il]
