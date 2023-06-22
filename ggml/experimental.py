@@ -5,6 +5,7 @@ import ctypes
 from typing import Any, Callable, Optional, Sequence, Tuple
 
 import ggml
+from ggml.utils import from_numpy, to_numpy
 
 import numpy as np
 import numpy.typing as npt
@@ -123,12 +124,7 @@ class Tensor:
         return ctypes.memmove(self.data, data, self.nbytes())
 
     def numpy(self):
-        ctypes_type = np.ctypeslib.as_ctypes_type(
-            GGML_TYPE_TO_NUMPY_DTYPE[self.ggml_type]
-        )
-        array = ctypes.cast(self.data, ctypes.POINTER(ctypes_type))
-        shape = tuple(reversed(self.shape))
-        return np.ctypeslib.as_array(array, shape=shape).T
+        return to_numpy(self.tensor)
 
     # Magic methods
     def __len__(self):
@@ -173,15 +169,9 @@ class Tensor:
 
     @classmethod
     def from_numpy(cls, x: npt.NDArray[Any], ctx: Optional[Context] = None):
-        ggml_type = NUMPY_DTYPE_TO_GGML_TYPE[x.dtype.type]
-        ctypes_type = np.ctypeslib.as_ctypes_type(x.dtype)
-        tensor = cls.with_shape(shape=x.shape, ggml_type=ggml_type, ctx=ctx)
-        array = ctypes.cast(
-            ggml.ggml_get_data(tensor.tensor), ctypes.POINTER(ctypes_type)
-        )
-        arr = np.ctypeslib.as_array(array, shape=x.shape)
-        arr[:] = x
-        return tensor
+        ctx = ctx or default_context()
+        tensor = from_numpy(x, ctx.context)
+        return cls(tensor=tensor, ctx=ctx)
 
     @staticmethod
     def new_tensor(
