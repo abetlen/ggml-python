@@ -90,9 +90,9 @@ class ResidualAttentionBlock:
 
     def forward(self, inpL: Tensor, ctx: Context, gf: CGraph) -> Tensor:
         N = inpL.shape[1]
+
         # [768, N]
         cur = Tensor.norm(inpL, ctx=ctx)
-
         # cur = ln_1_weight * cur + ln_1_bias
         # [768, N]
         cur = Tensor.add(
@@ -107,6 +107,7 @@ class ResidualAttentionBlock:
         # [2304, 1] - in_proj_bias
         # [2304, N] - cur (out)
         cur = Tensor.mul_mat(self.in_proj_weight, cur, ctx=ctx)
+
         cur = Tensor.add(Tensor.repeat(self.in_proj_bias, cur, ctx=ctx), cur, ctx=ctx)
 
         # Self-Attention
@@ -120,6 +121,7 @@ class ResidualAttentionBlock:
             0 * ctypes.sizeof(ctypes.c_float) * n_embd,
             ctx=ctx,
         )
+
         Kcur = Tensor.view_2d(
             cur,
             n_embd,
@@ -128,6 +130,7 @@ class ResidualAttentionBlock:
             1 * ctypes.sizeof(ctypes.c_float) * n_embd,
             ctx=ctx,
         )
+
         Vcur = Tensor.view_2d(
             cur,
             n_embd,
@@ -136,6 +139,7 @@ class ResidualAttentionBlock:
             2 * ctypes.sizeof(ctypes.c_float) * n_embd,
             ctx=ctx,
         )
+
         Q = Tensor.permute(
             Tensor.cpy(
                 Qcur,
@@ -150,6 +154,7 @@ class ResidualAttentionBlock:
             3,
             ctx=ctx,
         )
+
         K = Tensor.permute(
             Tensor.cpy(
                 Kcur,
@@ -164,6 +169,7 @@ class ResidualAttentionBlock:
             3,
             ctx=ctx,
         )
+
         KQ = Tensor.mul_mat(K, Q, ctx=ctx)
 
         KQ_scaled = Tensor.scale(
@@ -176,6 +182,7 @@ class ResidualAttentionBlock:
         )
 
         KQ_soft_max = Tensor.soft_max(KQ_scaled, ctx=ctx)
+
         V_trans = Tensor.cpy(
             Tensor.permute(
                 Tensor.cpy(
@@ -198,6 +205,7 @@ class ResidualAttentionBlock:
         )
 
         KQV = Tensor.mul_mat(V_trans, KQ_soft_max, ctx=ctx)
+
         KQV_merged = Tensor.permute(
             KQV,
             0,
@@ -206,6 +214,7 @@ class ResidualAttentionBlock:
             3,
             ctx=ctx,
         )
+
         cur = Tensor.cpy(
             KQV_merged,
             Tensor.new_tensor_2d(
@@ -216,11 +225,13 @@ class ResidualAttentionBlock:
             ),
             ctx=ctx,
         )
+
         cur = Tensor.mul_mat(
             self.out_proj_weight,
             cur,
             ctx=ctx,
         )
+
         cur = Tensor.add(Tensor.repeat(self.out_proj_bias, cur, ctx=ctx), cur, ctx=ctx)
 
         # Add Residual
@@ -240,20 +251,18 @@ class ResidualAttentionBlock:
         cur = Tensor.add(Tensor.repeat(self.mlp_c_fc_bias, cur, ctx=ctx), cur, ctx=ctx)
 
         # QuickGELU -  x * sigmoid(1.702 * x)
-        # TODO: implement QuickGELU in ggml.c
-        sf = Tensor.new_tensor_1d(GGML_TYPE.F32, 1, ctx=ctx)
-        sf.set_data(struct.pack("f", 1.702))
-        sf_inv = Tensor.new_tensor_1d(GGML_TYPE.F32, 1, ctx=ctx)
-        sf_inv.set_data(struct.pack("f", 1 / 1.702))
-        cur = Tensor.scale(cur, sf, ctx=ctx)
+        cur = Tensor.scale(cur, Tensor.new_f32(1.702, ctx=ctx), ctx=ctx)
+
         cur = Tensor.silu(cur, ctx=ctx)
-        cur = Tensor.scale(cur, sf_inv, ctx=ctx)
+
+        cur = Tensor.scale(cur, Tensor.new_f32(1 / 1.702, ctx=ctx), ctx=ctx)
 
         # c_proj
         cur = Tensor.mul_mat(self.mlp_c_proj_weight, cur, ctx=ctx)
         cur = Tensor.add(
             Tensor.repeat(self.mlp_c_proj_bias, cur, ctx=ctx), cur, ctx=ctx
         )
+
         # Add Residual
         cur = Tensor.add(inpL, cur, ctx=ctx)
         return cur
@@ -342,7 +351,13 @@ class ClipModel:
         self.n_threads = n_threads
         self.context_length = context_length
         self.tensors: Dict[str, Tensor] = {}
-
+        self.vision_layers = vision_layers
+        self.vision_patch_size = vision_patch_size
+        self.vision_width = vision_width
+        self.vision_heads = vision_width // 64
+        self.image_resolution = image_resolution
+        self.grid_size = image_resolution // vision_patch_size
+        self.embed_dim = embed_dim
         # Positional Embedding (position_embedding)
         self.positional_embedding = Tensor.new_tensor_2d(
             wtype, context_length, transformer_width, ctx=ctx
@@ -360,7 +375,7 @@ class ClipModel:
         self.tensors["logit_scale"] = self.logit_scale
 
         # Visual Transformer (visual.)
-        vision_heads = vision_width // 64
+
         self.visual = VisionTransformer(
             ctx=ctx,
             wtype=wtype,
@@ -368,7 +383,7 @@ class ClipModel:
             patch_size=vision_patch_size,
             width=vision_width,
             layers=vision_layers,
-            heads=vision_heads,
+            heads=self.vision_heads,
             output_dim=embed_dim,
         )
         self.tensors.update(self.visual.tensors)
@@ -406,9 +421,121 @@ class ClipModel:
         tensor = self._encode_image_internal(image)
         return tensor.numpy().copy().reshape(1, -1)
 
+    def _image_encoder_compute_mem(self):
+        e_size = 4
+        N = self.grid_size * self.grid_size + 1
+        ggml_overhead = 256
+
+        mem_size = 0
+        mem_size += 256
+        mem_size += (
+            e_size * self.image_resolution * self.image_resolution * 3 + ggml_overhead
+        )  # image
+        mem_size += (
+            e_size * self.grid_size * self.grid_size * self.vision_width + ggml_overhead
+        )  # conv
+        mem_size += e_size * self.vision_width * N + ggml_overhead  # concat
+
+        mem_size += e_size * 8 + 256  # ???
+        mem_size += (
+            e_size * self.vision_width * N + ggml_overhead
+        )  # Copy in visual features
+        mem_size += 2 * ggml_overhead  # ???
+        mem_size += e_size * 8 + 256  # ???
+        mem_size += (
+            e_size * self.vision_width * N + ggml_overhead
+        )  # Copy in positional embeddings
+        mem_size += (
+            e_size * self.vision_width * N + ggml_overhead
+        )  # copy visual features: ret
+        mem_size += ggml_overhead
+        mem_size += e_size * self.vision_width * N + ggml_overhead  # add
+        mem_size += e_size * self.vision_width * N + ggml_overhead  # ln_pre: norm
+        mem_size += e_size * self.vision_width * N + ggml_overhead  # ln_pre: repeat
+        mem_size += e_size * self.vision_width * N + ggml_overhead  # ln_pre: repeat
+        mem_size += e_size * self.vision_width * N + ggml_overhead  # ln_pre: mul
+        mem_size += e_size * self.vision_width * N + ggml_overhead  # ln_pre: add
+
+        res_block_mem_size = 0
+        res_block_mem_size += (
+            e_size * self.vision_width * N + ggml_overhead
+        ) * 5  # ln_1: repeat, repeat, mul, add, norm
+        res_block_mem_size += (
+            e_size * self.vision_width * 3 * N + ggml_overhead
+        ) * 3  # in_proj: mul_mat, repeat, add
+        res_block_mem_size += ggml_overhead * 3  # view_2d: Qcur, Kcur, Vcur
+        res_block_mem_size += (
+            (
+                e_size
+                * (self.vision_width // self.vision_heads)
+                * self.vision_heads
+                * N
+                + ggml_overhead
+            )
+            + 2 * ggml_overhead
+        ) * 2  # K,Q: new_tensor, cpy, permute
+        res_block_mem_size += e_size * N * N * self.vision_heads + ggml_overhead  # KQ
+        res_block_mem_size += e_size * 4 + 256  # KQ_scaled: new_f32
+        res_block_mem_size += (
+            e_size * N * N * self.vision_heads + ggml_overhead
+        )  # KQ_scaled
+        res_block_mem_size += (
+            e_size * N * N * self.vision_heads + ggml_overhead
+        )  # KQ_soft_max
+        res_block_mem_size += (
+            e_size * (self.vision_width // self.vision_heads) * self.vision_heads * N
+            + ggml_overhead
+        )  # V_trans: new_tensor_3d
+        res_block_mem_size += ggml_overhead * 2  # V_trans: cpy and permute
+        res_block_mem_size += (
+            e_size * (self.vision_width // self.vision_heads) * self.vision_heads * N
+            + ggml_overhead
+        )  # V_trans: new_tensor_3d
+        res_block_mem_size += ggml_overhead  # V_trans: cpy
+        res_block_mem_size += (
+            e_size * (self.vision_width // self.vision_heads) * self.vision_heads * N
+            + ggml_overhead
+        )  # KQV: mul_mat
+        res_block_mem_size += ggml_overhead  # KQV_merged: permute
+        res_block_mem_size += (
+            e_size * self.vision_width * N + ggml_overhead
+        )  # KQV_merged: new_tensor_2d
+        res_block_mem_size += ggml_overhead  # KQV_merged: cpy
+        res_block_mem_size += (
+            e_size * self.vision_width * N + ggml_overhead
+        ) * 3  # out_proj: mul_mat, repeat, add
+        res_block_mem_size += (
+            e_size * self.vision_width * N + ggml_overhead
+        )  # Add residual
+        res_block_mem_size += (
+            e_size * self.vision_width * N + ggml_overhead
+        ) * 5  # ln_2: norm, add, repeat, repeat, mul
+        res_block_mem_size += (
+            e_size * self.vision_width * 4 * N + ggml_overhead
+        ) * 3  # MLP: mul_mat, repeat, add
+        res_block_mem_size += (e_size * 4 + 256) * 2  # SiLU: sf_in, sf_out
+        res_block_mem_size += (
+            e_size * self.vision_width * 4 * N + ggml_overhead
+        ) * 3  # SiLU: scale, silu, scale
+        res_block_mem_size += (
+            e_size * self.vision_width * N + ggml_overhead
+        ) * 3  # mlp_c_proj: mul_mat, repeat, add
+        res_block_mem_size += (
+            e_size * self.vision_width * N + ggml_overhead
+        )  # Add Residual
+        mem_size += res_block_mem_size * self.vision_layers
+        mem_size += ggml_overhead  # ln_post: transpose
+        mem_size += (e_size * self.vision_width + ggml_overhead) * 3  # ln_post
+        mem_size += e_size * self.vision_width * self.embed_dim + ggml_overhead
+        mem_size += ggml_overhead  # cpy
+        mem_size += e_size * self.embed_dim + ggml_overhead  # mul_mat
+        mem_size += 301312  # Compute Overhead ??
+        return mem_size
+
     def _encode_image_internal(self, image):
         wtype = GGML_TYPE(ggml.ggml_ftype_to_ggml_type(ctypes.c_int(0)))
-        mem_size = np.prod(image.shape) * 4 + 256 + 256 * 1024 * 1024 * 2
+
+        mem_size = self._image_encoder_compute_mem()
         mem_buffer = np.empty(mem_size, dtype=np.uint8)
         init_params = InitParams(
             mem_size=mem_size, mem_buffer=mem_buffer.ctypes.data_as(ctypes.c_void_p)
@@ -447,6 +574,7 @@ class ClipModel:
             0,
             ctx=ctx0,
         )
+
         # Copy in the visual features
         concat = Tensor.set_2d(
             concat,
@@ -473,6 +601,7 @@ class ClipModel:
 
         # ln_pre
         cur = Tensor.norm(cur, ctx=ctx0)
+
         cur = Tensor.add(
             Tensor.mul(
                 Tensor.repeat(self.visual.visual_ln_pre_weight, cur, ctx=ctx0),
@@ -516,11 +645,9 @@ class ClipModel:
             Tensor.reshape_2d(cur, cur.shape[0], 1),
             ctx=ctx0,
         )
-
         # Token Projection
         gf.build_forward_expand(cur)
         gf.compute()
-
         return cur
 
     def encode_text(self, text):
