@@ -46,17 +46,17 @@ class Context:
 
 
 class GGML_TYPE(enum.Enum):
-    F32 = ggml.GGML_TYPE_F32.value
-    F16 = ggml.GGML_TYPE_F16.value
-    Q4_0 = ggml.GGML_TYPE_Q4_0.value
-    Q4_1 = ggml.GGML_TYPE_Q4_1.value
-    Q5_0 = ggml.GGML_TYPE_Q5_0.value
-    Q5_1 = ggml.GGML_TYPE_Q5_1.value
-    Q8_0 = ggml.GGML_TYPE_Q8_0.value
-    Q8_1 = ggml.GGML_TYPE_Q8_1.value
-    I8 = ggml.GGML_TYPE_I8.value
-    I16 = ggml.GGML_TYPE_I16.value
-    I32 = ggml.GGML_TYPE_I32.value
+    F32 = ggml.GGML_TYPE_F32
+    F16 = ggml.GGML_TYPE_F16
+    Q4_0 = ggml.GGML_TYPE_Q4_0
+    Q4_1 = ggml.GGML_TYPE_Q4_1
+    Q5_0 = ggml.GGML_TYPE_Q5_0
+    Q5_1 = ggml.GGML_TYPE_Q5_1
+    Q8_0 = ggml.GGML_TYPE_Q8_0
+    Q8_1 = ggml.GGML_TYPE_Q8_1
+    I8 = ggml.GGML_TYPE_I8
+    I16 = ggml.GGML_TYPE_I16
+    I32 = ggml.GGML_TYPE_I32
 
 
 NUMPY_DTYPE_TO_GGML_TYPE = {
@@ -71,20 +71,20 @@ GGML_TYPE_TO_NUMPY_DTYPE = {v: k for k, v in NUMPY_DTYPE_TO_GGML_TYPE.items()}
 
 
 class GGML_FTYPE(enum.Enum):
-    UNKNOWN = ggml.GGML_FTYPE_UNKNOWN.value
-    ALL_F32 = ggml.GGML_FTYPE_ALL_F32.value
-    MOSTLY_F16 = ggml.GGML_FTYPE_MOSTLY_F16.value
-    MOSTLY_Q4_0 = ggml.GGML_FTYPE_MOSTLY_Q4_0.value
-    MOSTLY_Q4_1_SOME_F16 = ggml.GGML_FTYPE_MOSTLY_Q4_1_SOME_F16.value
-    MOSTLY_Q8_0 = ggml.GGML_FTYPE_MOSTLY_Q8_0.value
-    MOSTLY_Q5_0 = ggml.GGML_FTYPE_MOSTLY_Q5_0.value
-    MOSTLY_Q5_1 = ggml.GGML_FTYPE_MOSTLY_Q5_1.value
+    UNKNOWN = ggml.GGML_FTYPE_UNKNOWN
+    ALL_F32 = ggml.GGML_FTYPE_ALL_F32
+    MOSTLY_F16 = ggml.GGML_FTYPE_MOSTLY_F16
+    MOSTLY_Q4_0 = ggml.GGML_FTYPE_MOSTLY_Q4_0
+    MOSTLY_Q4_1_SOME_F16 = ggml.GGML_FTYPE_MOSTLY_Q4_1_SOME_F16
+    MOSTLY_Q8_0 = ggml.GGML_FTYPE_MOSTLY_Q8_0
+    MOSTLY_Q5_0 = ggml.GGML_FTYPE_MOSTLY_Q5_0
+    MOSTLY_Q5_1 = ggml.GGML_FTYPE_MOSTLY_Q5_1
 
 
 class Tensor:
     def __init__(
         self,
-        tensor,  # type: ctypes._Pointer[ggml.ggml_tensor] # type: ignore
+        tensor: ggml.ggml_tensor,
         ctx: Optional[Context] = None,
     ):
         self.tensor = tensor
@@ -105,15 +105,15 @@ class Tensor:
 
     @name.setter
     def name(self, name: bytes):
-        ggml.ggml_set_name(self.tensor, name)
+        ggml.ggml_set_name(self.tensor, name.decode("utf-8"))
 
     @property
     def ggml_type(self):
-        return GGML_TYPE(self.tensor.contents.type)
+        return GGML_TYPE(self.tensor.type)
 
     @property
     def shape(self) -> Tuple[int, ...]:
-        return tuple(self.tensor.contents.ne[: self.tensor.contents.n_dims])
+        return tuple(self.tensor.ne[: self.tensor.n_dims])
 
     @property
     def data(self):
@@ -165,8 +165,8 @@ class Tensor:
         ctx = ctx or default_context()
         tensor = ggml.ggml_new_tensor(
             ctx.context,
-            ctypes.c_int(ggml_type.value),
-            ctypes.c_int(len(shape)),
+            ggml_type,
+            len(shape),
             (ctypes.c_int64 * len(shape))(*shape),
         )
         return cls(tensor=tensor, ctx=ctx)

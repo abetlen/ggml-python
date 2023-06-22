@@ -1,5 +1,7 @@
 import ggml.ggml_ext as ggml
 
+import numpy as np
+
 
 def test_ggml():
     assert ggml.GGML_FILE_VERSION == 1
@@ -8,6 +10,7 @@ def test_ggml():
         mem_size=16 * 1024 * 1024,
         no_alloc=False
     )
+    params.mem_buffer = np.ones(params.mem_size, dtype=np.uint8).data
     ctx = ggml.ggml_init(params=params)
     assert ggml.ggml_used_mem(ctx) == 0
     assert ggml.ggml_type_size(ggml.GGML_TYPE_F32) == 4

@@ -523,7 +523,7 @@ class ggml_init_params:
     def mem_buffer(self) -> capsule:
         ...
     @mem_buffer.setter
-    def mem_buffer(self, arg: capsule, /) -> None:
+    def mem_buffer(self, arg: ndarray[], /) -> None:
         ...
     
     @property

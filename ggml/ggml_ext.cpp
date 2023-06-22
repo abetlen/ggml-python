@@ -1,6 +1,8 @@
 #include <nanobind/nanobind.h>
 
+#include <nanobind/ndarray.h>
 #include <nanobind/stl/vector.h>
+#include <nanobind/stl/shared_ptr.h>
 
 #include <ggml.h>
 
@@ -427,7 +429,16 @@ NB_MODULE(ggml_ext, m)
             self.no_alloc = no_alloc; },
               nb::arg("mem_size") = 0, nb::arg("mem_buffer") = nullptr, nb::arg("no_alloc") = true)
           .def_rw("mem_size", &ggml_init_params::mem_size)
-          .def_rw("mem_buffer", &ggml_init_params::mem_buffer)
+          .def_prop_rw(
+              "mem_buffer",
+              [](ggml_init_params &self)
+              {
+                    return self.mem_buffer;
+              },
+              [](ggml_init_params &self, nb::ndarray<> *mem_buffer)
+              {
+                    self.mem_buffer = mem_buffer->data();
+              })
           .def_rw("no_alloc", &ggml_init_params::no_alloc);
 
       // // misc
