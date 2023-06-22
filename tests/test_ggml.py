@@ -34,6 +34,6 @@ def test_ggml():
     ggml.ggml_set_f32(b, ctypes.c_float(4.0))
 
     ggml.ggml_graph_compute(ctx, ctypes.byref(gf))
-#     output = ggml.ggml_get_f32_1d(f, ctypes.c_int(0))
-#     assert output == 16.0
-#     ggml.ggml_free(ctx)
+    output = ggml.ggml_get_f32_1d(f, ctypes.c_int(0))
+    assert output == 16.0
+    ggml.ggml_free(ctx)
