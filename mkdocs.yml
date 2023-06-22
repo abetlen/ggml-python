@@ -2,9 +2,17 @@ site_name: ggml-python
 
 theme:
     name: readthedocs
+    highlightjs: true
+    hljs_style: github
+    hljs_languages:
+        - python
 
 plugins:
-    - mkdocstrings
+    - mkdocstrings:
+        handlers:
+            python:
+                options:
+                    members_order: source
 
 watch:
     - ggml

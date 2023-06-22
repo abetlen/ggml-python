@@ -1,3 +1,6 @@
 # Welcome to ggml-python
 
-::: ggml
+::: ggml.ggml
+    options:
+        show_root_heading: true
+
