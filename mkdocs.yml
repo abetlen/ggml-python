@@ -2,3 +2,9 @@ site_name: ggml-python
 
 theme:
     name: readthedocs
+
+plugins:
+    - mkdocstrings
+
+watch:
+    - ggml
