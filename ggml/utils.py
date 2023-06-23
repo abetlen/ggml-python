@@ -1,5 +1,6 @@
 import enum
 import ctypes
+import contextlib
 
 from typing import Any
 
@@ -35,13 +36,11 @@ GGML_TYPE_TO_NUMPY_DTYPE = {v: k for k, v in NUMPY_DTYPE_TO_GGML_TYPE.items()}
 
 
 def to_numpy(
-        tensor # type: ctypes._Pointer[ggml.ggml_tensor] # type: ignore
-    ):
+    tensor,  # type: ctypes._Pointer[ggml.ggml_tensor] # type: ignore
+):
     """Get the data of a ggml tensor as a numpy array."""
     ggml_type = GGML_TYPE(tensor.contents.type)
-    ctypes_type = np.ctypeslib.as_ctypes_type(
-        GGML_TYPE_TO_NUMPY_DTYPE[ggml_type]
-    )
+    ctypes_type = np.ctypeslib.as_ctypes_type(GGML_TYPE_TO_NUMPY_DTYPE[ggml_type])
     array = ctypes.cast(tensor.contents.data, ctypes.POINTER(ctypes_type))
     shape = tuple(reversed(tensor.contents.ne[: tensor.contents.n_dims]))
     return np.ctypeslib.as_array(array, shape=shape).T
@@ -62,3 +61,13 @@ def from_numpy(x: npt.NDArray[Any], ctx: ggml.ggml_context_p):
     arr = np.ctypeslib.as_array(array, shape=x.shape)
     arr[:] = x
     return tensor
+
+
+@contextlib.contextmanager
+def ggml_context_manager(params: ggml.ggml_init_params):
+    """Creates a context manager for a new ggml context that free's it after use."""
+    ctx = ggml.ggml_init(params)
+    try:
+        yield ctx
+    finally:
+        ggml.ggml_free(ctx)
