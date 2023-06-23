@@ -1,4 +1,4 @@
-""" This module provides a low-level ctypes interface to the ggml shared library.
+"""Low-level [ctypes](https://docs.python.org/3/library/ctypes.html) interface to the ggml shared library.
 
 Functions in this module are named and documented the same way as in the original C library.
 This module does not perform any checks on the input parameters or memory management for the ggml objects created by the library.
@@ -853,10 +853,10 @@ def ggml_init(
     """Instantiate a new ggml context with params.
 
     You must call `ggml_free()` to free the context.
-    
+
     Parameters:
         params: ggml init params
-        
+
     Returns:
         Pointer to ggml_context"""
     return lib.ggml_init(params)

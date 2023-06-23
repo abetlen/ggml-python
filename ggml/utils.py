@@ -1,3 +1,5 @@
+"""Utility functions for ggml-python.
+"""
 import enum
 import ctypes
 import contextlib
@@ -38,7 +40,14 @@ GGML_TYPE_TO_NUMPY_DTYPE = {v: k for k, v in NUMPY_DTYPE_TO_GGML_TYPE.items()}
 def to_numpy(
     tensor,  # type: ctypes._Pointer[ggml.ggml_tensor] # type: ignore
 ):
-    """Get the data of a ggml tensor as a numpy array."""
+    """Get the data of a ggml tensor as a numpy array.
+    
+    Parameters:
+        tensor: ggml tensor
+        
+    Returns:
+        Numpy array with a view of data from tensor
+    """
     ggml_type = GGML_TYPE(tensor.contents.type)
     ctypes_type = np.ctypeslib.as_ctypes_type(GGML_TYPE_TO_NUMPY_DTYPE[ggml_type])
     array = ctypes.cast(tensor.contents.data, ctypes.POINTER(ctypes_type))
@@ -47,7 +56,15 @@ def to_numpy(
 
 
 def from_numpy(x: npt.NDArray[Any], ctx: ggml.ggml_context_p):
-    """Create a new ggml tensor from a numpy array."""
+    """Create a new ggml tensor with data copied from a numpy array.
+    
+    Parameters:
+        x: numpy array
+        ctx: ggml context
+    
+    Returns:
+        New ggml tensor with data copied from x
+    """
     ggml_type = NUMPY_DTYPE_TO_GGML_TYPE[x.dtype.type]
     ctypes_type = np.ctypeslib.as_ctypes_type(x.dtype)
     shape = x.shape
@@ -65,7 +82,24 @@ def from_numpy(x: npt.NDArray[Any], ctx: ggml.ggml_context_p):
 
 @contextlib.contextmanager
 def ggml_context_manager(params: ggml.ggml_init_params):
-    """Creates a context manager for a new ggml context that free's it after use."""
+    """Creates a context manager for a new ggml context that free's it after use.
+    
+    Example:
+        ```python
+        import ggml
+        from ggml.utils import ggml_context_manager
+
+        params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024)
+        with ggml_context_manager(params) as ctx:
+            # do stuff with ctx
+        ```
+    
+    Parameters:
+        params: context parameters
+    
+    Returns:
+        ggml_context_p context manager
+    """
     ctx = ggml.ggml_init(params)
     try:
         yield ctx

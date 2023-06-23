@@ -6,10 +6,9 @@ title: Getting Started
 
 ggml-python is a python library for working with [ggml](https://github.com/ggerganov/ggml).
 
-ggml is a tensor library for machine learning developed by Georgi Gerganov.
-The library is written in C/C++ and is designed to be fast, portable and easily embeddable.
-It offers efficient implementations of various tensor operations in SIMD, BLAS, CUDA, OpenCL, and Metal.
-It supports quantized inference for reduced memory footprint and faster inference.
+ggml is a tensor library for machine learning developed by Georgi Gerganov, the library has been used to run models like Whisper and LLaMa on a wide range of devices.
+ggml is written in C/C++ and is designed to be fast, portable and easily embeddable; making use of various hardware acceleration systems like BLAS, CUDA, OpenCL, and Metal.
+ggml supports quantized inference for reduced memory footprint and faster inference.
 
 You can use ggml-python to:
 
