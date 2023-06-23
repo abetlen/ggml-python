@@ -39,12 +39,12 @@ GGML_TYPE_TO_NUMPY_DTYPE = {v: k for k, v in NUMPY_DTYPE_TO_GGML_TYPE.items()}
 
 def to_numpy(
     tensor,  # type: ctypes._Pointer[ggml.ggml_tensor] # type: ignore
-):
+) -> npt.NDArray[Any]:
     """Get the data of a ggml tensor as a numpy array.
-    
+
     Parameters:
-        tensor: ggml tensor
-        
+        tensor (ggml_tensor_p): ggml tensor
+
     Returns:
         Numpy array with a view of data from tensor
     """
@@ -55,15 +55,17 @@ def to_numpy(
     return np.ctypeslib.as_array(array, shape=shape).T
 
 
-def from_numpy(x: npt.NDArray[Any], ctx: ggml.ggml_context_p):
+def from_numpy(
+    x: npt.NDArray[Any], ctx: ggml.ggml_context_p
+):  # type: (...) -> ctypes._Pointer[ggml.ggml_tensor] # type: ignore
     """Create a new ggml tensor with data copied from a numpy array.
-    
+
     Parameters:
         x: numpy array
         ctx: ggml context
-    
+
     Returns:
-        New ggml tensor with data copied from x
+        (ggml_tensor_p): New ggml tensor with data copied from x
     """
     ggml_type = NUMPY_DTYPE_TO_GGML_TYPE[x.dtype.type]
     ctypes_type = np.ctypeslib.as_ctypes_type(x.dtype)
@@ -83,7 +85,7 @@ def from_numpy(x: npt.NDArray[Any], ctx: ggml.ggml_context_p):
 @contextlib.contextmanager
 def ggml_context_manager(params: ggml.ggml_init_params):
     """Creates a context manager for a new ggml context that free's it after use.
-    
+
     Example:
         ```python
         import ggml
@@ -93,10 +95,10 @@ def ggml_context_manager(params: ggml.ggml_init_params):
         with ggml_context_manager(params) as ctx:
             # do stuff with ctx
         ```
-    
+
     Parameters:
         params: context parameters
-    
+
     Returns:
         ggml_context_p context manager
     """

@@ -1,7 +1,7 @@
-"""Low-level [ctypes](https://docs.python.org/3/library/ctypes.html) interface to the ggml shared library.
+"""Low-level [ctypes](https://docs.python.org/3/library/ctypes.html) interface for ggml.
 
-Functions in this module are named and documented the same way as in the original C library.
-This module does not perform any checks on the input parameters or memory management for the ggml objects created by the library.
+Functions in this module are named as in the original C library.
+This module does not perform additional checks on the input parameters or memory management for the ggml objects created by the library.
 
 Example
 
@@ -45,7 +45,7 @@ ggml.ggml_set_f32(a, ctypes.c_float(3.0))
 ggml.ggml_set_f32(b, ctypes.c_float(4.0))
 
 # Compute the graph
-ggml.ggml_graph_compute(ctx, ctypes.byref(gf))
+ggml.ggml_graph_compute(ctx, ctypes.pointer(gf))
 
 # Get the output value
 output = ggml.ggml_get_f32_1d(f, ctypes.c_int(0))
@@ -494,6 +494,28 @@ GGML_OBJECT_SIZE = ctypes.sizeof(ggml_object)
 #     char padding[4];
 # };
 class ggml_tensor(ctypes.Structure):
+    """n-dimensional tensor
+    
+    Attributes:
+        type (int): ggml_type
+        backend (int): ggml_backend
+        n_dims (int): number of dimensions
+        ne (int64_t * GGML_MAX_DIMS): number of elements in each dimension
+        nb (size_t * GGML_MAX_DIMS): stride in bytes for each dimension
+        op (int): ggml operation
+        is_param (bool): is this a parameter tensor
+        grad (ggml_tensor_p): reference to gradient tensor
+        src0 (ggml_tensor_p): reference to source tensor 0
+        src1 (ggml_tensor_p): reference to source tensor 1
+        opt (ggml_tensor_p * GGML_MAX_OPT): optimization tensors
+        n_tasks (int): number of tasks
+        perf_runs (int): number of performance runs
+        perf_cycles (int64_t): number of cycles
+        perf_time_us (int64_t): time in microseconds
+        data (void_p): reference to raw tensor data
+        name (char * GGML_MAX_NAME): name of tensor
+        extra (void_p): extra data (e.g. for CUDA)
+    """
     pass
 
 
