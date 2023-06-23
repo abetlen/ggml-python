@@ -11,12 +11,11 @@ model = ClipModel.init_from_file(model_file, n_threads=1)
 image = preprocess(Image.open("CLIP/CLIP.png")).unsqueeze(0)
 text = clip.tokenize(["a diagram", "a dog", "a cat"])
 
-# Only single image supported in ggml right now
-image_features = model.encode_image(image)
-
-IPython.embed()
+# Features are computed one at a time, batching not supported yet
 text_features = model.encode_text(text)
 
+# Only single image supported in ggml right now
+image_features = model.encode_image(image)
 
 logits_per_image, logits_per_text = model(image, text)
 probs = logits_per_image.softmax(dim=-1).cpu().numpy()
