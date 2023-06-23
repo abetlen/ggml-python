@@ -3,6 +3,8 @@ repo_url: https://github.com/abetlen/ggml-python
 
 theme:
   name: material
+  palette:
+    primary: white
 
 plugins:
   - mkdocstrings:
