@@ -38,12 +38,12 @@ GGML_TYPE_TO_NUMPY_DTYPE = {v: k for k, v in NUMPY_DTYPE_TO_GGML_TYPE.items()}
 
 
 def to_numpy(
-    tensor,  # type: ctypes._Pointer[ggml.ggml_tensor] # type: ignore
+    tensor: ggml.ggml_tensor_p,
 ) -> npt.NDArray[Any]:
     """Get the data of a ggml tensor as a numpy array.
 
     Parameters:
-        tensor (ggml_tensor_p): ggml tensor
+        tensor: ggml tensor
 
     Returns:
         Numpy array with a view of data from tensor
@@ -57,7 +57,7 @@ def to_numpy(
 
 def from_numpy(
     x: npt.NDArray[Any], ctx: ggml.ggml_context_p
-):  # type: (...) -> ctypes._Pointer[ggml.ggml_tensor] # type: ignore
+) -> ggml.ggml_tensor_p:
     """Create a new ggml tensor with data copied from a numpy array.
 
     Parameters:
@@ -65,7 +65,7 @@ def from_numpy(
         ctx: ggml context
 
     Returns:
-        (ggml_tensor_p): New ggml tensor with data copied from x
+        New ggml tensor with data copied from x
     """
     ggml_type = NUMPY_DTYPE_TO_GGML_TYPE[x.dtype.type]
     ctypes_type = np.ctypeslib.as_ctypes_type(x.dtype)
