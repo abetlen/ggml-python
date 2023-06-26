@@ -511,6 +511,26 @@ class ClipModel:
             encodings.append(tensor.numpy().copy().reshape(1, -1))
         return np.concatenate(encodings, axis=0)
 
+    def __call__(self, image, text):
+        image_features = self.encode_image(image)
+        text_features = self.encode_text(text)
+
+        # normalized features
+        image_features = image_features / np.linalg.norm(
+            image_features, axis=1, keepdims=True
+        )
+        text_features = text_features / np.linalg.norm(
+            text_features, axis=1, keepdims=True
+        )
+
+        # cosine similarity as logits
+        logit_scale = np.exp(self.logit_scale.numpy().copy())
+        logits_per_image = logit_scale * image_features @ text_features.T
+        logits_per_text = logits_per_image.T
+
+        # shape = [global_batch_size, global_batch_size]
+        return logits_per_image, logits_per_text
+
     def _text_encoder_compute_forward_memsize(self):
         mem_size = 0
         e_size = 4
@@ -548,7 +568,6 @@ class ClipModel:
         wtype = GGML_TYPE(ggml.ggml_ftype_to_ggml_type(ctypes.c_int(0)))
         N = self.context_length
         mem_size = self._text_encoder_compute_forward_memsize()
-        print(f"Text encoder mem size: {mem_size}")
         mem_buffer = np.empty(mem_size, dtype=np.uint8)
         init_params = InitParams(
             mem_size=mem_size, mem_buffer=mem_buffer.ctypes.data_as(ctypes.c_void_p)
@@ -764,21 +783,11 @@ class ClipModel:
 
         gf.build_forward_expand(cur)
         gf.compute()
+
         return cur
 
-    def _eval_internal(self, image: np.ndarray, text: np.ndarray):
-        ## Encode Image
-        image_features = self._encode_image_internal(image)
-
-        ## Encode Text
-        IPython.embed()
-
-    def eval(self, image: np.ndarray, text: np.ndarray):
-        output = self._eval_internal(image, text)
-        pass
-
     @staticmethod
-    def init_from_file(model_file: str, verbose=True, n_threads=1):
+    def init_from_file(model_file: str, verbose=True, n_threads=1, use_gpu=False):
         with open(model_file, "rb") as fin:
             # Magic Number
             (magic,) = struct.unpack("i", (fin.read(struct.calcsize("i"))))
@@ -873,19 +882,27 @@ class ClipModel:
                     )
 
                 buf = (ctypes.c_char * tensor.nbytes()).from_address(tensor.data)
+                offset = fin.tell()
+                fname = fin.name.encode("utf-8")
                 fin.readinto(buf)
+
+                if use_gpu:
+                    tensor.tensor.contents.backend = ggml.GGML_BACKEND_CUDA.value
+                    ggml.ggml_cuda_load_data(
+                        fname, tensor.tensor, ctypes.c_size_t(offset)
+                    )
+
             return model
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-m", "--model", type=str, default=None)
-
+    parser.add_argument("--use-gpu", action="store_true")
     args = parser.parse_args()
 
     model_file = args.model
-
-    model = ClipModel.init_from_file(model_file, n_threads=1)
+    model = ClipModel.init_from_file(model_file, n_threads=1, use_gpu=args.use_gpu)
     image = np.random.rand(3, 224, 224).astype(np.float32)
     output = model.eval([image, image])
     print(output)
