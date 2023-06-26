@@ -47,17 +47,17 @@ class Context:
 
 
 class GGML_TYPE(enum.Enum):
-    F32 = ggml.GGML_TYPE_F32.value
-    F16 = ggml.GGML_TYPE_F16.value
-    Q4_0 = ggml.GGML_TYPE_Q4_0.value
-    Q4_1 = ggml.GGML_TYPE_Q4_1.value
-    Q5_0 = ggml.GGML_TYPE_Q5_0.value
-    Q5_1 = ggml.GGML_TYPE_Q5_1.value
-    Q8_0 = ggml.GGML_TYPE_Q8_0.value
-    Q8_1 = ggml.GGML_TYPE_Q8_1.value
-    I8 = ggml.GGML_TYPE_I8.value
-    I16 = ggml.GGML_TYPE_I16.value
-    I32 = ggml.GGML_TYPE_I32.value
+    F32 = ggml.GGML_TYPE_F32
+    F16 = ggml.GGML_TYPE_F16
+    Q4_0 = ggml.GGML_TYPE_Q4_0
+    Q4_1 = ggml.GGML_TYPE_Q4_1
+    Q5_0 = ggml.GGML_TYPE_Q5_0
+    Q5_1 = ggml.GGML_TYPE_Q5_1
+    Q8_0 = ggml.GGML_TYPE_Q8_0
+    Q8_1 = ggml.GGML_TYPE_Q8_1
+    I8 = ggml.GGML_TYPE_I8
+    I16 = ggml.GGML_TYPE_I16
+    I32 = ggml.GGML_TYPE_I32
 
 
 NUMPY_DTYPE_TO_GGML_TYPE = {
@@ -72,14 +72,14 @@ GGML_TYPE_TO_NUMPY_DTYPE = {v: k for k, v in NUMPY_DTYPE_TO_GGML_TYPE.items()}
 
 
 class GGML_FTYPE(enum.Enum):
-    UNKNOWN = ggml.GGML_FTYPE_UNKNOWN.value
-    ALL_F32 = ggml.GGML_FTYPE_ALL_F32.value
-    MOSTLY_F16 = ggml.GGML_FTYPE_MOSTLY_F16.value
-    MOSTLY_Q4_0 = ggml.GGML_FTYPE_MOSTLY_Q4_0.value
-    MOSTLY_Q4_1_SOME_F16 = ggml.GGML_FTYPE_MOSTLY_Q4_1_SOME_F16.value
-    MOSTLY_Q8_0 = ggml.GGML_FTYPE_MOSTLY_Q8_0.value
-    MOSTLY_Q5_0 = ggml.GGML_FTYPE_MOSTLY_Q5_0.value
-    MOSTLY_Q5_1 = ggml.GGML_FTYPE_MOSTLY_Q5_1.value
+    UNKNOWN = ggml.GGML_FTYPE_UNKNOWN
+    ALL_F32 = ggml.GGML_FTYPE_ALL_F32
+    MOSTLY_F16 = ggml.GGML_FTYPE_MOSTLY_F16
+    MOSTLY_Q4_0 = ggml.GGML_FTYPE_MOSTLY_Q4_0
+    MOSTLY_Q4_1_SOME_F16 = ggml.GGML_FTYPE_MOSTLY_Q4_1_SOME_F16
+    MOSTLY_Q8_0 = ggml.GGML_FTYPE_MOSTLY_Q8_0
+    MOSTLY_Q5_0 = ggml.GGML_FTYPE_MOSTLY_Q5_0
+    MOSTLY_Q5_1 = ggml.GGML_FTYPE_MOSTLY_Q5_1
 
 
 class Tensor:

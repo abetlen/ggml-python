@@ -109,27 +109,27 @@ lib = load_shared_library(module_name, lib_base_name)
 
 
 # #define GGML_FILE_MAGIC   0x67676d6c // "ggml"
-GGML_FILE_MAGIC = ctypes.c_int(int("0x67676d6c", 16))
+GGML_FILE_MAGIC = int("0x67676d6c", 16)
 # #define GGML_FILE_VERSION 1
-GGML_FILE_VERSION = ctypes.c_int(1)
+GGML_FILE_VERSION = 1
 # #define GGML_QNT_VERSION        2    // bump this on quantization format changes
-GGML_QNT_VERSION = ctypes.c_int(2)
+GGML_QNT_VERSION = 2
 # #define GGML_QNT_VERSION_FACTOR 1000 // do not change this
-GGML_QNT_VERSION_FACTOR = ctypes.c_int(1000)
+GGML_QNT_VERSION_FACTOR = 1000
 # #define GGML_MAX_DIMS          4
-GGML_MAX_DIMS = ctypes.c_int(4)
+GGML_MAX_DIMS = 4
 # #define GGML_MAX_NODES         4096
-GGML_MAX_NODES = ctypes.c_int(4096)
+GGML_MAX_NODES = 4096
 # #define GGML_MAX_PARAMS        256
-GGML_MAX_PARAMS = ctypes.c_int(256)
+GGML_MAX_PARAMS = 256
 # #define GGML_MAX_CONTEXTS      64
-GGML_MAX_CONTEXTS = ctypes.c_int(64)
+GGML_MAX_CONTEXTS = 64
 # #define GGML_MAX_OPT           4
-GGML_MAX_OPT = ctypes.c_int(4)
+GGML_MAX_OPT = 4
 # #define GGML_MAX_NAME          32
-GGML_MAX_NAME = ctypes.c_int(32)
+GGML_MAX_NAME = 32
 # #define GGML_DEFAULT_N_THREADS 4
-GGML_DEFAULT_N_THREADS = ctypes.c_int(4)
+GGML_DEFAULT_N_THREADS = 4
 
 
 # TODO: Check if this is correct
@@ -215,24 +215,24 @@ ggml_context_p = ctypes.c_void_p
 #     GGML_TYPE_I32,
 #     GGML_TYPE_COUNT,
 # };
-GGML_TYPE_F32 = ctypes.c_int(0)
-GGML_TYPE_F16 = ctypes.c_int(1)
-GGML_TYPE_Q4_0 = ctypes.c_int(2)
-GGML_TYPE_Q4_1 = ctypes.c_int(3)
-GGML_TYPE_Q5_0 = ctypes.c_int(6)
-GGML_TYPE_Q5_1 = ctypes.c_int(7)
-GGML_TYPE_Q8_0 = ctypes.c_int(8)
-GGML_TYPE_Q8_1 = ctypes.c_int(9)
-GGML_TYPE_Q2_K = ctypes.c_int(10)
-GGML_TYPE_Q3_K = ctypes.c_int(11)
-GGML_TYPE_Q4_K = ctypes.c_int(12)
-GGML_TYPE_Q5_K = ctypes.c_int(13)
-GGML_TYPE_Q6_K = ctypes.c_int(14)
-GGML_TYPE_Q8_K = ctypes.c_int(15)
-GGML_TYPE_I8 = ctypes.c_int(16)
-GGML_TYPE_I16 = ctypes.c_int(17)
-GGML_TYPE_I32 = ctypes.c_int(18)
-GGML_TYPE_COUNT = ctypes.c_int(19)
+GGML_TYPE_F32 = 0
+GGML_TYPE_F16 = 1
+GGML_TYPE_Q4_0 = 2
+GGML_TYPE_Q4_1 = 3
+GGML_TYPE_Q5_0 = 6
+GGML_TYPE_Q5_1 = 7
+GGML_TYPE_Q8_0 = 8
+GGML_TYPE_Q8_1 = 9
+GGML_TYPE_Q2_K = 10
+GGML_TYPE_Q3_K = 11
+GGML_TYPE_Q4_K = 12
+GGML_TYPE_Q5_K = 13
+GGML_TYPE_Q6_K = 14
+GGML_TYPE_Q8_K = 15
+GGML_TYPE_I8 = 16
+GGML_TYPE_I16 = 17
+GGML_TYPE_I32 = 18
+GGML_TYPE_COUNT = 19
 
 
 # enum ggml_backend {
@@ -240,9 +240,9 @@ GGML_TYPE_COUNT = ctypes.c_int(19)
 #     GGML_BACKEND_CUDA = 1,
 #     GGML_BACKEND_CL = 2,
 # };
-GGML_BACKEND_CPU = ctypes.c_int(0)
-GGML_BACKEND_GPU = ctypes.c_int(10)
-GGML_BACKEND_GPU_SPLIT = ctypes.c_int(20)
+GGML_BACKEND_CPU = 0
+GGML_BACKEND_GPU = 10
+GGML_BACKEND_GPU_SPLIT = 20
 
 
 # // model file types
@@ -262,20 +262,20 @@ GGML_BACKEND_GPU_SPLIT = ctypes.c_int(20)
 #     GGML_FTYPE_MOSTLY_Q5_K = 13, // except 1d tensors
 #     GGML_FTYPE_MOSTLY_Q6_K = 14, // except 1d tensors
 # };
-GGML_FTYPE_UNKNOWN = ctypes.c_int(-1)
-GGML_FTYPE_ALL_F32 = ctypes.c_int(0)
-GGML_FTYPE_MOSTLY_F16 = ctypes.c_int(1)
-GGML_FTYPE_MOSTLY_Q4_0 = ctypes.c_int(2)
-GGML_FTYPE_MOSTLY_Q4_1 = ctypes.c_int(3)
-GGML_FTYPE_MOSTLY_Q4_1_SOME_F16 = ctypes.c_int(4)
-GGML_FTYPE_MOSTLY_Q8_0 = ctypes.c_int(7)
-GGML_FTYPE_MOSTLY_Q5_0 = ctypes.c_int(8)
-GGML_FTYPE_MOSTLY_Q5_1 = ctypes.c_int(9)
-GGML_FTYPE_MOSTLY_Q2_K = ctypes.c_int(10)
-GGML_FTYPE_MOSTLY_Q3_K = ctypes.c_int(11)
-GGML_FTYPE_MOSTLY_Q4_K = ctypes.c_int(12)
-GGML_FTYPE_MOSTLY_Q5_K = ctypes.c_int(13)
-GGML_FTYPE_MOSTLY_Q6_K = ctypes.c_int(14)
+GGML_FTYPE_UNKNOWN = -1
+GGML_FTYPE_ALL_F32 = 0
+GGML_FTYPE_MOSTLY_F16 = 1
+GGML_FTYPE_MOSTLY_Q4_0 = 2
+GGML_FTYPE_MOSTLY_Q4_1 = 3
+GGML_FTYPE_MOSTLY_Q4_1_SOME_F16 = 4
+GGML_FTYPE_MOSTLY_Q8_0 = 7
+GGML_FTYPE_MOSTLY_Q5_0 = 8
+GGML_FTYPE_MOSTLY_Q5_1 = 9
+GGML_FTYPE_MOSTLY_Q2_K = 10
+GGML_FTYPE_MOSTLY_Q3_K = 11
+GGML_FTYPE_MOSTLY_Q4_K = 12
+GGML_FTYPE_MOSTLY_Q5_K = 13
+GGML_FTYPE_MOSTLY_Q6_K = 14
 
 
 # // available tensor operations:
@@ -350,76 +350,68 @@ GGML_FTYPE_MOSTLY_Q6_K = ctypes.c_int(14)
 
 #     GGML_OP_COUNT,
 # };
-GGML_OP_NONE = ctypes.c_int(0)
-
-GGML_OP_DUP = ctypes.c_int(1)
-GGML_OP_ADD = ctypes.c_int(2)
-GGML_OP_ADD1 = ctypes.c_int(3)
-GGML_OP_ACC = ctypes.c_int(4)
-GGML_OP_SUB = ctypes.c_int(5)
-GGML_OP_MUL = ctypes.c_int(6)
-GGML_OP_DIV = ctypes.c_int(7)
-GGML_OP_SQR = ctypes.c_int(8)
-GGML_OP_SQRT = ctypes.c_int(9)
-GGML_OP_LOG = ctypes.c_int(10)
-GGML_OP_SUM = ctypes.c_int(11)
-GGML_OP_SUM_ROWS = ctypes.c_int(12)
-GGML_OP_MEAN = ctypes.c_int(13)
-GGML_OP_REPEAT = ctypes.c_int(14)
-GGML_OP_REPEAT_BACK = ctypes.c_int(15)
-GGML_OP_ABS = ctypes.c_int(16)
-GGML_OP_SGN = ctypes.c_int(17)
-GGML_OP_NEG = ctypes.c_int(18)
-GGML_OP_STEP = ctypes.c_int(19)
-GGML_OP_RELU = ctypes.c_int(20)
-GGML_OP_GELU = ctypes.c_int(21)
-GGML_OP_GELU_QUICK = ctypes.c_int(22)
-GGML_OP_SILU = ctypes.c_int(23)
-GGML_OP_SILU_BACK = ctypes.c_int(24)
-GGML_OP_NORM = ctypes.c_int(25)
-GGML_OP_RMS_NORM = ctypes.c_int(26)
-GGML_OP_RMS_NORM_BACK = ctypes.c_int(27)
-
-GGML_OP_MUL_MAT = ctypes.c_int(28)
-GGML_OP_OUT_PROD = ctypes.c_int(29)
-
-GGML_OP_SCALE = ctypes.c_int(30)
-GGML_OP_SET = ctypes.c_int(31)
-GGML_OP_CPY = ctypes.c_int(32)
-GGML_OP_CONT = ctypes.c_int(33)
-GGML_OP_RESHAPE = ctypes.c_int(34)
-GGML_OP_VIEW = ctypes.c_int(35)
-GGML_OP_PERMUTE = ctypes.c_int(36)
-GGML_OP_TRANSPOSE = ctypes.c_int(37)
-GGML_OP_GET_ROWS = ctypes.c_int(38)
-GGML_OP_GET_ROWS_BACK = ctypes.c_int(39)
-GGML_OP_DIAG = ctypes.c_int(40)
-GGML_OP_DIAG_MASK_INF = ctypes.c_int(41)
-GGML_OP_DIAG_MASK_ZERO = ctypes.c_int(42)
-GGML_OP_SOFT_MAX = ctypes.c_int(43)
-GGML_OP_SOFT_MAX_BACK = ctypes.c_int(44)
-GGML_OP_ROPE = ctypes.c_int(45)
-GGML_OP_ROPE_BACK = ctypes.c_int(46)
-GGML_OP_ALIBI = ctypes.c_int(47)
-GGML_OP_CLAMP = ctypes.c_int(48)
-GGML_OP_CONV_1D_1S_PH = ctypes.c_int(49)
-GGML_OP_CONV_1D_2S_PH = ctypes.c_int(50)
-GGML_OP_CONV_2D_SK_P0 = ctypes.c_int(51)
-
-GGML_OP_FLASH_ATTN = ctypes.c_int(52)
-GGML_OP_FLASH_FF = ctypes.c_int(53)
-GGML_OP_FLASH_ATTN_BACK = ctypes.c_int(54)
-GGML_OP_WIN_PART = ctypes.c_int(55)
-GGML_OP_WIN_UNPART = ctypes.c_int(56)
-
-GGML_OP_MAP_UNARY = ctypes.c_int(57)
-GGML_OP_MAP_BINARY = ctypes.c_int(58)
-
-GGML_OP_CROSS_ENTROPY_LOSS = ctypes.c_int(59)
-GGML_OP_CROSS_ENTROPY_LOSS_BACK = ctypes.c_int(60)
-
-GGML_OP_COUNT = ctypes.c_int(61)
-
+GGML_OP_NONE = 0
+GGML_OP_DUP = 1
+GGML_OP_ADD = 2
+GGML_OP_ADD1 = 3
+GGML_OP_ACC = 4
+GGML_OP_SUB = 5
+GGML_OP_MUL = 6
+GGML_OP_DIV = 7
+GGML_OP_SQR = 8
+GGML_OP_SQRT = 9
+GGML_OP_LOG = 10
+GGML_OP_SUM = 11
+GGML_OP_SUM_ROWS = 12
+GGML_OP_MEAN = 13
+GGML_OP_REPEAT = 14
+GGML_OP_REPEAT_BACK = 15
+GGML_OP_ABS = 16
+GGML_OP_SGN = 17
+GGML_OP_NEG = 18
+GGML_OP_STEP = 19
+GGML_OP_RELU = 20
+GGML_OP_GELU = 21   
+GGML_OP_GELU_QUICK = 22
+GGML_OP_SILU = 23
+GGML_OP_SILU_BACK = 24
+GGML_OP_NORM = 25
+GGML_OP_RMS_NORM = 26
+GGML_OP_RMS_NORM_BACK = 27
+GGML_OP_MUL_MAT = 28
+GGML_OP_OUT_PROD = 29
+GGML_OP_SCALE = 30
+GGML_OP_SET = 31
+GGML_OP_CPY = 32
+GGML_OP_CONT = 33
+GGML_OP_RESHAPE = 34
+GGML_OP_VIEW = 35
+GGML_OP_PERMUTE = 36
+GGML_OP_TRANSPOSE = 37
+GGML_OP_GET_ROWS = 38
+GGML_OP_GET_ROWS_BACK = 39
+GGML_OP_DIAG = 40
+GGML_OP_DIAG_MASK_INF = 41
+GGML_OP_DIAG_MASK_ZERO = 42
+GGML_OP_SOFT_MAX = 43
+GGML_OP_SOFT_MAX_BACK = 44
+GGML_OP_ROPE = 45
+GGML_OP_ROPE_BACK = 46
+GGML_OP_ALIBI = 47
+GGML_OP_CLAMP = 48
+GGML_OP_CONV_1D_1S_PH = 49
+GGML_OP_CONV_1D_2S_PH = 50
+GGML_OP_CONV_2D_SK_P0 = 51
+GGML_OP_FLASH_ATTN = 52
+GGML_OP_FLASH_FF = 53
+GGML_OP_FLASH_ATTN_BACK = 54
+GGML_OP_WIN_PART = 55
+GGML_OP_WIN_UNPART = 56
+GGML_OP_MAP_UNARY = 57
+GGML_OP_MAP_BINARY = 58
+GGML_OP_CROSS_ENTROPY_LOSS = 59
+GGML_OP_CROSS_ENTROPY_LOSS_BACK = 60
+GGML_OP_COUNT = 61
 
 # struct ggml_object {
 #     size_t offs;
@@ -516,20 +508,20 @@ ggml_tensor._fields_ = [
     ("type", ctypes.c_int),
     ("backend", ctypes.c_int),
     ("n_dims", ctypes.c_int),
-    ("ne", ctypes.c_int64 * int(GGML_MAX_DIMS.value)),
-    ("nb", ctypes.c_size_t * int(GGML_MAX_DIMS.value)),
+    ("ne", ctypes.c_int64 * GGML_MAX_DIMS),
+    ("nb", ctypes.c_size_t * GGML_MAX_DIMS),
     ("op", ctypes.c_int),
     ("is_param", ctypes.c_bool),
     ("grad", ctypes.POINTER(ggml_tensor)),
     ("src0", ctypes.POINTER(ggml_tensor)),
     ("src1", ctypes.POINTER(ggml_tensor)),
-    ("opt", ctypes.POINTER(ggml_tensor) * int(GGML_MAX_OPT.value)),
+    ("opt", ctypes.POINTER(ggml_tensor) * GGML_MAX_OPT),
     ("n_tasks", ctypes.c_int),
     ("perf_runs", ctypes.c_int),
     ("perf_cycles", ctypes.c_int64),
     ("perf_time_us", ctypes.c_int64),
     ("data", ctypes.c_void_p),
-    ("name", ctypes.c_char * int(GGML_MAX_NAME.value)),
+    ("name", ctypes.c_char * GGML_MAX_NAME),
     ("extra", ctypes.c_void_p),
     ("padding", ctypes.c_char * 4),
 ]
@@ -564,9 +556,9 @@ class ggml_cgraph(ctypes.Structure):
         ("n_threads", ctypes.c_int),
         ("work_size", ctypes.c_size_t),
         ("work", ctypes.POINTER(ggml_tensor)),
-        ("nodes", ctypes.POINTER(ggml_tensor) * int(GGML_MAX_NODES.value)),
-        ("grads", ctypes.POINTER(ggml_tensor) * int(GGML_MAX_NODES.value)),
-        ("leafs", ctypes.POINTER(ggml_tensor) * int(GGML_MAX_NODES.value)),
+        ("nodes", ctypes.POINTER(ggml_tensor) * GGML_MAX_NODES),
+        ("grads", ctypes.POINTER(ggml_tensor) * GGML_MAX_NODES),
+        ("leafs", ctypes.POINTER(ggml_tensor) * GGML_MAX_NODES),
         ("perf_runs", ctypes.c_int),
         ("perf_cycles", ctypes.c_int64),
         ("perf_time_us", ctypes.c_int64),
@@ -616,9 +608,9 @@ class ggml_init_params(ctypes.Structure):
 #     GGML_TASK_COMPUTE,
 #     GGML_TASK_FINALIZE,
 # };
-GGML_TASK_INIT = ctypes.c_int(0)
-GGML_TASK_COMPUTE = ctypes.c_int(1)
-GGML_TASK_FINALIZE = ctypes.c_int(2)
+GGML_TASK_INIT = 0
+GGML_TASK_COMPUTE = 1
+GGML_TASK_FINALIZE = 2
 
 # struct ggml_compute_params {
 #     enum ggml_task_type type;
@@ -3422,8 +3414,8 @@ lib.ggml_graph_dump_dot.restype = None
 #     GGML_OPT_ADAM,
 #     GGML_OPT_LBFGS,
 # };
-GGML_OPT_ADAM = ctypes.c_int(0)
-GGML_OPT_LBFGS = ctypes.c_int(1)
+GGML_OPT_ADAM = 0
+GGML_OPT_LBFGS = 1
 
 # // linesearch methods
 # enum ggml_linesearch {
@@ -3433,10 +3425,10 @@ GGML_OPT_LBFGS = ctypes.c_int(1)
 #     GGML_LINESEARCH_BACKTRACKING_WOLFE        = 1,
 #     GGML_LINESEARCH_BACKTRACKING_STRONG_WOLFE = 2,
 # };
-GGML_LINESEARCH_DEFAULT = ctypes.c_int(1)
-GGML_LINESEARCH_BACKTRACKING_ARMIJO = ctypes.c_int(0)
-GGML_LINESEARCH_BACKTRACKING_WOLFE = ctypes.c_int(1)
-GGML_LINESEARCH_BACKTRACKING_STRONG_WOLFE = ctypes.c_int(2)
+GGML_LINESEARCH_DEFAULT = 1
+GGML_LINESEARCH_BACKTRACKING_ARMIJO = 0
+GGML_LINESEARCH_BACKTRACKING_WOLFE = 1
+GGML_LINESEARCH_BACKTRACKING_STRONG_WOLFE = 2
 
 # // optimization return values
 # enum ggml_opt_result {
@@ -3452,16 +3444,16 @@ GGML_LINESEARCH_BACKTRACKING_STRONG_WOLFE = ctypes.c_int(2)
 #     GGML_LINESEARCH_MAXIMUM_ITERATIONS,
 #     GGML_LINESEARCH_INVALID_PARAMETERS,
 # };
-GGML_OPT_OK = ctypes.c_int(0)
-GGML_OPT_DID_NOT_CONVERGE = ctypes.c_int(1)
-GGML_OPT_NO_CONTEXT = ctypes.c_int(2)
-GGML_OPT_INVALID_WOLFE = ctypes.c_int(3)
-GGML_OPT_FAIL = ctypes.c_int(4)
-GGML_LINESEARCH_FAIL = ctypes.c_int(-128)
-GGML_LINESEARCH_MINIMUM_STEP = ctypes.c_int(-127)
-GGML_LINESEARCH_MAXIMUM_STEP = ctypes.c_int(-126)
-GGML_LINESEARCH_MAXIMUM_ITERATIONS = ctypes.c_int(-125)
-GGML_LINESEARCH_INVALID_PARAMETERS = ctypes.c_int(-124)
+GGML_OPT_OK = 0
+GGML_OPT_DID_NOT_CONVERGE = 1
+GGML_OPT_NO_CONTEXT = 2
+GGML_OPT_INVALID_WOLFE = 3
+GGML_OPT_FAIL = 4
+GGML_LINESEARCH_FAIL = -128
+GGML_LINESEARCH_MINIMUM_STEP = -127
+GGML_LINESEARCH_MAXIMUM_STEP = -126
+GGML_LINESEARCH_MAXIMUM_ITERATIONS = -125
+GGML_LINESEARCH_INVALID_PARAMETERS = -124
 
 
 # // optimization parameters

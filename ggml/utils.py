@@ -13,17 +13,17 @@ import numpy.typing as npt
 
 
 class GGML_TYPE(enum.Enum):
-    F32 = ggml.GGML_TYPE_F32.value
-    F16 = ggml.GGML_TYPE_F16.value
-    Q4_0 = ggml.GGML_TYPE_Q4_0.value
-    Q4_1 = ggml.GGML_TYPE_Q4_1.value
-    Q5_0 = ggml.GGML_TYPE_Q5_0.value
-    Q5_1 = ggml.GGML_TYPE_Q5_1.value
-    Q8_0 = ggml.GGML_TYPE_Q8_0.value
-    Q8_1 = ggml.GGML_TYPE_Q8_1.value
-    I8 = ggml.GGML_TYPE_I8.value
-    I16 = ggml.GGML_TYPE_I16.value
-    I32 = ggml.GGML_TYPE_I32.value
+    F32 = ggml.GGML_TYPE_F32
+    F16 = ggml.GGML_TYPE_F16
+    Q4_0 = ggml.GGML_TYPE_Q4_0
+    Q4_1 = ggml.GGML_TYPE_Q4_1
+    Q5_0 = ggml.GGML_TYPE_Q5_0
+    Q5_1 = ggml.GGML_TYPE_Q5_1
+    Q8_0 = ggml.GGML_TYPE_Q8_0
+    Q8_1 = ggml.GGML_TYPE_Q8_1
+    I8 = ggml.GGML_TYPE_I8
+    I16 = ggml.GGML_TYPE_I16
+    I32 = ggml.GGML_TYPE_I32
 
 
 NUMPY_DTYPE_TO_GGML_TYPE = {
@@ -50,7 +50,7 @@ def to_numpy(
     """
     ggml_type = GGML_TYPE(tensor.contents.type)
     ctypes_type = np.ctypeslib.as_ctypes_type(GGML_TYPE_TO_NUMPY_DTYPE[ggml_type])
-    array = ctypes.cast(tensor.contents.data, ctypes.POINTER(ctypes_type))
+    array = ctypes.cast(ggml.ggml_get_data(tensor), ctypes.POINTER(ctypes_type))
     shape = tuple(reversed(tensor.contents.ne[: tensor.contents.n_dims]))
     return np.ctypeslib.as_array(array, shape=shape).T
 

@@ -3,7 +3,7 @@ import ggml
 
 
 def test_ggml():
-    assert ggml.GGML_FILE_VERSION.value == 1
+    assert ggml.GGML_FILE_VERSION == 1
 
     params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
     ctx = ggml.ggml_init(params=params)
