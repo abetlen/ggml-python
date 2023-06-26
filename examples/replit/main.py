@@ -1040,14 +1040,14 @@ class ReplitModel:
         with open(model_file, "rb") as fin:
             # Magic Number
             (magic,) = struct.unpack("i", (fin.read(struct.calcsize("i"))))
-            assert magic == ggml.GGML_FILE_MAGIC.value
+            assert magic == ggml.GGML_FILE_MAGIC
             if verbose:
                 print("magic number =", hex(magic))
             # Hyperparameters
             d_model, max_seq_len, n_heads, n_layers, vocab_size, ftype = struct.unpack(
                 "iiiiii", (fin.read(struct.calcsize("iiiiii")))
             )
-            qntvr = ftype // ggml.GGML_QNT_VERSION_FACTOR.value
+            qntvr = ftype // ggml.GGML_QNT_VERSION_FACTOR
             if verbose:
                 print("d_model      =", d_model)
                 print("max_seq_len  =", max_seq_len)
@@ -1056,7 +1056,7 @@ class ReplitModel:
                 print("vocab_size   =", vocab_size)
                 print("ftype        =", ftype)
                 print("qntvr        =", qntvr)
-            ftype %= ggml.GGML_QNT_VERSION_FACTOR.value
+            ftype %= ggml.GGML_QNT_VERSION_FACTOR
             ftype = GGML_FTYPE(int(ftype))
             # Vocabulary
             vocab: List[Tuple[int, str, float]] = []
@@ -1157,16 +1157,16 @@ class ReplitModel:
                     "ffn.up_proj.weight",
                     "ffn.down_proj.weight",
                 ]
-                if name.startswith("transformer.blocks.") and any(
-                    name.endswith(suffix) for suffix in should_offload_suffix
-                ):
-                    layer_number = int(name.split(".")[2])
-                    if layer_number >= n_gpu_layers:
-                        continue
-                    tensor.tensor.contents.backend = ggml.GGML_BACKEND_CUDA.value
-                    ggml.ggml_cuda_load_data(
-                        fname, tensor.tensor, ctypes.c_size_t(offset)
-                    )
+                # if name.startswith("transformer.blocks.") and any(
+                #     name.endswith(suffix) for suffix in should_offload_suffix
+                # ):
+                #     layer_number = int(name.split(".")[2])
+                #     if layer_number >= n_gpu_layers:
+                #         continue
+                #     tensor.tensor.contents.backend = ggml.GGML_BACKEND_CUDA
+                #     ggml.ggml_cuda_load_data(
+                #         fname, tensor.tensor, ctypes.c_size_t(offset)
+                #     )
 
                 total_size += tensor.nbytes()
                 if n_tensors % 8 == 0:
