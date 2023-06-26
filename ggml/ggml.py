@@ -126,8 +126,8 @@ GGML_MAX_PARAMS = 256
 GGML_MAX_CONTEXTS = 64
 # #define GGML_MAX_OPT           4
 GGML_MAX_OPT = 4
-# #define GGML_MAX_NAME          32
-GGML_MAX_NAME = 32
+# #define GGML_MAX_NAME          48
+GGML_MAX_NAME = 48
 # #define GGML_DEFAULT_N_THREADS 4
 GGML_DEFAULT_N_THREADS = 4
 
@@ -2908,26 +2908,30 @@ lib.ggml_soft_max_back_inplace.restype = ctypes.POINTER(ggml_tensor)
 # // rotary position embedding
 # // if mode & 1 == 1, skip n_past elements
 # // if mode & 2 == 1, GPT-NeoX style
+# // if mode & 4 == 1, ChatGLM style
 # // TODO: avoid creating a new tensor every time
 # GGML_API struct ggml_tensor * ggml_rope(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a,
 #         int                   n_past,
 #         int                   n_dims,
-#         int                   mode);
+#         int                   mode,
+#         int                   n_ctx);
 def ggml_rope(
     ctx: ggml_context_p,
     a: ggml_tensor_p,  
     n_past: Union[ctypes.c_int, int],
     n_dims: Union[ctypes.c_int, int],
     mode: Union[ctypes.c_int, int],
+    n_ctx: Union[ctypes.c_int, int],
 ) -> ggml_tensor_p:  
-    return lib.ggml_rope(ctx, a, n_past, n_dims, mode)
+    return lib.ggml_rope(ctx, a, n_past, n_dims, mode, n_ctx)
 
 
 lib.ggml_rope.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_tensor),
+    ctypes.c_int,
     ctypes.c_int,
     ctypes.c_int,
     ctypes.c_int,
@@ -2941,20 +2945,23 @@ lib.ggml_rope.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * a,
 #         int                   n_past,
 #         int                   n_dims,
-#         int                   mode);
+#         int                   mode,
+#         int                   n_ctx);
 def ggml_rope_inplace(
     ctx: ggml_context_p,
     a: ggml_tensor_p,  
     n_past: Union[ctypes.c_int, int],
     n_dims: Union[ctypes.c_int, int],
     mode: Union[ctypes.c_int, int],
+    n_ctx: Union[ctypes.c_int, int],
 ) -> ggml_tensor_p:  
-    return lib.ggml_rope_inplace(ctx, a, n_past, n_dims, mode)
+    return lib.ggml_rope_inplace(ctx, a, n_past, n_dims, mode, n_ctx)
 
 
 lib.ggml_rope_inplace.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_tensor),
+    ctypes.c_int,
     ctypes.c_int,
     ctypes.c_int,
     ctypes.c_int,
