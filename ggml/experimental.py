@@ -46,7 +46,7 @@ class Context:
         ggml.ggml_free(self.context)
 
 
-class GGML_TYPE(enum.Enum):
+class GGML_TYPE(enum.IntEnum):
     F32 = ggml.GGML_TYPE_F32
     F16 = ggml.GGML_TYPE_F16
     Q4_0 = ggml.GGML_TYPE_Q4_0
@@ -71,7 +71,7 @@ NUMPY_DTYPE_TO_GGML_TYPE = {
 GGML_TYPE_TO_NUMPY_DTYPE = {v: k for k, v in NUMPY_DTYPE_TO_GGML_TYPE.items()}
 
 
-class GGML_FTYPE(enum.Enum):
+class GGML_FTYPE(enum.IntEnum):
     UNKNOWN = ggml.GGML_FTYPE_UNKNOWN
     ALL_F32 = ggml.GGML_FTYPE_ALL_F32
     MOSTLY_F16 = ggml.GGML_FTYPE_MOSTLY_F16
