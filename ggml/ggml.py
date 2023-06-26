@@ -684,6 +684,19 @@ def ggml_cycles_per_ms() -> int:
 lib.ggml_cycles_per_ms.argtypes = []
 lib.ggml_cycles_per_ms.restype = ctypes.c_int64
 
+# GGML_API void    ggml_numa_init(void); // call once for better performance on NUMA systems
+def ggml_numa_init():
+    return lib.ggml_numa_init()
+
+lib.ggml_numa_init.argtypes = []
+lib.ggml_numa_init.restype = None
+
+# GGML_API bool    ggml_is_numa(void); // true if init detected that system has >1 NUMA node
+def ggml_is_numa() -> bool:
+    return lib.ggml_is_numa()
+
+lib.ggml_is_numa.argtypes = []
+lib.ggml_is_numa.restype = ctypes.c_bool
 
 # GGML_API void    ggml_print_object (const struct ggml_object * obj);
 def ggml_print_object(obj: ggml_object_p):  
