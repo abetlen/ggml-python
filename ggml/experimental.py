@@ -28,7 +28,7 @@ class InitParams:
         no_alloc: bool = False,
     ):
         self.mem_size = mem_size
-        self.mem_buffer = mem_buffer
+        self.mem_buffer = mem_buffer # NOTE: DO NOT REMOVE THIS
         self.no_alloc = no_alloc
         self.params = ggml.ggml_init_params(
             mem_size=self.mem_size,
