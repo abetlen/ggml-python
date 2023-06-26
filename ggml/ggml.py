@@ -52,7 +52,7 @@ import sys
 import ctypes
 import pathlib
 import importlib.resources
-from typing import List, Optional, Union, Callable
+from typing import List, Optional, Union
 from typing_extensions import TypeAlias
 
 
