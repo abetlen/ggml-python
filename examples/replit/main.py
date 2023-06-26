@@ -6,6 +6,7 @@ https://huggingface.co/replit/replit-code-v1-3b
 This implementation is based on the example model code and ggml model file format from:
 https://github.com/ggerganov/ggml/tree/master/examples/replit
 """
+from __future__ import annotations
 import math
 import time
 import uuid
@@ -72,12 +73,14 @@ def logits_to_logprobs(logits: npt.NDArray[np.float32]) -> npt.NDArray[np.float3
 
 def sample(
     logits: npt.NDArray[np.float32],
-    last_tokens: List[int] = [],
+    last_tokens: List[int] = None,
     presence_penalty: float = 0.0,
     frequency_penalty: float = 0.0,
     temperature: float = 1.0,
     top_p: float = 0.0,
 ) -> int:
+    if last_tokens is None:
+        last_tokens = []
     if temperature == 0.0:
         return int(np.argmax(logits))
     logits = frequency_and_presence_penalties(
@@ -120,11 +123,11 @@ def nucleus_sampling(
     logits /= temperature
 
     # Subtract the maximum value for numerical stability
-    logits -= np.max(logits)  # type: ignore
+    logits -= logits.max()  # type: ignore
 
     # Calculate probabilities using softmax function with epsilon
     epsilon = 1e-8
-    probabilities = np.exp(logits) / (np.sum(np.exp(logits)) + epsilon)  # type: ignore
+    probabilities = np.exp(logits) / ((np.exp(logits)).sum() + epsilon)  # type: ignore
 
     # Filter out NaN values from probabilities
     probabilities = np.nan_to_num(probabilities)
@@ -139,7 +142,7 @@ def nucleus_sampling(
     nucleus_probabilities = probabilities[nucleus_indices]
 
     # Normalize the probabilities within the nucleus
-    nucleus_probabilities /= np.sum(nucleus_probabilities)  # type: ignore
+    nucleus_probabilities /= nucleus_probabilities.sum()  # type: ignore
 
     # Sample from the updated probabilities
     selected_token = np.random.choice(nucleus_indices, p=nucleus_probabilities)
@@ -293,9 +296,7 @@ class ReplitModel:
     def detokenize(self, tokens: List[int]) -> str:
         id_to_token = self.vocab
         ws_symbol = b"\342\226\201"
-        text = ""
-        for token in tokens:
-            text += id_to_token[token][1]
+        text = "".join(id_to_token[token][1] for token in tokens)
         detokenized = text.replace(ws_symbol.decode("utf-8"), " ")
         return detokenized
 
@@ -711,11 +712,7 @@ class ReplitModel:
                 f"Requested tokens exceed context window of {self.max_seq_len}"
             )
 
-        if stop != []:
-            stop_sequences = stop
-        else:
-            stop_sequences = []
-
+        stop_sequences = stop if stop != [] else []
         finish_reason = "length"
         for token in self.generate(
             prompt_tokens,
@@ -732,7 +729,6 @@ class ReplitModel:
             completion_tokens.append(token)
 
             all_text = self.detokenize(completion_tokens)
-
             any_stop = [s for s in stop_sequences if s in all_text]
             if len(any_stop) > 0:
                 first_stop = any_stop[0]
@@ -783,7 +779,7 @@ class ReplitModel:
                             self.detokenize([i]): logprob
                             for logprob, i in sorted_logprobs[:logprobs]
                         }
-                        top_logprob.update({token_str: current_logprobs[int(token)]})
+                        top_logprob[token_str] = current_logprobs[int(token)]
                         logprobs_or_none = {
                             "tokens": [self.detokenize([token])],
                             "text_offset": [text_offset],
@@ -843,7 +839,7 @@ class ReplitModel:
                         self.detokenize([i]): logprob
                         for logprob, i in sorted_logprobs[:logprobs]
                     }
-                    top_logprob.update({token_str: current_logprobs[int(token)]})
+                    top_logprob[token_str] = current_logprobs[int(token)]
                     logprobs_or_none = {
                         "tokens": [self.detokenize([token])],
                         "text_offset": [text_offset],
@@ -1038,20 +1034,20 @@ class ReplitModel:
         n_batch: int = 1,
         n_threads: int = 1,
         verbose: bool = True,
-    ) -> "ReplitModel":
+    ) -> ReplitModel:
         verbose = True
 
         with open(model_file, "rb") as fin:
             # Magic Number
             (magic,) = struct.unpack("i", (fin.read(struct.calcsize("i"))))
-            assert magic == ggml.GGML_FILE_MAGIC.value
+            assert magic == ggml.GGML_FILE_MAGIC
             if verbose:
                 print("magic number =", hex(magic))
             # Hyperparameters
             d_model, max_seq_len, n_heads, n_layers, vocab_size, ftype = struct.unpack(
                 "iiiiii", (fin.read(struct.calcsize("iiiiii")))
             )
-            qntvr = ftype // ggml.GGML_QNT_VERSION_FACTOR.value
+            qntvr = ftype // ggml.GGML_QNT_VERSION_FACTOR
             if verbose:
                 print("d_model      =", d_model)
                 print("max_seq_len  =", max_seq_len)
@@ -1060,7 +1056,7 @@ class ReplitModel:
                 print("vocab_size   =", vocab_size)
                 print("ftype        =", ftype)
                 print("qntvr        =", qntvr)
-            ftype %= ggml.GGML_QNT_VERSION_FACTOR.value
+            ftype %= ggml.GGML_QNT_VERSION_FACTOR
             ftype = GGML_FTYPE(int(ftype))
             # Vocabulary
             vocab: List[Tuple[int, str, float]] = []
@@ -1161,16 +1157,16 @@ class ReplitModel:
                     "ffn.up_proj.weight",
                     "ffn.down_proj.weight",
                 ]
-                if name.startswith("transformer.blocks.") and any(
-                    name.endswith(suffix) for suffix in should_offload_suffix
-                ):
-                    layer_number = int(name.split(".")[2])
-                    if layer_number >= n_gpu_layers:
-                        continue
-                    tensor.tensor.contents.backend = ggml.GGML_BACKEND_CUDA.value
-                    ggml.ggml_cuda_load_data(
-                        fname, tensor.tensor, ctypes.c_size_t(offset)
-                    )
+                # if name.startswith("transformer.blocks.") and any(
+                #     name.endswith(suffix) for suffix in should_offload_suffix
+                # ):
+                #     layer_number = int(name.split(".")[2])
+                #     if layer_number >= n_gpu_layers:
+                #         continue
+                #     tensor.tensor.contents.backend = ggml.GGML_BACKEND_CUDA
+                #     ggml.ggml_cuda_load_data(
+                #         fname, tensor.tensor, ctypes.c_size_t(offset)
+                #     )
 
                 total_size += tensor.nbytes()
                 if n_tensors % 8 == 0:
@@ -1207,10 +1203,10 @@ class ReplitModel:
 
         ctx_size += n_layer * (n_embd * f32_sizef)
         ctx_size += n_layer * (3 * n_embd * n_embd * wtype_sizef)
-        ctx_size += n_layer * (n_embd * n_embd * wtype_sizef)
+        ctx_size += n_layer * (n_embd**2 * wtype_sizef)
         ctx_size += n_layer * (n_embd * f32_sizef)
         ctx_size += n_layer * (4 * n_embd * n_embd * wtype_sizef)
-        ctx_size += n_layer * (n_embd * n_embd * 4 * wtype_sizef)
+        ctx_size += n_layer * (n_embd**2 * 4 * wtype_sizef)
 
         ctx_size += n_ctx * n_layer * n_embd * f16_sizef
         ctx_size += n_ctx * n_layer * n_embd * f16_sizef
@@ -1262,7 +1258,7 @@ if __name__ == "__main__":
 
     print()
     print(prompt, end="", flush=True)
-    for i in range(max_tokens):
+    for _ in range(max_tokens):
         # eval
         scores = model.eval(tokens)
         logits = scores[:, -1]
