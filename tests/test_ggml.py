@@ -23,3 +23,23 @@ def test_ggml():
     output = ggml.ggml_get_f32_1d(f, 0)
     assert output == 16.0
     ggml.ggml_free(ctx)
+
+
+def test_ggml_custom_op():
+    params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
+    ctx = ggml.ggml_init(params=params)
+    x_in = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
+
+    def double(tensor_out: ggml.ggml_tensor_p, tensor_in: ggml.ggml_tensor_p):
+        value = ggml.ggml_get_f32_1d(tensor_in, 0)
+        ggml.ggml_set_f32(tensor_out, 2 * value)
+
+    x_out = ggml.ggml_map_custom1_f32(ctx, x_in, ggml.ggml_custom1_op_f32_t(double))
+    gf = ggml.ggml_build_forward(x_out)
+
+    ggml.ggml_set_f32(x_in, 21.0)
+
+    ggml.ggml_graph_compute(ctx, ctypes.pointer(gf))
+    output = ggml.ggml_get_f32_1d(x_out, 0)
+    assert output == 42.0
+    ggml.ggml_free(ctx)
