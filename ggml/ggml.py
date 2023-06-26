@@ -3209,7 +3209,7 @@ ggml_custom3_op_f32_t = ctypes.CFUNCTYPE(
 def ggml_map_unary_f32(
     ctx: ggml_context_p,
     a: ggml_tensor_p,  
-    fun: Union["ctypes._CFuncPtr", Callable[[int, "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]"], None]], # type: ignore
+    fun: "ctypes._CFuncPtr" # type: ignore
 ) -> ggml_tensor_p:  
     return lib.ggml_map_unary_f32(ctx, a, fun)
 
@@ -3228,7 +3228,7 @@ lib.ggml_map_unary_f32.restype = ctypes.POINTER(ggml_tensor)
 def ggml_map_unary_inplace_f32(
     ctx: ggml_context_p,
     a: ggml_tensor_p,
-    fun: Union["ctypes._CFuncPtr", Callable[[int, "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]"], None]], # type: ignore
+    fun: "ctypes._CFuncPtr" # type: ignore
 ) -> ggml_tensor_p:
     return lib.ggml_map_unary_inplace_f32(ctx, a, fun)
 
@@ -3249,7 +3249,7 @@ def ggml_map_binary_f32(
     ctx: ggml_context_p,
     a: ggml_tensor_p,  
     b: ggml_tensor_p,  
-    fun: Union["ctypes._CFuncPtr", Callable[[int, "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]"], None]], # type: ignore
+    fun: "ctypes._CFuncPtr" # type: ignore
 ) -> ggml_tensor_p:  
     return lib.ggml_map_binary_f32(ctx, a, b, fun)
 
@@ -3271,7 +3271,7 @@ def ggml_map_binary_inplace_f32(
     ctx: ggml_context_p,
     a: ggml_tensor_p,
     b: ggml_tensor_p,
-    fun: Union["ctypes._CFuncPtr", Callable[[int, "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]"], None]], # type: ignore
+    fun: "ctypes._CFuncPtr" # type: ignore
 ) -> ggml_tensor_p:
     return lib.ggml_map_binary_inplace_f32(ctx, a, b, fun)
 
@@ -3291,7 +3291,7 @@ lib.ggml_map_binary_inplace_f32.restype = ctypes.POINTER(ggml_tensor)
 def ggml_map_custom1_f32(
     ctx: ggml_context_p,
     a: ggml_tensor_p,
-    fun: Union["ctypes._CFuncPtr", Callable[["ctypes.POINTER[ggml_tensor]", "ctypes.POINTER[ggml_tensor]"], None]], # type: ignore
+    fun: "ctypes._CFuncPtr" # type: ignore
 ) -> ggml_tensor_p:
     return lib.ggml_map_custom1_f32(ctx, a, fun)
 
@@ -3309,7 +3309,7 @@ lib.ggml_map_custom1_f32.restype = ctypes.POINTER(ggml_tensor)
 def ggml_map_custom1_inplace_f32(
     ctx: ggml_context_p,
     a: ggml_tensor_p,
-    fun: Union["ctypes._CFuncPtr", Callable[["ctypes.POINTER[ggml_tensor]", "ctypes.POINTER[ggml_tensor]"], None]], # type: ignore
+    fun: "ctypes._CFuncPtr" # type: ignore
 ) -> ggml_tensor_p:
     return lib.ggml_map_custom1_inplace_f32(ctx, a, fun)
 
@@ -3329,7 +3329,7 @@ def ggml_map_custom2_f32(
     ctx: ggml_context_p,
     a: ggml_tensor_p,
     b: ggml_tensor_p,
-    fun: Union["ctypes._CFuncPtr", Callable[[int, "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]"], None]], # type: ignore
+    fun: "ctypes._CFuncPtr" # type: ignore
 ) -> ggml_tensor_p:
     return lib.ggml_map_custom2_f32(ctx, a, b, fun)
 
@@ -3350,7 +3350,7 @@ def ggml_map_custom2_inplace_f32(
     ctx: ggml_context_p,
     a: ggml_tensor_p,
     b: ggml_tensor_p,
-    fun: Union["ctypes._CFuncPtr", Callable[[int, "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]"], None]], # type: ignore
+    fun: "ctypes._CFuncPtr" # type: ignore
 ) -> ggml_tensor_p:
     return lib.ggml_map_custom2_inplace_f32(ctx, a, b, fun)
 
@@ -3373,7 +3373,7 @@ def ggml_map_custom3_f32(
     a: ggml_tensor_p,
     b: ggml_tensor_p,
     c: ggml_tensor_p,
-    fun: Union["ctypes._CFuncPtr", Callable[[int, "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]"], None]], # type: ignore
+    fun: "ctypes._CFuncPtr" # type: ignore
 ) -> ggml_tensor_p:
     return lib.ggml_map_custom3_f32(ctx, a, b, c, fun)
 
@@ -3397,7 +3397,7 @@ def ggml_map_custom3_inplace_f32(
     a: ggml_tensor_p,
     b: ggml_tensor_p,
     c: ggml_tensor_p,
-    fun: Union["ctypes._CFuncPtr", Callable[[int, "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]"], None]], # type: ignore
+    fun: "ctypes._CFuncPtr" # type: ignore
 ) -> ggml_tensor_p:
     return lib.ggml_map_custom3_inplace_f32(ctx, a, b, c, fun)
 
