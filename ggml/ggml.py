@@ -913,6 +913,7 @@ lib.ggml_free.restype = None
 
 # GGML_API size_t  ggml_used_mem(const struct ggml_context * ctx);
 def ggml_used_mem(ctx: ggml_context_p) -> int:
+    """Return the amount of memory used by the ggml context in bytes."""
     return lib.ggml_used_mem(ctx)
 
 
@@ -922,6 +923,7 @@ lib.ggml_used_mem.restype = ctypes.c_size_t
 
 # GGML_API size_t  ggml_set_scratch(struct ggml_context * ctx, struct ggml_scratch scratch);
 def ggml_set_scratch(ctx: ggml_context_p, scratch: ggml_scratch) -> int:
+    """Set the scratch buffer for the ggml context."""
     return lib.ggml_set_scratch(ctx, scratch)
 
 
@@ -931,6 +933,7 @@ lib.ggml_set_scratch.restype = ctypes.c_size_t
 
 # GGML_API void    ggml_set_no_alloc(struct ggml_context * ctx, bool no_alloc);
 def ggml_set_no_alloc(ctx: ggml_context_p, no_alloc: Union[ctypes.c_bool, bool]):
+    """Set the no_alloc flag for the ggml context."""
     return lib.ggml_set_no_alloc(ctx, no_alloc)
 
 
@@ -940,6 +943,7 @@ lib.ggml_set_no_alloc.restype = None
 
 # GGML_API void *  ggml_get_mem_buffer     (struct ggml_context * ctx);
 def ggml_get_mem_buffer(ctx: ggml_context_p) -> ctypes.c_void_p:
+    """Return the memory buffer for the ggml context."""
     return lib.ggml_get_mem_buffer(ctx)
 
 
@@ -949,6 +953,7 @@ lib.ggml_get_mem_buffer.restype = ctypes.c_void_p
 
 # GGML_API size_t  ggml_get_mem_size       (struct ggml_context * ctx);
 def ggml_get_mem_size(ctx: ggml_context_p) -> int:
+    """Return the size of the memory buffer for the ggml context in bytes."""
     return lib.ggml_get_mem_size(ctx)
 
 
@@ -958,6 +963,7 @@ lib.ggml_get_mem_size.restype = ctypes.c_size_t
 
 # GGML_API size_t  ggml_get_max_tensor_size(const struct ggml_context * ctx);
 def ggml_get_max_tensor_size(ctx: ggml_context_p) -> int:
+    """Return the maximum size of a tensor in bytes."""
     return lib.ggml_get_max_tensor_size(ctx)
 
 
@@ -976,6 +982,16 @@ def ggml_new_tensor(
     n_dims: Union[ctypes.c_int, int],
     ne,  # type: ctypes.Array[ctypes.c_int64] # type: ignore
 ) -> ggml_tensor_p:  
+    """Create a new tensor with the given type, number of dimensions, and number of elements in each dimension.
+    
+    Parameters:
+        ctx: ggml context
+        type: ggml type
+        n_dims: number of dimensions
+        ne: number of elements in each dimension
+    
+    Returns:
+        Pointer to ggml_tensor"""
     return lib.ggml_new_tensor(ctx, type, n_dims, ne)
 
 
@@ -994,7 +1010,16 @@ lib.ggml_new_tensor.restype = ctypes.POINTER(ggml_tensor)
 #         int64_t ne0);
 def ggml_new_tensor_1d(
     ctx: ggml_context_p, type: Union[ctypes.c_int, int], ne0: Union[ctypes.c_int64, int]
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
+    """Create a new 1-dimensional tensor with the given type and number of elements.
+    
+    Parameters:
+        ctx: ggml context
+        type: ggml type
+        ne0: number of elements in dimension 0
+        
+    Returns:
+        Pointer to ggml_tensor"""
     return lib.ggml_new_tensor_1d(ctx, type, ne0)
 
 
@@ -1013,6 +1038,16 @@ def ggml_new_tensor_2d(
     ne0: Union[ctypes.c_int64, int],
     ne1: Union[ctypes.c_int64, int],
 ) -> ggml_tensor_p:
+    """Create a new 2-dimensional tensor with the given type and number of elements in each dimension.
+    
+    Parameters:
+        ctx: ggml context
+        type: ggml type
+        ne0: number of elements in dimension 0
+        ne1: number of elements in dimension 1
+        
+    Returns:
+        Pointer to ggml_tensor"""
     return lib.ggml_new_tensor_2d(ctx, type, ne0, ne1)
 
 
@@ -1038,6 +1073,17 @@ def ggml_new_tensor_3d(
     ne1: Union[ctypes.c_int64, int],
     ne2: Union[ctypes.c_int64, int],
 ) -> ggml_tensor_p:
+    """Create a new 3-dimensional tensor with the given type and number of elements in each dimension.
+    
+    Parameters:
+        ctx: ggml context
+        type: ggml type
+        ne0: number of elements in dimension 0
+        ne1: number of elements in dimension 1
+        ne2: number of elements in dimension 2
+        
+    Returns:
+        Pointer to ggml_tensor"""
     return lib.ggml_new_tensor_3d(ctx, type, ne0, ne1, ne2)
 
 
@@ -1066,6 +1112,17 @@ def ggml_new_tensor_4d(
     ne2: Union[ctypes.c_int64, int],
     ne3: Union[ctypes.c_int64, int],
 ) -> ggml_tensor_p:
+    """Create a new 4-dimensional tensor with the given type and number of elements in each dimension.
+
+    Parameters:
+        ctx: ggml context
+        type: ggml type
+        ne0: number of elements in dimension 0
+        ne1: number of elements in dimension 1
+        ne2: number of elements in dimension 2
+    
+    Returns:
+        Pointer to ggml_tensor"""
     return lib.ggml_new_tensor_4d(ctx, type, ne0, ne1, ne2, ne3)
 
 
@@ -1083,7 +1140,15 @@ lib.ggml_new_tensor_4d.restype = ctypes.POINTER(ggml_tensor)
 # GGML_API struct ggml_tensor * ggml_new_i32(struct ggml_context * ctx, int32_t value);
 def ggml_new_i32(
     ctx: ggml_context_p, value: Union[ctypes.c_int32, int]
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
+    """Create a 1 element tensor with the given integer value.
+    
+    Parameters:
+        ctx: ggml context
+        value: integer value
+
+    Returns:
+        Pointer to ggml_tensor"""
     return lib.ggml_new_i32(ctx, value)
 
 
@@ -1095,7 +1160,15 @@ lib.ggml_new_i32.restype = ctypes.POINTER(ggml_tensor)
 def ggml_new_f32(
     ctx: ggml_context_p,
     value: Union[ctypes.c_float, float],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
+    """Create a 1 element tensor with the given float value.
+
+    Parameters:
+        ctx: ggml context
+        value: float value
+
+    Returns:
+        Pointer to ggml_tensor"""
     return lib.ggml_new_f32(ctx, value)
 
 
