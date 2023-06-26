@@ -52,7 +52,7 @@ import sys
 import ctypes
 import pathlib
 import importlib.resources
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Callable
 from typing_extensions import TypeAlias
 
 
@@ -345,6 +345,10 @@ GGML_FTYPE_MOSTLY_Q6_K = 14
 #     GGML_OP_MAP_UNARY,
 #     GGML_OP_MAP_BINARY,
 
+#     GGML_OP_MAP_CUSTOM1,
+#     GGML_OP_MAP_CUSTOM2,
+#     GGML_OP_MAP_CUSTOM3,
+
 #     GGML_OP_CROSS_ENTROPY_LOSS,
 #     GGML_OP_CROSS_ENTROPY_LOSS_BACK,
 
@@ -409,9 +413,12 @@ GGML_OP_WIN_PART = 55
 GGML_OP_WIN_UNPART = 56
 GGML_OP_MAP_UNARY = 57
 GGML_OP_MAP_BINARY = 58
-GGML_OP_CROSS_ENTROPY_LOSS = 59
-GGML_OP_CROSS_ENTROPY_LOSS_BACK = 60
-GGML_OP_COUNT = 61
+GGML_OP_MAP_CUSTOM1 = 59
+GGML_OP_MAP_CUSTOM2 = 60
+GGML_OP_MAP_CUSTOM3 = 61
+GGML_OP_CROSS_ENTROPY_LOSS = 62
+GGML_OP_CROSS_ENTROPY_LOSS_BACK = 63
+GGML_OP_COUNT = 64
 
 # struct ggml_object {
 #     size_t offs;
@@ -1253,6 +1260,17 @@ def ggml_set_name(
 lib.ggml_set_name.argtypes = [ctypes.POINTER(ggml_tensor), ctypes.c_char_p]
 lib.ggml_set_name.restype = ctypes.POINTER(ggml_tensor)
 
+
+# GGML_API struct ggml_tensor * ggml_format_name(struct ggml_tensor * tensor, const char * fmt, ...);
+def ggml_format_name(
+    tensor: ggml_tensor_p,
+    fmt: bytes,
+    *args,
+) -> ggml_tensor_p:
+    return lib.ggml_format_name(tensor, fmt, *args)
+
+lib.ggml_format_name.argtypes = [ctypes.POINTER(ggml_tensor), ctypes.c_char_p]
+lib.ggml_format_name.restype = ctypes.POINTER(ggml_tensor)
 
 # GGML_API struct ggml_tensor * ggml_dup(
 #         struct ggml_context * ctx,
@@ -3146,7 +3164,8 @@ lib.ggml_win_unpart.argtypes = [
 ]
 lib.ggml_win_unpart.restype = ctypes.POINTER(ggml_tensor)
 
-# // Mapping operations
+# // custom operators
+
 # typedef void (*ggml_unary_op_f32_t)(const int, float *, const float *);
 ggml_unary_op_f32_t = ctypes.CFUNCTYPE(
     None, ctypes.c_int, ctypes.POINTER(ctypes.c_float), ctypes.POINTER(ctypes.c_float)
@@ -3161,6 +3180,27 @@ ggml_binary_op_f32_t = ctypes.CFUNCTYPE(
     ctypes.POINTER(ctypes.c_float),
 )
 
+# typedef void (*ggml_custom1_op_f32_t)(struct ggml_tensor *, const struct ggml_tensor *);
+ggml_custom1_op_f32_t = ctypes.CFUNCTYPE(
+    None, ctypes.POINTER(ggml_tensor), ctypes.POINTER(ggml_tensor)
+)
+
+# typedef void (*ggml_custom2_op_f32_t)(struct ggml_tensor *, const struct ggml_tensor *, const struct ggml_tensor *);
+ggml_custom2_op_f32_t = ctypes.CFUNCTYPE(
+    None,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+)
+
+# typedef void (*ggml_custom3_op_f32_t)(struct ggml_tensor *, const struct ggml_tensor *, const struct ggml_tensor *, const struct ggml_tensor *);
+ggml_custom3_op_f32_t = ctypes.CFUNCTYPE(
+    None,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+)
 
 # GGML_API struct ggml_tensor * ggml_map_unary_f32(
 #         struct ggml_context        * ctx,
@@ -3169,7 +3209,7 @@ ggml_binary_op_f32_t = ctypes.CFUNCTYPE(
 def ggml_map_unary_f32(
     ctx: ggml_context_p,
     a: ggml_tensor_p,  
-    fun: "ctypes._CFuncPtr", # type: ignore
+    fun: Union["ctypes._CFuncPtr", Callable[[int, "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]"], None]], # type: ignore
 ) -> ggml_tensor_p:  
     return lib.ggml_map_unary_f32(ctx, a, fun)
 
@@ -3181,6 +3221,24 @@ lib.ggml_map_unary_f32.argtypes = [
 ]
 lib.ggml_map_unary_f32.restype = ctypes.POINTER(ggml_tensor)
 
+# GGML_API struct ggml_tensor * ggml_map_unary_inplace_f32(
+#         struct ggml_context        * ctx,
+#         struct ggml_tensor         * a,
+#                 ggml_unary_op_f32_t   fun);
+def ggml_map_unary_inplace_f32(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    fun: Union["ctypes._CFuncPtr", Callable[[int, "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]"], None]], # type: ignore
+) -> ggml_tensor_p:
+    return lib.ggml_map_unary_inplace_f32(ctx, a, fun)
+
+lib.ggml_map_unary_inplace_f32.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ggml_unary_op_f32_t,
+]
+lib.ggml_map_unary_inplace_f32.restype = ctypes.POINTER(ggml_tensor)
+
 
 # GGML_API struct ggml_tensor * ggml_map_binary_f32(
 #         struct ggml_context         * ctx,
@@ -3191,7 +3249,7 @@ def ggml_map_binary_f32(
     ctx: ggml_context_p,
     a: ggml_tensor_p,  
     b: ggml_tensor_p,  
-    fun: "ctypes._CFuncPtr", # type: ignore
+    fun: Union["ctypes._CFuncPtr", Callable[[int, "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]"], None]], # type: ignore
 ) -> ggml_tensor_p:  
     return lib.ggml_map_binary_f32(ctx, a, b, fun)
 
@@ -3203,6 +3261,154 @@ lib.ggml_map_binary_f32.argtypes = [
     ggml_binary_op_f32_t,
 ]
 lib.ggml_map_binary_f32.restype = ctypes.POINTER(ggml_tensor)
+
+# GGML_API struct ggml_tensor * ggml_map_binary_inplace_f32(
+#         struct ggml_context         * ctx,
+#         struct ggml_tensor          * a,
+#         struct ggml_tensor          * b,
+#                 ggml_binary_op_f32_t   fun);
+def ggml_map_binary_inplace_f32(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    fun: Union["ctypes._CFuncPtr", Callable[[int, "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]"], None]], # type: ignore
+) -> ggml_tensor_p:
+    return lib.ggml_map_binary_inplace_f32(ctx, a, b, fun)
+
+lib.ggml_map_binary_inplace_f32.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+    ggml_binary_op_f32_t,
+]
+lib.ggml_map_binary_inplace_f32.restype = ctypes.POINTER(ggml_tensor)
+
+
+# GGML_API struct ggml_tensor * ggml_map_custom1_f32(
+#         struct ggml_context          * ctx,
+#         struct ggml_tensor           * a,
+#                 ggml_custom1_op_f32_t   fun);
+def ggml_map_custom1_f32(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    fun: Union["ctypes._CFuncPtr", Callable[["ctypes.POINTER[ggml_tensor]", "ctypes.POINTER[ggml_tensor]"], None]], # type: ignore
+) -> ggml_tensor_p:
+    return lib.ggml_map_custom1_f32(ctx, a, fun)
+
+lib.ggml_map_custom1_f32.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ggml_custom1_op_f32_t,
+]
+lib.ggml_map_custom1_f32.restype = ctypes.POINTER(ggml_tensor)
+
+# GGML_API struct ggml_tensor * ggml_map_custom1_inplace_f32(
+#         struct ggml_context          * ctx,
+#         struct ggml_tensor           * a,
+#                 ggml_custom1_op_f32_t   fun);
+def ggml_map_custom1_inplace_f32(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    fun: Union["ctypes._CFuncPtr", Callable[["ctypes.POINTER[ggml_tensor]", "ctypes.POINTER[ggml_tensor]"], None]], # type: ignore
+) -> ggml_tensor_p:
+    return lib.ggml_map_custom1_inplace_f32(ctx, a, fun)
+
+lib.ggml_map_custom1_inplace_f32.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ggml_custom1_op_f32_t,
+]
+lib.ggml_map_custom1_inplace_f32.restype = ctypes.POINTER(ggml_tensor)
+
+# GGML_API struct ggml_tensor * ggml_map_custom2_f32(
+#         struct ggml_context          * ctx,
+#         struct ggml_tensor           * a,
+#         struct ggml_tensor           * b,
+#                 ggml_custom2_op_f32_t   fun);
+def ggml_map_custom2_f32(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    fun: Union["ctypes._CFuncPtr", Callable[[int, "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]"], None]], # type: ignore
+) -> ggml_tensor_p:
+    return lib.ggml_map_custom2_f32(ctx, a, b, fun)
+
+lib.ggml_map_custom2_f32.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+    ggml_custom2_op_f32_t,
+]
+lib.ggml_map_custom2_f32.restype = ctypes.POINTER(ggml_tensor)
+
+# GGML_API struct ggml_tensor * ggml_map_custom2_inplace_f32(
+#         struct ggml_context          * ctx,
+#         struct ggml_tensor           * a,
+#         struct ggml_tensor           * b,
+#                 ggml_custom2_op_f32_t   fun);
+def ggml_map_custom2_inplace_f32(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    fun: Union["ctypes._CFuncPtr", Callable[[int, "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]"], None]], # type: ignore
+) -> ggml_tensor_p:
+    return lib.ggml_map_custom2_inplace_f32(ctx, a, b, fun)
+
+lib.ggml_map_custom2_inplace_f32.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+    ggml_custom2_op_f32_t,
+]
+lib.ggml_map_custom2_inplace_f32.restype = ctypes.POINTER(ggml_tensor)
+
+# GGML_API struct ggml_tensor * ggml_map_custom3_f32(
+#         struct ggml_context          * ctx,
+#         struct ggml_tensor           * a,
+#         struct ggml_tensor           * b,
+#         struct ggml_tensor           * c,
+#                 ggml_custom3_op_f32_t   fun);
+def ggml_map_custom3_f32(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    c: ggml_tensor_p,
+    fun: Union["ctypes._CFuncPtr", Callable[[int, "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]"], None]], # type: ignore
+) -> ggml_tensor_p:
+    return lib.ggml_map_custom3_f32(ctx, a, b, c, fun)
+
+lib.ggml_map_custom3_f32.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+    ggml_custom3_op_f32_t,
+]
+lib.ggml_map_custom3_f32.restype = ctypes.POINTER(ggml_tensor)
+
+# GGML_API struct ggml_tensor * ggml_map_custom3_inplace_f32(
+#         struct ggml_context          * ctx,
+#         struct ggml_tensor           * a,
+#         struct ggml_tensor           * b,
+#         struct ggml_tensor           * c,
+#                 ggml_custom3_op_f32_t   fun);
+def ggml_map_custom3_inplace_f32(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    c: ggml_tensor_p,
+    fun: Union["ctypes._CFuncPtr", Callable[[int, "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]", "ctypes._Pointer[ctypes.c_float]"], None]], # type: ignore
+) -> ggml_tensor_p:
+    return lib.ggml_map_custom3_inplace_f32(ctx, a, b, c, fun)
+
+lib.ggml_map_custom3_inplace_f32.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+    ggml_custom3_op_f32_t,
+]
+lib.ggml_map_custom3_inplace_f32.restype = ctypes.POINTER(ggml_tensor)
 
 # // loss function
 
