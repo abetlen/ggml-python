@@ -596,6 +596,10 @@ class ggml_scratch(ctypes.Structure):
 class ggml_init_params(ctypes.Structure):
     """Initialization parameters for a ggml context
 
+    **NOTE**: Reference counting does not cross into ggml, if you allocate a memory buffer
+    in python using ctypes Arrays or a numpy array, you must keep a reference to it until
+    you free the ggml context otherwise you will encounter a segmentation fault. 
+
     Attributes:
         mem_size (int): size of memory pool in bytes
         mem_buffer (void_p): pointer to memory pool, if None, memory will be allocated internally
