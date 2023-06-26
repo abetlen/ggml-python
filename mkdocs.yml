@@ -12,6 +12,7 @@ plugins:
         python:
           options:
             members_order: source
+  - search
 
 markdown_extensions:
   - pymdownx.superfences
