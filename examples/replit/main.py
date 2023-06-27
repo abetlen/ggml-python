@@ -181,6 +181,34 @@ class CpuContextBuffer(ContextBuffer):
         return ctypes.c_void_p(ctypes.addressof(self._buffer))
 
 
+class CudaContextBuffer(ContextBuffer):
+    def __init__(self, buffer_size: int = 256 * 1024 * 1024):
+        self.buffer_size = buffer_size
+        self._buffer = None
+
+    @property
+    def buffer(self) -> ctypes.c_void_p:
+        if self._buffer is None:
+            return ctypes.c_void_p(0)
+        return self._buffer
+
+    def resize(self, new_size: int):
+        assert new_size > self.buffer_size
+
+        if self._buffer is not None:
+            ggml.ggml_cuda_host_free(self._buffer)
+
+        self.buffer_size = new_size
+        self._buffer = ggml.ggml_cuda_host_malloc(self.buffer_size)
+        if self._buffer is None or (ctypes.addressof(self._buffer) == 0):  # type: ignore
+            raise RuntimeError("Failed to allocate CUDA buffer")
+
+    def __del__(self):
+        if self._buffer is not None:
+            ggml.ggml_cuda_host_free(self._buffer)
+            self._buffer = None
+
+
 ### Replit Model Definition
 
 
