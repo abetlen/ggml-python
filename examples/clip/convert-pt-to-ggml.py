@@ -18,16 +18,12 @@
 #  - Data (float[n_dims])
 #
 
-import io
 import os
 import sys
 import struct
 import gzip
-import json
-import torch
 import numpy as np
 import importlib
-import IPython
 
 if len(sys.argv) < 3:
     print("Usage: convert-pt-to-ggml.py clip_model dir-output\n")
@@ -129,7 +125,6 @@ for name in state_dict.keys():
 
     if name == "visual.conv1.weight":
         data = data.astype(np.float16)
-        IPython.embed()
         ftype = 1
     n_dims = len(data.shape)
 

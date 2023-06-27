@@ -1,14 +1,12 @@
 """ggml-python implemention of the CLIP model
 """
-import IPython
 import io
 import os
 import ctypes
 import struct
 import argparse
 import numpy as np
-from typing import List, Tuple, Dict, Sequence
-from CLIP.clip import simple_tokenizer
+from typing import List, Tuple, Dict
 import ggml
 from ggml.experimental import GGML_FTYPE, Context, InitParams, Tensor, GGML_TYPE, CGraph
 
@@ -634,20 +632,21 @@ class ClipModel:
         )  # conv
         mem_size += e_size * self.vision_width * N + ggml_overhead  # concat
 
+        mem_size += (
+            e_size * self.vision_width * N + ggml_overhead
+        ) * 2  # Copy in visual features
+        mem_size += e_size * 8 + 256
+        mem_size += 2 * ggml_overhead  # cpy and transpose
         mem_size += e_size * 8 + 256  # ???
         mem_size += (
             e_size * self.vision_width * N + ggml_overhead
-        )  # Copy in visual features
-        mem_size += 2 * ggml_overhead  # ???
-        mem_size += e_size * 8 + 256  # ???
-        mem_size += (
-            e_size * self.vision_width * N + ggml_overhead
-        )  # Copy in positional embeddings
+        )  # Copy in positional embeddings (new tensor 2d)
         mem_size += (
             e_size * self.vision_width * N + ggml_overhead
         )  # copy visual features: ret
-        mem_size += ggml_overhead
+
         mem_size += e_size * self.vision_width * N + ggml_overhead  # add
+
         mem_size += e_size * self.vision_width * N + ggml_overhead  # ln_pre: norm
         mem_size += e_size * self.vision_width * N + ggml_overhead  # ln_pre: repeat
         mem_size += e_size * self.vision_width * N + ggml_overhead  # ln_pre: repeat
@@ -661,10 +660,10 @@ class ClipModel:
         mem_size += res_block_mem_size * self.vision_layers
         mem_size += ggml_overhead  # ln_post: transpose
         mem_size += (e_size * self.vision_width + ggml_overhead) * 3  # ln_post
+
         mem_size += e_size * self.vision_width * self.embed_dim + ggml_overhead
         mem_size += ggml_overhead  # cpy
-        mem_size += e_size * self.embed_dim + ggml_overhead  # mul_mat
-        mem_size += 301312  # Compute Overhead ??
+        mem_size += 159808  # Compute Overhead ??
         return mem_size
 
     def _encode_image_internal(self, image):
@@ -691,12 +690,14 @@ class ClipModel:
         cur = Tensor.conv_2d_sk_p0(
             self.visual.visual_conv1_weight, img_tensor, ctx=ctx0
         )
+
         cur = Tensor.reshape_2d(
             cur,
             cur.shape[0] * cur.shape[1],
             cur.shape[2],
             ctx=ctx0,
         )
+
         concat = Tensor.new_tensor_2d(wtype, cur.shape[0] + 1, cur.shape[1], ctx=ctx0)
 
         concat = Tensor.set_1d(
@@ -746,6 +747,7 @@ class ClipModel:
             Tensor.repeat(self.visual.visual_ln_pre_bias, cur, ctx=ctx0),
             ctx=ctx0,
         )
+
         # Transformer
         for il in range(self.visual.layers):
             resblock = self.visual.resblocks[il]
@@ -756,6 +758,7 @@ class ClipModel:
             Tensor.view_2d(Tensor.transpose(cur, ctx=ctx0), cur.shape[0], 1, 1, 0),
             ctx=ctx0,
         )
+
         cur = Tensor.add(
             Tensor.mul(
                 Tensor.repeat(self.visual.visual_ln_post_weight, cur, ctx=ctx0),
@@ -765,6 +768,7 @@ class ClipModel:
             Tensor.repeat(self.visual.visual_ln_post_bias, cur, ctx=ctx0),
             ctx=ctx0,
         )
+
         # Token Projection
         cur = Tensor.mul_mat(
             Tensor.cpy(
@@ -787,11 +791,12 @@ class ClipModel:
         return cur
 
     @staticmethod
-    def init_from_file(model_file: str, verbose=True, n_threads=1, use_gpu=False):
+    def init_from_file(model_file: str, verbose=True, n_threads=1):
         with open(model_file, "rb") as fin:
             # Magic Number
             (magic,) = struct.unpack("i", (fin.read(struct.calcsize("i"))))
-            assert magic == ggml.GGML_FILE_MAGIC.value
+
+            assert magic == ggml.GGML_FILE_MAGIC
             if verbose:
                 print("magic number =", hex(magic))
             # Hyperparameters
@@ -809,7 +814,8 @@ class ClipModel:
                 ftype,
                 vocab_size,
             ) = struct.unpack("iiiiiiiiiiii", fin.read(struct.calcsize("iiiiiiiiiiii")))
-            qntvr = ftype // ggml.GGML_QNT_VERSION_FACTOR.value
+
+            qntvr = ftype // ggml.GGML_QNT_VERSION_FACTOR
             if verbose:
                 print("vision_width    =", vision_width)
                 print("vision_layers    =", vision_layers)
@@ -824,7 +830,7 @@ class ClipModel:
                 print("ftype           =", ftype)
                 print("qntvr           =", qntvr)
                 print("vocab_size      =", vocab_size)
-            ftype %= ggml.GGML_QNT_VERSION_FACTOR.value
+            ftype %= ggml.GGML_QNT_VERSION_FACTOR
             ftype = GGML_FTYPE(int(ftype))
 
             # Vocabulary
@@ -841,7 +847,8 @@ class ClipModel:
 
             mem_buffer = np.empty(ctx_size, dtype=np.uint8)
             init_params = InitParams(
-                mem_size=ctx_size, mem_buffer=mem_buffer.ctypes.data_as(ctypes.c_void_p)
+                mem_size=ctx_size,
+                mem_buffer=mem_buffer.ctypes.data_as(ctypes.c_void_p),
             )
             ctx = Context(init_params=init_params)
 
@@ -885,12 +892,6 @@ class ClipModel:
                 offset = fin.tell()
                 fname = fin.name.encode("utf-8")
                 fin.readinto(buf)
-
-                if use_gpu:
-                    tensor.tensor.contents.backend = ggml.GGML_BACKEND_CUDA.value
-                    ggml.ggml_cuda_load_data(
-                        fname, tensor.tensor, ctypes.c_size_t(offset)
-                    )
 
             return model
 
