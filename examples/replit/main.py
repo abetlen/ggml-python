@@ -7,6 +7,7 @@ This implementation is based on the example model code and ggml model file forma
 https://github.com/ggerganov/ggml/tree/master/examples/replit
 """
 from __future__ import annotations
+import abc
 import math
 import time
 import uuid
@@ -154,7 +155,17 @@ def nucleus_sampling(
 ### Context Buffer
 
 
-class ContextBuffer:
+class ContextBuffer(abc.ABC):
+    @abc.abstractmethod
+    def resize(self, new_size: int) -> None:
+        raise NotImplementedError
+    
+    @abc.abstractproperty
+    def buffer(self) -> ctypes.c_void_p:
+        raise NotImplementedError
+
+
+class CpuContextBuffer(ContextBuffer):
     def __init__(self, buffer_size: int = 256 * 1024 * 1024):
         self.buffer_size = buffer_size
         self._buffer = (ctypes.c_uint8 * self.buffer_size)()
@@ -262,7 +273,7 @@ class ReplitModel:
         self.tensors["transformer.norm_f.weight"] = self.ln_f_weight
 
         self.mem_per_token = 0
-        self.eval_buffer = ContextBuffer()
+        self.eval_buffer = CpuContextBuffer()
 
         for i in range(n_layer):
             layer = ReplitLayer(
@@ -361,6 +372,13 @@ class ReplitModel:
         n_head = self.n_heads
         n_vocab = self.vocab_size
 
+        def offload_nop(tensor: ggml.ggml_tensor_p):
+            pass
+    
+        offload_func_nr = offload_nop
+        offload_func_kq = offload_nop
+        offload_func_v = offload_nop
+
         required_buffer_size = int(self.mem_per_token * N * 2.0)
 
         if self.mem_per_token > 0 and self.eval_buffer.buffer_size < required_buffer_size:
@@ -379,18 +397,27 @@ class ReplitModel:
             ggml.GGML_TYPE_I32,
             N,
         )
+        ggml.ggml_set_name(embd, b"embd")
         to_numpy(embd)[:] = np.array(embd_inp, dtype=np.int32)
 
         inpL = ggml.ggml_get_rows(ctx0, self.wte_weight, embd)
 
         for il in range(n_layer):
+            offload_func = offload_nop
+
+            # // lctx.use_buf(ctx0, 0)
+
             # // a = self.ln_1(x)
             cur = ggml.ggml_norm(ctx0, inpL)
+            offload_func(cur)
+            ggml.ggml_set_name(cur, b"norm_0")
             cur = ggml.ggml_mul(
                 ctx0,
                 ggml.ggml_repeat(ctx0, self.layers[il].ln_1_weight, cur),
                 cur,
             )
+            offload_func(cur)
+            ggml.ggml_set_name(cur, b"attention_norm_0")
 
             # // self-attention
             # //  b, _, past_key_value = self.attn(a, past_key_value=past_key_value,
@@ -399,6 +426,8 @@ class ReplitModel:
 
             # // compute QKV
             cur = ggml.ggml_mul_mat(ctx0, self.layers[il].c_attn_wqkv_weight, cur)
+            offload_func_kq(cur)
+            ggml.ggml_set_name(cur, b"tmpkqv")
 
             Qcur = ggml.ggml_view_2d(
                 ctx0,
@@ -408,6 +437,8 @@ class ReplitModel:
                 cur.contents.nb[1],
                 0 * ctypes.sizeof(ctypes.c_float) * n_embd,
             )
+            offload_func_kq(Qcur)
+            ggml.ggml_set_name(Qcur, b"Qcur")
             Kcur = ggml.ggml_view_2d(
                 ctx0,
                 cur,
@@ -416,6 +447,8 @@ class ReplitModel:
                 cur.contents.nb[1],
                 1 * ctypes.sizeof(ctypes.c_float) * n_embd,
             )
+            offload_func_kq(Kcur)
+            ggml.ggml_set_name(Kcur, b"Kcur")
             Vcur = ggml.ggml_view_2d(
                 ctx0,
                 cur,
@@ -424,6 +457,8 @@ class ReplitModel:
                 cur.contents.nb[1],
                 2 * ctypes.sizeof(ctypes.c_float) * n_embd,
             )
+            offload_func_v(Vcur)
+            ggml.ggml_set_name(Vcur, b"Vcur")
 
             # // store key and value to memory
             k = ggml.ggml_view_1d(
@@ -433,6 +468,8 @@ class ReplitModel:
                 (ggml.ggml_element_size(self.memory_k) * n_embd)
                 * (il * n_ctx + n_past),
             )
+            offload_func_kq(k)
+            ggml.ggml_set_name(k, b"k")
             v = ggml.ggml_view_1d(
                 ctx0,
                 self.memory_v,
@@ -440,6 +477,8 @@ class ReplitModel:
                 (ggml.ggml_element_size(self.memory_v) * n_embd)
                 * (il * n_ctx + n_past),
             )
+            offload_func_v(v)
+            ggml.ggml_set_name(v, b"v")
 
             ggml.ggml_build_forward_expand(
                 ctypes.pointer(gf),
@@ -478,6 +517,8 @@ class ReplitModel:
                 1,
                 3,
             )
+            offload_func_kq(Q)
+            ggml.ggml_set_name(Q, b"Q")
 
             # // K = Kmem.view(n_embd/n_head, n_head, n_past + N).permute(0, 2, 1,
             # // 3) [64, n_past + N, 12]
@@ -500,9 +541,13 @@ class ReplitModel:
                 1,
                 3,
             )
+            offload_func_kq(K)
+            ggml.ggml_set_name(K, b"K")
 
             # // K * Q
             KQ = ggml.ggml_mul_mat(ctx0, K, Q)
+            offload_func_kq(KQ)
+            ggml.ggml_set_name(KQ, b"KQ")
 
             # // KQ_scaled = KQ / sqrt(n_embd/n_head)
             KQ_scaled = ggml.ggml_scale(
@@ -513,6 +558,8 @@ class ReplitModel:
                     1.0 / np.sqrt(float(n_embd) / n_head),
                 ),
             )
+            offload_func_kq(KQ_scaled)
+            ggml.ggml_set_name(KQ_scaled, b"KQ_scaled")
 
             KQ_scaled_alibi = ggml.ggml_alibi(
                 ctx0,
@@ -521,6 +568,8 @@ class ReplitModel:
                 n_head,
                 8.0,
             )
+            offload_func_kq(KQ_scaled_alibi)
+            ggml.ggml_set_name(KQ_scaled_alibi, b"KQ_scaled_alibi")
 
             # // KQ_masked = mask_past(KQ_scaled)
             KQ_masked = ggml.ggml_diag_mask_inf(
@@ -528,12 +577,16 @@ class ReplitModel:
                 KQ_scaled_alibi,
                 n_past,
             )
+            offload_func_kq(KQ_masked)
+            ggml.ggml_set_name(KQ_masked, b"KQ_masked")
 
             # // KQ = soft_max(KQ_masked)
             KQ_soft_max = ggml.ggml_soft_max(
                 ctx0,
                 KQ_masked,
             )
+            offload_func_kq(KQ_soft_max)
+            ggml.ggml_set_name(KQ_soft_max, b"KQ_soft_max")
 
             # // V_trans = Vmem.view(n_embd/n_head, n_head, n_past + N).permute(1,
             # // 2, 0, 3).contiguous() [n_past + N, 64, 12]
@@ -566,9 +619,13 @@ class ReplitModel:
                     n_head,
                 ),
             )
+            offload_func_v(V_trans)
+            ggml.ggml_set_name(V_trans, b"V_trans")
 
             # // KQV = transpose(V) * KQ_soft_max
             KQV = ggml.ggml_mul_mat(ctx0, V_trans, KQ_soft_max)
+            offload_func_v(KQV)
+            ggml.ggml_set_name(KQV, b"KQV")
 
             # // KQV_merged = KQV.permute(0, 2, 1, 3)
             KQV_merged = ggml.ggml_permute(
@@ -579,6 +636,8 @@ class ReplitModel:
                 1,
                 3,
             )
+            offload_func_v(KQV_merged)
+            ggml.ggml_set_name(KQV_merged, b"KQV_merged")
 
             # // cur = KQV_merged.contiguous().view(n_embd, N)
             cur = ggml.ggml_cpy(
@@ -591,6 +650,8 @@ class ReplitModel:
                     N,
                 ),
             )
+            offload_func_v(cur)
+            ggml.ggml_set_name(cur, b"KQV_merged_contiguous")
 
             # // projection
             cur = ggml.ggml_mul_mat(
@@ -598,20 +659,30 @@ class ReplitModel:
                 self.layers[il].c_attn_out_proj_weight,
                 cur,
             )
+            offload_func_v(cur)
+            ggml.ggml_set_name(cur, b"result_wo")
+
+            # // lctx.use_buf(ctx0, 1)
 
             inpL = ggml.ggml_add(
                 ctx0,
                 inpL,
                 cur,
             )
+            offload_func(cur)
+            ggml.ggml_set_name(cur, b"inpFF")
 
             # // m = self.ln_2(x)
             cur = ggml.ggml_norm(ctx0, inpL)
+            offload_func(cur)
+            ggml.ggml_set_name(cur, b"norm_1")
             cur = ggml.ggml_mul(
                 ctx0,
                 ggml.ggml_repeat(ctx0, self.layers[il].ln_2_weight, cur),
                 cur,
             )
+            offload_func(cur)
+            ggml.ggml_set_name(cur, b"norm")
 
             # // n = self.mlp(m)
             cur = ggml.ggml_mul_mat(
@@ -619,11 +690,16 @@ class ReplitModel:
                 self.layers[il].c_mlp_mlp_up_weight,
                 cur,
             )
+            offload_func(cur)
+            ggml.ggml_set_name(cur, b"result_mlp_up")
+
             # // GELU activation
             cur = ggml.ggml_gelu(
                 ctx0,
                 cur,
             )
+            offload_func(cur)
+            ggml.ggml_set_name(cur, b"gelu")
             # // projection
             # // cur = proj_w*cur + proj_b
             cur = ggml.ggml_mul_mat(
@@ -631,6 +707,8 @@ class ReplitModel:
                 self.layers[il].c_mlp_mlp_down_weight,
                 cur,
             )
+            offload_func(cur)
+            ggml.ggml_set_name(cur, b"result_mlp_down")
 
             # // x = x + n
             inpL = ggml.ggml_add(
@@ -638,15 +716,23 @@ class ReplitModel:
                 inpL,
                 cur,
             )
+            offload_func(cur)
+            ggml.ggml_set_name(cur, b"inpFF_+_result_mlp_down")
+
+        # // lctx.use_buf(ctx0, 0)
 
         # // norm
         inpL = ggml.ggml_norm(ctx0, inpL)
+        offload_func_nr(inpL)
+        ggml.ggml_set_name(inpL, b"norm_f")
+
         # // inpL = ln_f_g*inpL
         inpL = ggml.ggml_mul(
             ctx0,
             ggml.ggml_repeat(ctx0, self.ln_f_weight, inpL),
             inpL,
         )
+        ggml.ggml_set_name(inpL, b"norm_f_mul")
 
         # // output embedding weight tied to input embedding
         inpL = ggml.ggml_mul_mat(
@@ -654,6 +740,9 @@ class ReplitModel:
             self.wte_weight,
             inpL,
         )
+        ggml.ggml_set_name(inpL, b"result_output")
+
+        # // lctx.use_buf(ctx0, -1)
 
         ggml.ggml_build_forward_expand(ctypes.pointer(gf), inpL)
         ggml.ggml_graph_compute(ctx0, ctypes.pointer(gf))
@@ -1131,7 +1220,7 @@ class ReplitModel:
                 print("ctx size     =", ctx_size // (1024 * 1024), "MB")
 
             # create context
-            weights_buffer = ContextBuffer(ctx_size)
+            weights_buffer = CpuContextBuffer(ctx_size)
             init_params = ggml.ggml_init_params(
                 mem_size=ctx_size,
                 mem_buffer=weights_buffer.buffer,
