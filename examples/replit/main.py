@@ -159,7 +159,7 @@ class ContextBuffer(abc.ABC):
     @abc.abstractmethod
     def resize(self, new_size: int) -> None:
         raise NotImplementedError
-    
+
     @abc.abstractproperty
     def buffer(self) -> ctypes.c_void_p:
         raise NotImplementedError
@@ -378,14 +378,17 @@ class ReplitModel:
 
         def offload_nop(tensor: ggml.ggml_tensor_p):
             pass
-    
+
         offload_func_nr = offload_nop
         offload_func_kq = offload_nop
         offload_func_v = offload_nop
 
         required_buffer_size = int(self.mem_per_token * N * 2.0)
 
-        if self.mem_per_token > 0 and self.eval_buffer.buffer_size < required_buffer_size:
+        if (
+            self.mem_per_token > 0
+            and self.eval_buffer.buffer_size < required_buffer_size
+        ):
             self.eval_buffer.resize(required_buffer_size)
 
         init_params = ggml.ggml_init_params(
