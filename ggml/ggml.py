@@ -946,7 +946,7 @@ lib.ggml_set_no_alloc.restype = None
 
 
 # GGML_API void *  ggml_get_mem_buffer     (struct ggml_context * ctx);
-def ggml_get_mem_buffer(ctx: ggml_context_p) -> ctypes.c_void_p:
+def ggml_get_mem_buffer(ctx: ggml_context_p) -> Optional[ctypes.c_void_p]:
     """Return the memory buffer for the ggml context."""
     return lib.ggml_get_mem_buffer(ctx)
 
@@ -1309,7 +1309,7 @@ lib.ggml_set_f32_1d.restype = None
 # GGML_API void *  ggml_get_data    (const struct ggml_tensor * tensor);
 def ggml_get_data(
     tensor: ggml_tensor_p,  
-) -> ctypes.c_void_p:
+) -> Optional[ctypes.c_void_p]:
     return lib.ggml_get_data(tensor)
 
 
@@ -4357,7 +4357,7 @@ GGML_CUDA_MAX_DEVICES = ctypes.c_int(16)
 # void * ggml_cuda_host_malloc(size_t size);
 def ggml_cuda_host_malloc(
     size: Union[ctypes.c_size_t, int],
-) -> ctypes.c_void_p:
+) -> Optional[ctypes.c_void_p]:
     return lib.ggml_cuda_host_malloc(size)
 
 
