@@ -25,7 +25,7 @@ The other CLIP vision transformers should work, but have not been tested. Namely
 # Usage
 
 ```python
-# This example implements the same example as the original project: https://github.com/openai/CLIP#usage
+# This implements the same example as the original project: https://github.com/openai/CLIP#usage
 from model import ClipModel
 from scipy.special import softmax
 from PIL import Image
