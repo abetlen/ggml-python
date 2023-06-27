@@ -2,16 +2,18 @@
 
 from model import ClipModel
 from scipy.special import softmax
-from CLIP import clip
+import clip
 from PIL import Image
+from simple_tokenizer import tokenize
+from transform import transform
 
-preprocess = clip.clip._transform(224)
+preprocess = transform(224)
 
 model_file = "models/ViT-B-32.ggml"
 model = ClipModel.init_from_file(model_file, n_threads=1)
 
-image = preprocess(Image.open("CLIP/CLIP.png")).unsqueeze(0)
-text = clip.tokenize(["a diagram", "a dog", "a cat"])
+image = preprocess(Image.open("CLIP.png")).unsqueeze(0)
+text = tokenize(["a diagram", "a dog", "a cat"])
 
 # # Features are computed one at a time, batching not supported yet
 text_features = model.encode_text(text)

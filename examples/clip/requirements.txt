@@ -1,8 +1,10 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
 certifi==2022.12.7
 charset-normalizer==2.1.1
+clip==1.0
 filelock==3.9.0
 ftfy==6.1.1
--e git+ssh://git@github.com/dmille/ggml-python.git@e02c2333f1b9c82895e8bff0036ba04ed0169e78#egg=ggml_python
+ggml-python==0.0.6
 idna==3.4
 Jinja2==3.1.2
 MarkupSafe==2.1.2
@@ -10,7 +12,6 @@ mpmath==1.2.1
 networkx==3.0
 numpy==1.24.1
 Pillow==9.3.0
-pkg_resources==0.0.0
 regex==2023.6.3
 requests==2.28.1
 scipy==1.10.1
@@ -18,6 +19,6 @@ sympy==1.11.1
 torch==2.0.1+cpu
 torchvision==0.15.2+cpu
 tqdm==4.65.0
-typing_extensions==4.6.3
+typing-extensions==4.6.3
 urllib3==1.26.13
 wcwidth==0.2.6

@@ -24,6 +24,7 @@ import struct
 import gzip
 import numpy as np
 import importlib
+import clip
 
 if len(sys.argv) < 3:
     print("Usage: convert-pt-to-ggml.py clip_model dir-output\n")
@@ -33,8 +34,7 @@ clip_model = sys.argv[1]
 dir_out = sys.argv[2]
 
 # CLIP repo needs to exist at the root directory
-clip = importlib.import_module("CLIP.clip")
-MODELS = importlib.import_module("CLIP.clip.clip")._MODELS
+MODELS = clip.clip._MODELS
 model_filename = os.path.basename(MODELS[clip_model]).replace(".pt", "")
 
 model = clip.load(clip_model, device="cpu")
@@ -98,7 +98,8 @@ fout.write(struct.pack("i", transformer_width))
 fout.write(struct.pack("i", transformer_heads))
 fout.write(struct.pack("i", transformer_layers))
 fout.write(struct.pack("i", ftype))  # ftype: 0 = float32, 1 = float16
-bpe_path = "CLIP/clip/bpe_simple_vocab_16e6.txt.gz"
+
+bpe_path = os.path.join(os.path.dirname(clip.__file__), "bpe_simple_vocab_16e6.txt.gz")
 merges = gzip.open(bpe_path).read().decode("utf-8").split("\n")
 merges = merges[1 : 49152 - 256 - 2 + 1]
 merges = [tuple(merge.split()) for merge in merges]
