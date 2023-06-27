@@ -103,6 +103,12 @@ To learn more about ggml-python, check out the following resources:
 - Examples
     - [Code Completion Server](https://github.com/abetlen/ggml-python/tree/main/examples/replit) - A code completion server using ggml-python and the replit-code-v1-3b model that you can drop into your editor as a local Github Copilot replacement.
 
+
 ## Contributing
 
 If you would like to contribute to ggml-python, please open an issue or submit a pull request on [GitHub](https://github.com/abetlen/ggml-python).
+
+
+## License
+
+This project is licensed under the terms of the MIT license.
