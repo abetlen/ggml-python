@@ -23,7 +23,8 @@ import numpy as np
 import numpy.typing as npt
 
 import ggml
-from ggml.experimental import GGML_FTYPE, Context, InitParams, Tensor, GGML_TYPE, CGraph
+
+from ggml.utils import to_numpy
 
 
 ## Types
@@ -73,7 +74,7 @@ def logits_to_logprobs(logits: npt.NDArray[np.float32]) -> npt.NDArray[np.float3
 
 def sample(
     logits: npt.NDArray[np.float32],
-    last_tokens: List[int] = None,
+    last_tokens: Optional[List[int]] = None,
     presence_penalty: float = 0.0,
     frequency_penalty: float = 0.0,
     temperature: float = 1.0,
@@ -154,21 +155,45 @@ def nucleus_sampling(
 
 
 class ReplitLayer:
-    def __init__(self, wtype: GGML_TYPE, n_embd: int, ctx: Context):
-        self.ln_1_weight = Tensor.new_tensor_1d(GGML_TYPE.F32, n_embd, ctx=ctx)
-        self.c_attn_wqkv_weight = Tensor.new_tensor_2d(
-            wtype, n_embd, 3 * n_embd, ctx=ctx
+    def __init__(self, wtype: int, n_embd: int, ctx: ggml.ggml_context_p):
+        self.ln_1_weight = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, n_embd)
+        self.c_attn_wqkv_weight = ggml.ggml_new_tensor_2d(
+            ctx, wtype, n_embd, 3 * n_embd
         )
-        self.c_attn_out_proj_weight = Tensor.new_tensor_2d(
-            wtype, n_embd, n_embd, ctx=ctx
+        self.c_attn_out_proj_weight = ggml.ggml_new_tensor_2d(
+            ctx, wtype, n_embd, n_embd
         )
-        self.ln_2_weight = Tensor.new_tensor_1d(GGML_TYPE.F32, n_embd, ctx=ctx)
-        self.c_mlp_mlp_up_weight = Tensor.new_tensor_2d(
-            wtype, n_embd, 4 * n_embd, ctx=ctx
+        self.ln_2_weight = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, n_embd)
+        self.c_mlp_mlp_up_weight = ggml.ggml_new_tensor_2d(
+            ctx, wtype, n_embd, 4 * n_embd
         )
-        self.c_mlp_mlp_down_weight = Tensor.new_tensor_2d(
-            wtype, 4 * n_embd, n_embd, ctx=ctx
+        self.c_mlp_mlp_down_weight = ggml.ggml_new_tensor_2d(
+            ctx, wtype, 4 * n_embd, n_embd
         )
+
+
+class ReplitKVCache:
+    def __init__(
+        self,
+        d_model: int,
+        max_seq_len: int,
+        n_layers: int,
+        ctx: ggml.ggml_context_p,
+    ):
+        self.d_model = d_model
+        self.max_seq_len = max_seq_len
+        self.n_layers = n_layers
+        self.ctx = ctx
+
+        n_layer = self.n_layers
+        n_embd = self.d_model
+        n_ctx = self.max_seq_len
+
+        n_mem = n_layer * n_ctx
+        n_elements = n_embd * n_mem
+
+        self.memory_k = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F16, n_elements)
+        self.memory_v = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F16, n_elements)
 
 
 class ReplitModel:
@@ -183,7 +208,8 @@ class ReplitModel:
         vocab: List[Tuple[int, str, float]],
         n_batch: int,
         n_threads: int,
-        ctx: Context,
+        weights_buffer: bytes,
+        ctx: ggml.ggml_context_p,
     ):
         self.d_model = d_model
         self.max_seq_len = max_seq_len
@@ -193,25 +219,26 @@ class ReplitModel:
         self.ftype = ftype
         self.ctx = ctx
         self.layers: List[ReplitLayer] = []
-        self.tensors: Dict[str, Tensor] = {}
+        self.tensors: Dict[str, ggml.ggml_tensor_p] = {}
         self.vocab = vocab
         self.n_batch = n_batch
         self.n_threads = n_threads
+        self.weights_buffer = weights_buffer
 
         n_layer = self.n_layers
         n_embd = self.d_model
         n_ctx = self.max_seq_len
         n_vocab = self.vocab_size
-        wtype = GGML_TYPE(ggml.ggml_ftype_to_ggml_type(ctypes.c_int(ftype)))
+        wtype = ggml.ggml_ftype_to_ggml_type(ftype)
 
         n_mem = n_layer * n_ctx
         n_elements = n_embd * n_mem
 
-        self.memory_k = Tensor.new_tensor_1d(GGML_TYPE.F16, n_elements, ctx=ctx)
-        self.memory_v = Tensor.new_tensor_1d(GGML_TYPE.F16, n_elements, ctx=ctx)
+        self.memory_k = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F16, n_elements)
+        self.memory_v = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F16, n_elements)
 
-        self.wte_weight = Tensor.new_tensor_2d(wtype, n_embd, n_vocab, ctx=ctx)
-        self.ln_f_weight = Tensor.new_tensor_1d(GGML_TYPE.F32, n_embd, ctx=ctx)
+        self.wte_weight = ggml.ggml_new_tensor_2d(ctx, wtype, n_embd, n_vocab)
+        self.ln_f_weight = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, n_embd)
         self.tensors["transformer.wte.weight"] = self.wte_weight
         self.tensors["transformer.norm_f.weight"] = self.ln_f_weight
 
@@ -244,6 +271,9 @@ class ReplitModel:
 
         self._input_ids: npt.NDArray[np.intc] = np.array([], dtype=np.intc)
         self._scores: npt.NDArray[np.single] = np.ndarray((n_vocab, 0), dtype=np.single)
+
+    def __del__(self):
+        ggml.ggml_free(self.ctx)
 
     @staticmethod
     def encode_word(
@@ -315,43 +345,39 @@ class ReplitModel:
 
         if self.memory_buffer is None:
             self.memory_buffer_size = 256 * 1024 * 1024
-            self.memory_buffer = (ctypes.c_char * self.memory_buffer_size)()
-        
-        if self.mem_per_token > 0 and self.memory_buffer_size < int(self.mem_per_token * N * 2.0):
-            self.memory_buffer_size = int(self.mem_per_token * N * 2.0)
+            self.memory_buffer = (ctypes.c_uint8 * self.memory_buffer_size)()
 
+        required_buffer_size = int(self.mem_per_token * N * 2.0)
+
+        if self.mem_per_token > 0 and self.memory_buffer_size < required_buffer_size:
+            self.memory_buffer_size = required_buffer_size
 
             ctypes.resize(self.memory_buffer, self.memory_buffer_size)
 
-        init_params = InitParams(
+        init_params = ggml.ggml_init_params(
             mem_size=self.memory_buffer_size,
             mem_buffer=ctypes.c_void_p(ctypes.addressof(self.memory_buffer)),
             no_alloc=False,
         )
-        ctx0 = Context(init_params=init_params)
-        gf = CGraph(
-            cgraph=ggml.ggml_cgraph(
-                n_threads=n_threads,
-            ),
-            ctx=ctx0,
-        )
+        ctx0 = ggml.ggml_init(init_params)
+        gf = ggml.ggml_cgraph(n_threads=n_threads)
 
-        embd = Tensor.new_tensor_1d(
-            GGML_TYPE.I32,
+        embd = ggml.ggml_new_tensor_1d(
+            ctx0,
+            ggml.GGML_TYPE_I32,
             N,
-            ctx=ctx0,
         )
-        embd.numpy()[:] = np.array(embd_inp, dtype=np.int32)
+        to_numpy(embd)[:] = np.array(embd_inp, dtype=np.int32)
 
-        inpL = Tensor.get_rows(self.wte_weight, embd, ctx=ctx0)
+        inpL = ggml.ggml_get_rows(ctx0, self.wte_weight, embd)
 
         for il in range(n_layer):
             # // a = self.ln_1(x)
-            cur = Tensor.norm(inpL, ctx=ctx0)
-            cur = Tensor.mul(
-                Tensor.repeat(self.layers[il].ln_1_weight, cur, ctx=ctx0),
+            cur = ggml.ggml_norm(ctx0, inpL)
+            cur = ggml.ggml_mul(
+                ctx0,
+                ggml.ggml_repeat(ctx0, self.layers[il].ln_1_weight, cur),
                 cur,
-                ctx=ctx0,
             )
 
             # // self-attention
@@ -360,260 +386,271 @@ class ReplitModel:
             # //  is_causal=is_causal)
 
             # // compute QKV
-            cur = Tensor.mul_mat(self.layers[il].c_attn_wqkv_weight, cur, ctx=ctx0)
+            cur = ggml.ggml_mul_mat(ctx0, self.layers[il].c_attn_wqkv_weight, cur)
 
-            Qcur = Tensor.view_2d(
+            Qcur = ggml.ggml_view_2d(
+                ctx0,
                 cur,
                 n_embd,
                 N,
-                cur.tensor.contents.nb[1],
+                cur.contents.nb[1],
                 0 * ctypes.sizeof(ctypes.c_float) * n_embd,
-                ctx=ctx0,
             )
-            Kcur = Tensor.view_2d(
+            Kcur = ggml.ggml_view_2d(
+                ctx0,
                 cur,
                 n_embd,
                 N,
-                cur.tensor.contents.nb[1],
+                cur.contents.nb[1],
                 1 * ctypes.sizeof(ctypes.c_float) * n_embd,
-                ctx=ctx0,
             )
-            Vcur = Tensor.view_2d(
+            Vcur = ggml.ggml_view_2d(
+                ctx0,
                 cur,
                 n_embd,
                 N,
-                cur.tensor.contents.nb[1],
+                cur.contents.nb[1],
                 2 * ctypes.sizeof(ctypes.c_float) * n_embd,
-                ctx=ctx0,
             )
 
             # // store key and value to memory
-            k = Tensor.view_1d(
+            k = ggml.ggml_view_1d(
+                ctx0,
                 self.memory_k,
                 N * n_embd,
-                (self.memory_k.element_size() * n_embd) * (il * n_ctx + n_past),
-                ctx=ctx0,
+                (ggml.ggml_element_size(self.memory_k) * n_embd)
+                * (il * n_ctx + n_past),
             )
-            v = Tensor.view_1d(
+            v = ggml.ggml_view_1d(
+                ctx0,
                 self.memory_v,
                 N * n_embd,
-                (self.memory_v.element_size() * n_embd) * (il * n_ctx + n_past),
-                ctx=ctx0,
+                (ggml.ggml_element_size(self.memory_v) * n_embd)
+                * (il * n_ctx + n_past),
             )
 
-            gf.build_forward_expand(
-                Tensor.cpy(
+            ggml.ggml_build_forward_expand(
+                ctypes.pointer(gf),
+                ggml.ggml_cpy(
+                    ctx0,
                     Kcur,
                     k,
-                    ctx=ctx0,
-                )
+                ),
             )
-            gf.build_forward_expand(
-                Tensor.cpy(
+            ggml.ggml_build_forward_expand(
+                ctypes.pointer(gf),
+                ggml.ggml_cpy(
+                    ctx0,
                     Vcur,
                     v,
-                    ctx=ctx0,
-                )
+                ),
             )
 
             # // Q = Qcur.contiguous().view(n_embd/n_head, n_head, N).permute(0,
             # // 2, 1, 3) [64, N, 12]
-            Q = Tensor.permute(
-                Tensor.cpy(
+            Q = ggml.ggml_permute(
+                ctx0,
+                ggml.ggml_cpy(
+                    ctx0,
                     Qcur,
-                    Tensor.new_tensor_3d(
-                        GGML_TYPE.F32, n_embd // n_head, n_head, N, ctx=ctx0
+                    ggml.ggml_new_tensor_3d(
+                        ctx0,
+                        ggml.GGML_TYPE_F32,
+                        n_embd // n_head,
+                        n_head,
+                        N,
                     ),
-                    ctx=ctx0,
                 ),
                 0,
                 2,
                 1,
                 3,
-                ctx=ctx0,
             )
 
             # // K = Kmem.view(n_embd/n_head, n_head, n_past + N).permute(0, 2, 1,
             # // 3) [64, n_past + N, 12]
-            K = Tensor.permute(
-                Tensor.reshape_3d(
-                    Tensor.view_1d(
+            K = ggml.ggml_permute(
+                ctx0,
+                ggml.ggml_reshape_3d(
+                    ctx0,
+                    ggml.ggml_view_1d(
+                        ctx0,
                         self.memory_k,
                         (n_past + N) * n_embd,
-                        il * n_ctx * self.memory_k.element_size() * n_embd,
-                        ctx=ctx0,
+                        il * n_ctx * ggml.ggml_element_size(self.memory_k) * n_embd,
                     ),
                     n_embd // n_head,
                     n_head,
                     n_past + N,
-                    ctx=ctx0,
                 ),
                 0,
                 2,
                 1,
                 3,
-                ctx=ctx0,
             )
 
             # // K * Q
-            KQ = Tensor.mul_mat(K, Q, ctx=ctx0)
+            KQ = ggml.ggml_mul_mat(ctx0, K, Q)
 
             # // KQ_scaled = KQ / sqrt(n_embd/n_head)
-            KQ_scaled = Tensor.scale(
+            KQ_scaled = ggml.ggml_scale(
+                ctx0,
                 KQ,
-                Tensor.new_f32(
+                ggml.ggml_new_f32(
+                    ctx0,
                     1.0 / np.sqrt(float(n_embd) / n_head),
-                    ctx=ctx0,
                 ),
-                ctx=ctx0,
             )
 
-            KQ_scaled_alibi = Tensor.alibi(
+            KQ_scaled_alibi = ggml.ggml_alibi(
+                ctx0,
                 KQ_scaled,
                 n_past,
                 n_head,
                 8.0,
-                ctx=ctx0,
             )
 
             # // KQ_masked = mask_past(KQ_scaled)
-            KQ_masked = Tensor.diag_mask_inf(
+            KQ_masked = ggml.ggml_diag_mask_inf(
+                ctx0,
                 KQ_scaled_alibi,
                 n_past,
-                ctx=ctx0,
             )
 
             # // KQ = soft_max(KQ_masked)
-            KQ_soft_max = Tensor.soft_max(
+            KQ_soft_max = ggml.ggml_soft_max(
+                ctx0,
                 KQ_masked,
-                ctx=ctx0,
             )
 
             # // V_trans = Vmem.view(n_embd/n_head, n_head, n_past + N).permute(1,
             # // 2, 0, 3).contiguous() [n_past + N, 64, 12]
-            V_trans = Tensor.cpy(
-                Tensor.permute(
-                    Tensor.reshape_3d(
-                        Tensor.view_1d(
+            V_trans = ggml.ggml_cpy(
+                ctx0,
+                ggml.ggml_permute(
+                    ctx0,
+                    ggml.ggml_reshape_3d(
+                        ctx0,
+                        ggml.ggml_view_1d(
+                            ctx0,
                             self.memory_v,
                             (n_past + N) * n_embd,
-                            il * n_ctx * self.memory_v.element_size() * n_embd,
-                            ctx=ctx0,
+                            il * n_ctx * ggml.ggml_element_size(self.memory_v) * n_embd,
                         ),
                         n_embd // n_head,
                         n_head,
                         n_past + N,
-                        ctx=ctx0,
                     ),
                     1,
                     2,
                     0,
                     3,
-                    ctx=ctx0,
                 ),
-                Tensor.new_tensor_3d(
-                    self.memory_v.ggml_type,
+                ggml.ggml_new_tensor_3d(
+                    ctx0,
+                    self.memory_v.contents.type,
                     n_past + N,
                     n_embd // n_head,
                     n_head,
-                    ctx=ctx0,
                 ),
             )
 
             # // KQV = transpose(V) * KQ_soft_max
-            KQV = Tensor.mul_mat(V_trans, KQ_soft_max, ctx=ctx0)
+            KQV = ggml.ggml_mul_mat(ctx0, V_trans, KQ_soft_max)
 
             # // KQV_merged = KQV.permute(0, 2, 1, 3)
-            KQV_merged = Tensor.permute(
+            KQV_merged = ggml.ggml_permute(
+                ctx0,
                 KQV,
                 0,
                 2,
                 1,
                 3,
-                ctx=ctx0,
             )
 
             # // cur = KQV_merged.contiguous().view(n_embd, N)
-            cur = Tensor.cpy(
+            cur = ggml.ggml_cpy(
+                ctx0,
                 KQV_merged,
-                Tensor.new_tensor_2d(
-                    GGML_TYPE.F32,
+                ggml.ggml_new_tensor_2d(
+                    ctx0,
+                    ggml.GGML_TYPE_F32,
                     n_embd,
                     N,
-                    ctx=ctx0,
                 ),
-                ctx=ctx0,
             )
 
             # // projection
-            cur = Tensor.mul_mat(
+            cur = ggml.ggml_mul_mat(
+                ctx0,
                 self.layers[il].c_attn_out_proj_weight,
                 cur,
-                ctx=ctx0,
             )
 
-            inpL = Tensor.add(
+            inpL = ggml.ggml_add(
+                ctx0,
                 inpL,
                 cur,
-                ctx=ctx0,
             )
 
             # // m = self.ln_2(x)
-            cur = Tensor.norm(inpL, ctx=ctx0)
-            cur = Tensor.mul(
-                Tensor.repeat(self.layers[il].ln_2_weight, cur, ctx=ctx0),
+            cur = ggml.ggml_norm(ctx0, inpL)
+            cur = ggml.ggml_mul(
+                ctx0,
+                ggml.ggml_repeat(ctx0, self.layers[il].ln_2_weight, cur),
                 cur,
-                ctx=ctx0,
             )
 
             # // n = self.mlp(m)
-            cur = Tensor.mul_mat(
+            cur = ggml.ggml_mul_mat(
+                ctx0,
                 self.layers[il].c_mlp_mlp_up_weight,
                 cur,
-                ctx=ctx0,
             )
             # // GELU activation
-            cur = Tensor.gelu(
+            cur = ggml.ggml_gelu(
+                ctx0,
                 cur,
-                ctx=ctx0,
             )
             # // projection
             # // cur = proj_w*cur + proj_b
-            cur = Tensor.mul_mat(
+            cur = ggml.ggml_mul_mat(
+                ctx0,
                 self.layers[il].c_mlp_mlp_down_weight,
                 cur,
-                ctx=ctx0,
             )
 
             # // x = x + n
-            inpL = Tensor.add(
+            inpL = ggml.ggml_add(
+                ctx0,
                 inpL,
                 cur,
-                ctx=ctx0,
             )
 
         # // norm
-        inpL = Tensor.norm(inpL, ctx=ctx0)
+        inpL = ggml.ggml_norm(ctx0, inpL)
         # // inpL = ln_f_g*inpL
-        inpL = Tensor.mul(
-            Tensor.repeat(self.ln_f_weight, inpL, ctx=ctx0),
+        inpL = ggml.ggml_mul(
+            ctx0,
+            ggml.ggml_repeat(ctx0, self.ln_f_weight, inpL),
             inpL,
-            ctx=ctx0,
         )
 
         # // output embedding weight tied to input embedding
-        inpL = Tensor.mul_mat(
+        inpL = ggml.ggml_mul_mat(
+            ctx0,
             self.wte_weight,
             inpL,
-            ctx=ctx0,
         )
 
-        gf.build_forward_expand(inpL)
-        gf.compute()
+        ggml.ggml_build_forward_expand(ctypes.pointer(gf), inpL)
+        ggml.ggml_graph_compute(ctx0, ctypes.pointer(gf))
 
-        embd_w = inpL.numpy().reshape(n_vocab, -1).copy()
+        embd_w = to_numpy(inpL).reshape(n_vocab, -1).copy()
 
-        self.mem_per_token = int(ggml.ggml_used_mem(ctx0.context) / N)
+        self.mem_per_token = int(ggml.ggml_used_mem(ctx0) / N)
+
+        ggml.ggml_free(ctx0)
 
         return embd_w
 
@@ -1035,8 +1072,6 @@ class ReplitModel:
         n_threads: int = 1,
         verbose: bool = True,
     ) -> ReplitModel:
-        verbose = True
-
         with open(model_file, "rb") as fin:
             # Magic Number
             (magic,) = struct.unpack("i", (fin.read(struct.calcsize("i"))))
@@ -1057,7 +1092,6 @@ class ReplitModel:
                 print("ftype        =", ftype)
                 print("qntvr        =", qntvr)
             ftype %= ggml.GGML_QNT_VERSION_FACTOR
-            ftype = GGML_FTYPE(int(ftype))
             # Vocabulary
             vocab: List[Tuple[int, str, float]] = []
             for i in range(vocab_size):
@@ -1066,7 +1100,7 @@ class ReplitModel:
                 (score,) = struct.unpack("f", (fin.read(struct.calcsize("f"))))
                 vocab.append((i, s, score))
             # Model Weights
-            wtype = GGML_TYPE(ggml.ggml_ftype_to_ggml_type(ctypes.c_int(ftype.value)))
+            wtype = ggml.ggml_ftype_to_ggml_type(ftype)
 
             n_embd = d_model
             n_layer = n_layers
@@ -1086,11 +1120,12 @@ class ReplitModel:
 
             # create context
             mem_buffer = np.empty(ctx_size, dtype=np.uint8)
-            init_params = InitParams(
+            init_params = ggml.ggml_init_params(
                 mem_size=ctx_size,
                 mem_buffer=mem_buffer.ctypes.data_as(ctypes.c_void_p),
+                no_alloc=False,
             )
-            ctx = Context(init_params=init_params)
+            ctx = ggml.ggml_init(init_params)
 
             model = ReplitModel(
                 # hyperparameters
@@ -1099,12 +1134,13 @@ class ReplitModel:
                 n_heads=n_heads,
                 n_layers=n_layers,
                 vocab_size=vocab_size,
-                ftype=ftype.value,
+                ftype=ftype,
                 # vocabulary
                 vocab=vocab,
                 ctx=ctx,
                 n_batch=n_batch,
                 n_threads=n_threads,
+                weights_buffer=mem_buffer,
             )
 
             n_tensors = 0
@@ -1126,49 +1162,26 @@ class ReplitModel:
                 if name not in model.tensors:
                     raise ValueError(f"Tensor {name} not found in model")
                 tensor = model.tensors[name]
-                if tensor.nelements() != nelements:
+                if ggml.ggml_nelements(tensor) != nelements:
                     raise ValueError(
-                        f"Tensor {name} has {tensor.nelements()} elements, but {nelements} expected"
+                        f"Tensor {name} has {ggml.ggml_nelements(tensor)} elements, but {nelements} expected"
                     )
+                if tensor.contents.ne[0] != ne[0] or tensor.contents.ne[1] != ne[1]:
+                    raise ValueError(
+                        f"Tensor {name} has {tensor.contents.ne[0]}x{tensor.contents.ne[1]} shape, but {ne[0]}x{ne[1]} expected"
+                    )
+                bpe = ggml.ggml_type_size(ttype)
                 if (
-                    tensor.tensor.contents.ne[0] != ne[0]
-                    or tensor.tensor.contents.ne[1] != ne[1]
-                ):
+                    (nelements * bpe) / ggml.ggml_blck_size(tensor.contents.type)
+                ) != ggml.ggml_nbytes(tensor):
                     raise ValueError(
-                        f"Tensor {name} has {tensor.tensor.contents.ne[0]}x{tensor.tensor.contents.ne[1]} shape, but {ne[0]}x{ne[1]} expected"
+                        f"Tensor {name} has {ggml.ggml_nbytes(tensor)} bytes, but {(nelements * bpe) / ggml.ggml_blck_size(tensor.contents.type)} expected"
                     )
-                bpe = ggml.ggml_type_size(ctypes.c_int(GGML_TYPE(ttype).value))
-                if (
-                    (nelements * bpe) / ggml.ggml_blck_size(tensor.tensor.contents.type)
-                ) != ggml.ggml_nbytes(tensor.tensor):
-                    raise ValueError(
-                        f"Tensor {name} has {ggml.ggml_nbytes(tensor.tensor)} bytes, but {(nelements * bpe) / ggml.ggml_blck_size(tensor.tensor.contents.type)} expected"
-                    )
-                offset = fin.tell()
-                fname = fin.name.encode("utf-8")
-                buf = (ctypes.c_char * tensor.nbytes()).from_address(tensor.data)
-                fin.readinto(buf)
-                # TODO: figure out why offloading norm layers causes segfault
-                should_offload_suffix = [
-                    # "norm_1.weight",
-                    "attn.Wqkv.weight",
-                    "attn.out_proj.weight",
-                    # "norm_2.weight",
-                    "ffn.up_proj.weight",
-                    "ffn.down_proj.weight",
-                ]
-                # if name.startswith("transformer.blocks.") and any(
-                #     name.endswith(suffix) for suffix in should_offload_suffix
-                # ):
-                #     layer_number = int(name.split(".")[2])
-                #     if layer_number >= n_gpu_layers:
-                #         continue
-                #     tensor.tensor.contents.backend = ggml.GGML_BACKEND_CUDA
-                #     ggml.ggml_cuda_load_data(
-                #         fname, tensor.tensor, ctypes.c_size_t(offset)
-                #     )
+                fin.readinto((ctypes.c_uint8 * ggml.ggml_nbytes(tensor)).from_address(
+                    ggml.ggml_get_data(tensor)
+                ))
 
-                total_size += tensor.nbytes()
+                total_size += ggml.ggml_nbytes(tensor)
                 if n_tensors % 8 == 0:
                     print(".", end="", flush=True)
                 n_tensors += 1
@@ -1191,11 +1204,11 @@ class ReplitModel:
         n_layer: int,
         n_ctx: int,
         n_vocab: int,
-        wtype: GGML_TYPE,
+        wtype: int,
     ) -> int:
-        wtype_sizef = ggml.ggml_type_sizef(ctypes.c_int(wtype.value))
-        f32_sizef = ggml.ggml_type_sizef(ctypes.c_int(GGML_TYPE.F32.value))
-        f16_sizef = ggml.ggml_type_sizef(ctypes.c_int(GGML_TYPE.F16.value))
+        wtype_sizef = ggml.ggml_type_sizef(wtype)
+        f32_sizef = ggml.ggml_type_sizef(ggml.GGML_TYPE_F32)
+        f16_sizef = ggml.ggml_type_sizef(ggml.GGML_TYPE_F16)
 
         ctx_size = 0
         ctx_size += n_embd * n_vocab * wtype_sizef
