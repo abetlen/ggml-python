@@ -151,6 +151,25 @@ def nucleus_sampling(
     return selected_token
 
 
+### Context Buffer
+
+
+class ContextBuffer:
+    def __init__(self, buffer_size: int = 256 * 1024 * 1024):
+        self.buffer_size = buffer_size
+        self._buffer = (ctypes.c_uint8 * self.buffer_size)()
+
+    def resize(self, new_size: int):
+        assert new_size > self.buffer_size
+
+        self.buffer_size = new_size
+        ctypes.resize(self._buffer, self.buffer_size)
+
+    @property
+    def buffer(self) -> ctypes.c_void_p:
+        return ctypes.c_void_p(ctypes.addressof(self._buffer))
+
+
 ### Replit Model Definition
 
 
@@ -208,7 +227,7 @@ class ReplitModel:
         vocab: List[Tuple[int, str, float]],
         n_batch: int,
         n_threads: int,
-        weights_buffer: bytes,
+        weights_buffer: ContextBuffer,
         ctx: ggml.ggml_context_p,
     ):
         self.d_model = d_model
@@ -243,8 +262,7 @@ class ReplitModel:
         self.tensors["transformer.norm_f.weight"] = self.ln_f_weight
 
         self.mem_per_token = 0
-        self.memory_buffer_size = 0
-        self.memory_buffer = None
+        self.eval_buffer = ContextBuffer()
 
         for i in range(n_layer):
             layer = ReplitLayer(
@@ -343,20 +361,14 @@ class ReplitModel:
         n_head = self.n_heads
         n_vocab = self.vocab_size
 
-        if self.memory_buffer is None:
-            self.memory_buffer_size = 256 * 1024 * 1024
-            self.memory_buffer = (ctypes.c_uint8 * self.memory_buffer_size)()
-
         required_buffer_size = int(self.mem_per_token * N * 2.0)
 
-        if self.mem_per_token > 0 and self.memory_buffer_size < required_buffer_size:
-            self.memory_buffer_size = required_buffer_size
-
-            ctypes.resize(self.memory_buffer, self.memory_buffer_size)
+        if self.mem_per_token > 0 and self.eval_buffer.buffer_size < required_buffer_size:
+            self.eval_buffer.resize(required_buffer_size)
 
         init_params = ggml.ggml_init_params(
-            mem_size=self.memory_buffer_size,
-            mem_buffer=ctypes.c_void_p(ctypes.addressof(self.memory_buffer)),
+            mem_size=self.eval_buffer.buffer_size,
+            mem_buffer=self.eval_buffer.buffer,
             no_alloc=False,
         )
         ctx0 = ggml.ggml_init(init_params)
@@ -1119,10 +1131,10 @@ class ReplitModel:
                 print("ctx size     =", ctx_size // (1024 * 1024), "MB")
 
             # create context
-            mem_buffer = np.empty(ctx_size, dtype=np.uint8)
+            weights_buffer = ContextBuffer(ctx_size)
             init_params = ggml.ggml_init_params(
                 mem_size=ctx_size,
-                mem_buffer=mem_buffer.ctypes.data_as(ctypes.c_void_p),
+                mem_buffer=weights_buffer.buffer,
                 no_alloc=False,
             )
             ctx = ggml.ggml_init(init_params)
@@ -1140,7 +1152,7 @@ class ReplitModel:
                 ctx=ctx,
                 n_batch=n_batch,
                 n_threads=n_threads,
-                weights_buffer=mem_buffer,
+                weights_buffer=weights_buffer,
             )
 
             n_tensors = 0
@@ -1177,9 +1189,11 @@ class ReplitModel:
                     raise ValueError(
                         f"Tensor {name} has {ggml.ggml_nbytes(tensor)} bytes, but {(nelements * bpe) / ggml.ggml_blck_size(tensor.contents.type)} expected"
                     )
-                fin.readinto((ctypes.c_uint8 * ggml.ggml_nbytes(tensor)).from_address(
-                    ggml.ggml_get_data(tensor)
-                ))
+                fin.readinto(
+                    (ctypes.c_uint8 * ggml.ggml_nbytes(tensor)).from_address(
+                        ggml.ggml_get_data(tensor)
+                    )
+                )
 
                 total_size += ggml.ggml_nbytes(tensor)
                 if n_tensors % 8 == 0:
