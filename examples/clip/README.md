@@ -53,5 +53,4 @@ logits_per_image, logits_per_text = model(image, text)
 probs = softmax(logits_per_image)
 
 print("Label probs:", probs)  # prints: [[0.9927937  0.00421068 0.00299572]]
-python example.py
 ```
