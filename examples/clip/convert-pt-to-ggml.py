@@ -23,7 +23,6 @@ import sys
 import struct
 import gzip
 import numpy as np
-import importlib
 import clip
 
 if len(sys.argv) < 3:
