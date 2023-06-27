@@ -202,30 +202,6 @@ class ReplitLayer:
         )
 
 
-class ReplitKVCache:
-    def __init__(
-        self,
-        d_model: int,
-        max_seq_len: int,
-        n_layers: int,
-        ctx: ggml.ggml_context_p,
-    ):
-        self.d_model = d_model
-        self.max_seq_len = max_seq_len
-        self.n_layers = n_layers
-        self.ctx = ctx
-
-        n_layer = self.n_layers
-        n_embd = self.d_model
-        n_ctx = self.max_seq_len
-
-        n_mem = n_layer * n_ctx
-        n_elements = n_embd * n_mem
-
-        self.memory_k = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F16, n_elements)
-        self.memory_v = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F16, n_elements)
-
-
 class ReplitModel:
     def __init__(
         self,
