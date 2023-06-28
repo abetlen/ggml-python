@@ -324,8 +324,8 @@ class ReplitModel:
 
         if ggml.GGML_USE_CUBLAS:
             for tensor in self.tensors.values():
-                # TODO: check tensor backend before freeing
-                ggml.ggml_cuda_free_data(tensor)
+                if tensor.contents.backend == ggml.GGML_BACKEND_GPU:
+                    ggml.ggml_cuda_free_data(tensor)
             ggml.ggml_cuda_free_data(self.memory_k)
             ggml.ggml_cuda_free_data(self.memory_v)
 
