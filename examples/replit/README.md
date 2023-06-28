@@ -1,6 +1,6 @@
-# Replit Code v1 3B Demo
+# Replit Code Completion Server
 
-replit-code-v1-3b powered local copilot server.
+This example is a local-first Github Copilot drop-in replacement using the replit-code-v1-3b written entirely in ggml-python.
 
 For best performance (likely still slower than copilot) please run with CUDA, OpenCL, or Metal support.
 
