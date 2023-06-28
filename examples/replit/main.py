@@ -316,8 +316,9 @@ class ReplitModel:
                 f"transformer.blocks.{i}.ffn.down_proj.weight"
             ] = layer.c_mlp_mlp_down_weight
 
-        self._input_ids: npt.NDArray[np.intc] = np.array([], dtype=np.intc)
-        self._scores: npt.NDArray[np.single] = np.ndarray((n_vocab, 0), dtype=np.single)
+        self.n_tokens = 0
+        self.input_ids: npt.NDArray[np.intc] = np.ndarray((self.max_seq_len), dtype=np.intc)
+        self.scores: npt.NDArray[np.single] = np.ndarray((n_vocab, self.max_seq_len), dtype=np.single)
 
     def __del__(self):
         ggml.ggml_free(self.ctx)
@@ -385,8 +386,7 @@ class ReplitModel:
         return detokenized
 
     def reset(self):
-        self._input_ids = np.array([], dtype=np.intc)
-        self._scores = np.ndarray((self.vocab_size, 0), dtype=np.single)
+        self.n_tokens = 0
 
     def _eval_internal(self, embd_inp: Sequence[int], n_past: int, n_threads: int):
         N = len(embd_inp)
@@ -785,7 +785,7 @@ class ReplitModel:
         ggml.ggml_build_forward_expand(ctypes.pointer(gf), inpL)
         ggml.ggml_graph_compute(ctx0, ctypes.pointer(gf))
 
-        embd_w = to_numpy(inpL).reshape(n_vocab, -1).copy()
+        embd_w = to_numpy(inpL).reshape(n_vocab, -1)#.copy() # NOTE: likely wrong to not copy here
 
         self.mem_per_token = int(ggml.ggml_used_mem(ctx0) / N)
 
@@ -799,22 +799,19 @@ class ReplitModel:
         n_ctx = self.max_seq_len
         for i in range(0, len(tokens), self.n_batch):
             batch = tokens[i : min(len(tokens), i + self.n_batch)]
-            n_past = min(n_ctx - len(batch), len(self._input_ids))
+            n_past = min(n_ctx - len(batch), self.n_tokens)
             scores = self._eval_internal(
                 batch,
                 n_past,
                 self.n_threads,
             )
             # Save tokens
-            self._input_ids: npt.NDArray[np.intc] = np.concatenate(
-                (self._input_ids, np.array(batch, dtype=np.intc)), axis=0
-            )
+            self.input_ids[self.n_tokens : self.n_tokens + len(batch)] = batch
             # Save logits
-            logits = scores
-            self._scores: npt.NDArray[np.single] = np.concatenate(
-                (self._scores, np.array(logits, dtype=np.single)), axis=1
-            )
-        return self._scores
+            self.scores[:, self.n_tokens : self.n_tokens + len(batch)] = scores
+            # Update token count
+            self.n_tokens += len(batch)
+        return self.scores[:, : self.n_tokens]
 
     def generate(
         self,
@@ -825,9 +822,9 @@ class ReplitModel:
         presence_penalty: float = 0.0,
     ) -> Iterator[int]:
         reset = True
-        if len(self._input_ids) > 0:
+        if self.n_tokens > 0:
             longest_prefix = 0
-            for a, b in zip(self._input_ids, tokens[:-1]):
+            for a, b in zip(self.input_ids[:self.n_tokens], tokens[:-1]):
                 if a == b:
                     longest_prefix += 1
                 else:
@@ -835,8 +832,7 @@ class ReplitModel:
             if longest_prefix > 0:
                 reset = False
                 tokens = tokens[longest_prefix:]
-                self._input_ids = self._input_ids[:longest_prefix]
-                self._scores = self._scores[:, :longest_prefix]
+                self.n_tokens = longest_prefix
 
         if reset:
             self.reset()
@@ -943,7 +939,7 @@ class ReplitModel:
                             self.detokenize(completion_tokens[:returned_tokens])
                         )
                         token_offset = len(prompt_tokens) + returned_tokens
-                        logits = self._scores[token_offset - 1, :].tolist()
+                        logits = self.scores[token_offset - 1, :].tolist()
                         current_logprobs = logits_to_logprobs(logits)
                         sorted_logprobs = list(
                             sorted(
@@ -1003,7 +999,7 @@ class ReplitModel:
                         self.detokenize(completion_tokens[:returned_tokens])
                     )
                     token_offset = len(prompt_tokens) + returned_tokens - 1
-                    logits = self._scores[token_offset, :].tolist()
+                    logits = self.scores[token_offset, :].tolist()
                     current_logprobs = logits_to_logprobs(logits)
                     sorted_logprobs = list(
                         sorted(
@@ -1088,7 +1084,7 @@ class ReplitModel:
                 all_tokens = completion_tokens
 
             all_token_strs = [self.detokenize([token]) for token in all_tokens]
-            all_logprobs = [logits_to_logprobs(row.tolist()) for row in self._scores][
+            all_logprobs = [logits_to_logprobs(row.tolist()) for row in self.scores][
                 token_offset:
             ]
             for token, token_str, logprobs_token in zip(
