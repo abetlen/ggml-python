@@ -185,7 +185,7 @@ class CudaContextBuffer(ContextBuffer):
     def __init__(self, buffer_size: int = 256 * 1024 * 1024):
         self.buffer_size = buffer_size
         self._buffer = CudaContextBuffer.try_alloc(self.buffer_size)
-    
+
     @staticmethod
     def try_alloc(buffer_size: int):
         buffer = ggml.ggml_cuda_host_malloc(buffer_size)
@@ -276,13 +276,22 @@ class ReplitModel:
         self.memory_k = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F16, n_elements)
         self.memory_v = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F16, n_elements)
 
+        if ggml.GGML_USE_CUBLAS:
+            self.memory_k.contents.backend = ggml.GGML_BACKEND_GPU
+            ggml.ggml_cuda_transform_tensor(self.memory_k.contents.data, self.memory_k)
+            self.memory_v.contents.backend = ggml.GGML_BACKEND_GPU
+            ggml.ggml_cuda_transform_tensor(self.memory_v.contents.data, self.memory_v)
+
         self.wte_weight = ggml.ggml_new_tensor_2d(ctx, wtype, n_embd, n_vocab)
         self.ln_f_weight = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, n_embd)
         self.tensors["transformer.wte.weight"] = self.wte_weight
         self.tensors["transformer.norm_f.weight"] = self.ln_f_weight
 
         self.mem_per_token = 0
-        self.eval_buffer = CpuContextBuffer()
+        if ggml.GGML_USE_CUBLAS:
+            self.eval_buffer = CudaContextBuffer()
+        else:
+            self.eval_buffer = CpuContextBuffer()
 
         for i in range(n_layer):
             layer = ReplitLayer(
@@ -312,6 +321,13 @@ class ReplitModel:
 
     def __del__(self):
         ggml.ggml_free(self.ctx)
+
+        if ggml.GGML_USE_CUBLAS:
+            for tensor in self.tensors.values():
+                # TODO: check tensor backend before freeing
+                ggml.ggml_cuda_free_data(tensor)
+            ggml.ggml_cuda_free_data(self.memory_k)
+            ggml.ggml_cuda_free_data(self.memory_v)
 
     @staticmethod
     def encode_word(
@@ -414,14 +430,22 @@ class ReplitModel:
 
         inpL = ggml.ggml_get_rows(ctx0, self.wte_weight, embd)
 
+        if ggml.GGML_USE_CUBLAS:
+            offload_func_nr = ggml.ggml_cuda_assign_buffers_no_scratch
+            offload_func_kq = ggml.ggml_cuda_assign_buffers_no_scratch
+            offload_func_v = ggml.ggml_cuda_assign_buffers_no_scratch
+
         for il in range(n_layer):
             offload_func = offload_nop
+
+            if ggml.GGML_USE_CUBLAS:
+                offload_func = ggml.ggml_cuda_assign_buffers_no_scratch
 
             # // lctx.use_buf(ctx0, 0)
 
             # // a = self.ln_1(x)
             cur = ggml.ggml_norm(ctx0, inpL)
-            offload_func(cur)
+            # offload_func(cur)
             ggml.ggml_set_name(cur, b"norm_0")
             cur = ggml.ggml_mul(
                 ctx0,
@@ -438,7 +462,9 @@ class ReplitModel:
 
             # // compute QKV
             cur = ggml.ggml_mul_mat(ctx0, self.layers[il].c_attn_wqkv_weight, cur)
-            offload_func_kq(cur)
+            if ggml.GGML_USE_CUBLAS:
+                cur = ggml.ggml_cont(ctx0, cur) # NOTE: needed for CUDA
+                offload_func_kq(cur)
             ggml.ggml_set_name(cur, b"tmpkqv")
 
             Qcur = ggml.ggml_view_2d(
@@ -449,7 +475,7 @@ class ReplitModel:
                 cur.contents.nb[1],
                 0 * ctypes.sizeof(ctypes.c_float) * n_embd,
             )
-            offload_func_kq(Qcur)
+            # offload_func_kq(Qcur)
             ggml.ggml_set_name(Qcur, b"Qcur")
             Kcur = ggml.ggml_view_2d(
                 ctx0,
@@ -459,7 +485,7 @@ class ReplitModel:
                 cur.contents.nb[1],
                 1 * ctypes.sizeof(ctypes.c_float) * n_embd,
             )
-            offload_func_kq(Kcur)
+            # offload_func_kq(Kcur)
             ggml.ggml_set_name(Kcur, b"Kcur")
             Vcur = ggml.ggml_view_2d(
                 ctx0,
@@ -469,7 +495,7 @@ class ReplitModel:
                 cur.contents.nb[1],
                 2 * ctypes.sizeof(ctypes.c_float) * n_embd,
             )
-            offload_func_v(Vcur)
+            # offload_func_v(Vcur)
             ggml.ggml_set_name(Vcur, b"Vcur")
 
             # // store key and value to memory
@@ -480,7 +506,7 @@ class ReplitModel:
                 (ggml.ggml_element_size(self.memory_k) * n_embd)
                 * (il * n_ctx + n_past),
             )
-            offload_func_kq(k)
+            # offload_func_kq(k)
             ggml.ggml_set_name(k, b"k")
             v = ggml.ggml_view_1d(
                 ctx0,
@@ -489,7 +515,7 @@ class ReplitModel:
                 (ggml.ggml_element_size(self.memory_v) * n_embd)
                 * (il * n_ctx + n_past),
             )
-            offload_func_v(v)
+            # offload_func_v(v)
             ggml.ggml_set_name(v, b"v")
 
             ggml.ggml_build_forward_expand(
@@ -529,7 +555,7 @@ class ReplitModel:
                 1,
                 3,
             )
-            offload_func_kq(Q)
+            # offload_func_kq(Q)
             ggml.ggml_set_name(Q, b"Q")
 
             # // K = Kmem.view(n_embd/n_head, n_head, n_past + N).permute(0, 2, 1,
@@ -553,7 +579,7 @@ class ReplitModel:
                 1,
                 3,
             )
-            offload_func_kq(K)
+            # offload_func_kq(K)
             ggml.ggml_set_name(K, b"K")
 
             # // K * Q
@@ -570,7 +596,7 @@ class ReplitModel:
                     1.0 / np.sqrt(float(n_embd) / n_head),
                 ),
             )
-            offload_func_kq(KQ_scaled)
+            # offload_func_kq(KQ_scaled)
             ggml.ggml_set_name(KQ_scaled, b"KQ_scaled")
 
             KQ_scaled_alibi = ggml.ggml_alibi(
@@ -580,7 +606,7 @@ class ReplitModel:
                 n_head,
                 8.0,
             )
-            offload_func_kq(KQ_scaled_alibi)
+            # offload_func_kq(KQ_scaled_alibi)
             ggml.ggml_set_name(KQ_scaled_alibi, b"KQ_scaled_alibi")
 
             # // KQ_masked = mask_past(KQ_scaled)
@@ -589,7 +615,7 @@ class ReplitModel:
                 KQ_scaled_alibi,
                 n_past,
             )
-            offload_func_kq(KQ_masked)
+            # offload_func_kq(KQ_masked)
             ggml.ggml_set_name(KQ_masked, b"KQ_masked")
 
             # // KQ = soft_max(KQ_masked)
@@ -597,7 +623,7 @@ class ReplitModel:
                 ctx0,
                 KQ_masked,
             )
-            offload_func_kq(KQ_soft_max)
+            # offload_func_kq(KQ_soft_max)
             ggml.ggml_set_name(KQ_soft_max, b"KQ_soft_max")
 
             # // V_trans = Vmem.view(n_embd/n_head, n_head, n_past + N).permute(1,
@@ -631,12 +657,12 @@ class ReplitModel:
                     n_head,
                 ),
             )
-            offload_func_v(V_trans)
+            # offload_func_v(V_trans)
             ggml.ggml_set_name(V_trans, b"V_trans")
 
             # // KQV = transpose(V) * KQ_soft_max
             KQV = ggml.ggml_mul_mat(ctx0, V_trans, KQ_soft_max)
-            offload_func_v(KQV)
+            # offload_func_v(KQV)
             ggml.ggml_set_name(KQV, b"KQV")
 
             # // KQV_merged = KQV.permute(0, 2, 1, 3)
@@ -648,7 +674,7 @@ class ReplitModel:
                 1,
                 3,
             )
-            offload_func_v(KQV_merged)
+            # offload_func_v(KQV_merged)
             ggml.ggml_set_name(KQV_merged, b"KQV_merged")
 
             # // cur = KQV_merged.contiguous().view(n_embd, N)
@@ -662,7 +688,7 @@ class ReplitModel:
                     N,
                 ),
             )
-            offload_func_v(cur)
+            # offload_func_v(cur)
             ggml.ggml_set_name(cur, b"KQV_merged_contiguous")
 
             # // projection
@@ -686,14 +712,14 @@ class ReplitModel:
 
             # // m = self.ln_2(x)
             cur = ggml.ggml_norm(ctx0, inpL)
-            offload_func(cur)
+            # offload_func(cur)
             ggml.ggml_set_name(cur, b"norm_1")
             cur = ggml.ggml_mul(
                 ctx0,
                 ggml.ggml_repeat(ctx0, self.layers[il].ln_2_weight, cur),
                 cur,
             )
-            offload_func(cur)
+            # offload_func(cur)
             ggml.ggml_set_name(cur, b"norm")
 
             # // n = self.mlp(m)
@@ -702,7 +728,7 @@ class ReplitModel:
                 self.layers[il].c_mlp_mlp_up_weight,
                 cur,
             )
-            offload_func(cur)
+            # offload_func(cur)
             ggml.ggml_set_name(cur, b"result_mlp_up")
 
             # // GELU activation
@@ -710,7 +736,7 @@ class ReplitModel:
                 ctx0,
                 cur,
             )
-            offload_func(cur)
+            # offload_func(cur)
             ggml.ggml_set_name(cur, b"gelu")
             # // projection
             # // cur = proj_w*cur + proj_b
@@ -735,7 +761,7 @@ class ReplitModel:
 
         # // norm
         inpL = ggml.ggml_norm(ctx0, inpL)
-        offload_func_nr(inpL)
+        # offload_func_nr(inpL)
         ggml.ggml_set_name(inpL, b"norm_f")
 
         # // inpL = ln_f_g*inpL
@@ -1232,7 +1258,11 @@ class ReplitModel:
                 print("ctx size     =", ctx_size // (1024 * 1024), "MB")
 
             # create context
-            weights_buffer = CpuContextBuffer(ctx_size)
+            if ggml.GGML_USE_CUBLAS:
+                weights_buffer = CudaContextBuffer(ctx_size)
+                # ggml.ggml_cuda_set_main_device(0)
+            else:
+                weights_buffer = CpuContextBuffer(ctx_size)
             init_params = ggml.ggml_init_params(
                 mem_size=ctx_size,
                 mem_buffer=weights_buffer.buffer,
@@ -1295,6 +1325,21 @@ class ReplitModel:
                         ggml.ggml_get_data(tensor)
                     )
                 )
+                if ggml.GGML_USE_CUBLAS and name.startswith("transformer.block"):
+                    should_offload_suffix = [
+                        # "norm_1.weight",
+                        "attn.Wqkv.weight",
+                        "attn.out_proj.weight",
+                        # "norm_2.weight",
+                        "ffn.up_proj.weight",
+                        "ffn.down_proj.weight",
+                    ]
+                    if any(name.endswith(s) for s in should_offload_suffix):
+                        tensor.contents.backend = ggml.GGML_BACKEND_GPU
+                        ggml.ggml_cuda_transform_tensor(tensor.contents.data, tensor)
+                    if name == "transformer.wte.weight" or name == "transformer.norm_f.weight":
+                        tensor.contents.backend = ggml.GGML_BACKEND_GPU
+                        ggml.ggml_cuda_transform_tensor(tensor.contents.data, tensor)
 
                 total_size += ggml.ggml_nbytes(tensor)
                 if n_tensors % 8 == 0:
