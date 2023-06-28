@@ -524,14 +524,41 @@ class CreateCompletionRequest(BaseModel):
     class Config:
         schema_extra = {
             "example": {
-                "prompt": "\n\n### Instructions:\nWhat is the capital of France?\n\n### Response:\n",
-                "stop": ["\n", "###"],
+                "prompt": "def fib(n):",
+                "stop": ["\n\n"],
             }
         }
 
 
 settings = Settings()  # type: ignore
-app = FastAPI()
+app = FastAPI(
+    title="Code Completion API",
+    description="""
+## Editor Setup
+
+### VSCode
+
+Add the following to your `settings.json`:
+
+```json
+{
+    "github.copilot.advanced": {
+        "debug.testOverrideProxyUrl": "http://localhost:8000",
+        "debug.overrideProxyUrl": "http://localhost:8000"
+    }
+}
+```
+
+### Vim / Neovim
+
+Add the following to your vimrc or init.vim:
+
+```
+let g:copilot_proxy = 'localhost:8000'
+let g:copilot_strict_ssl = 0
+```
+""",
+)
 model = OpenAIify(
     ReplitModel.init_from_file(
         model_file=settings.model_file, n_gpu_layers=settings.n_gpu_layers
