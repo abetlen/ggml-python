@@ -9,16 +9,13 @@ https://github.com/ggerganov/ggml/tree/master/examples/replit
 from __future__ import annotations
 import abc
 import math
-import time
-import uuid
 import struct
 import ctypes
 import argparse
 import multiprocessing
 from collections import deque
 
-from typing_extensions import TypedDict, Literal
-from typing import Deque, Iterator, List, Optional, Sequence, Tuple, Dict, Union
+from typing import Deque, Iterator, List, Optional, Sequence, Tuple, Dict
 
 import numpy as np
 import numpy.typing as npt
@@ -28,49 +25,7 @@ import ggml
 from ggml.utils import to_numpy
 
 
-## Types
-class CompletionLogprobs(TypedDict):
-    text_offset: List[int]
-    token_logprobs: List[Optional[float]]
-    tokens: List[str]
-    top_logprobs: List[Optional[Dict[str, float]]]
-
-
-class CompletionChoice(TypedDict):
-    text: str
-    index: int
-    logprobs: Optional[CompletionLogprobs]
-    finish_reason: Optional[str]
-
-
-class CompletionUsage(TypedDict):
-    prompt_tokens: int
-    completion_tokens: int
-    total_tokens: int
-
-
-class CompletionChunk(TypedDict):
-    id: str
-    object: Literal["text_completion"]
-    created: int
-    model: str
-    choices: List[CompletionChoice]
-
-
-class Completion(TypedDict):
-    id: str
-    object: Literal["text_completion"]
-    created: int
-    model: str
-    choices: List[CompletionChoice]
-    usage: CompletionUsage
-
-
 ## Generic Sampling Functions
-
-
-def logits_to_logprobs(logits: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
-    return np.exp(logits) / (np.sum(np.exp(logits)))  # type: ignore
 
 
 def sample(
@@ -317,8 +272,12 @@ class ReplitModel:
             ] = layer.c_mlp_mlp_down_weight
 
         self.n_tokens = 0
-        self.input_ids: npt.NDArray[np.intc] = np.ndarray((self.max_seq_len), dtype=np.intc)
-        self.scores: npt.NDArray[np.single] = np.ndarray((n_vocab, self.max_seq_len), dtype=np.single)
+        self.input_ids: npt.NDArray[np.intc] = np.ndarray(
+            (self.max_seq_len), dtype=np.intc
+        )
+        self.scores: npt.NDArray[np.single] = np.ndarray(
+            (n_vocab, self.max_seq_len), dtype=np.single
+        )
 
     def __del__(self):
         ggml.ggml_free(self.ctx)
@@ -463,7 +422,7 @@ class ReplitModel:
             # // compute QKV
             cur = ggml.ggml_mul_mat(ctx0, self.layers[il].c_attn_wqkv_weight, cur)
             if ggml.GGML_USE_CUBLAS:
-                cur = ggml.ggml_cont(ctx0, cur) # NOTE: needed for CUDA
+                cur = ggml.ggml_cont(ctx0, cur)  # NOTE: needed for CUDA
                 offload_func_kq(cur)
             ggml.ggml_set_name(cur, b"tmpkqv")
 
@@ -785,7 +744,9 @@ class ReplitModel:
         ggml.ggml_build_forward_expand(ctypes.pointer(gf), inpL)
         ggml.ggml_graph_compute(ctx0, ctypes.pointer(gf))
 
-        embd_w = to_numpy(inpL).reshape(n_vocab, -1)#.copy() # NOTE: likely wrong to not copy here
+        embd_w = to_numpy(inpL).reshape(
+            n_vocab, -1
+        )  # .copy() # NOTE: likely wrong to not copy here
 
         self.mem_per_token = int(ggml.ggml_used_mem(ctx0) / N)
 
@@ -824,7 +785,7 @@ class ReplitModel:
         reset = True
         if self.n_tokens > 0:
             longest_prefix = 0
-            for a, b in zip(self.input_ids[:self.n_tokens], tokens[:-1]):
+            for a, b in zip(self.input_ids[: self.n_tokens], tokens[:-1]):
                 if a == b:
                     longest_prefix += 1
                 else:
@@ -849,351 +810,6 @@ class ReplitModel:
             )
             yield token
             tokens = [token]
-
-    def _create_completion(
-        self,
-        prompt: str,
-        suffix: Optional[str] = None,
-        max_tokens: int = 16,
-        temperature: float = 0.8,
-        top_p: float = 0.95,
-        logprobs: Optional[int] = None,
-        echo: bool = False,
-        stop: Optional[Union[str, List[str]]] = [],
-        frequency_penalty: float = 0.0,
-        presence_penalty: float = 0.0,
-        stream: bool = False,
-        model: Optional[str] = None,
-    ) -> Union[Iterator[Completion], Iterator[CompletionChunk]]:
-        completion_id: str = f"cmpl-{str(uuid.uuid4())}"
-        created: int = int(time.time())
-        completion_tokens: List[int] = []
-        # Add blank space to start of prompt to match OG llama tokenizer
-        prompt_tokens: List[int] = self.tokenize(prompt)
-        text: str = ""
-        returned_tokens: int = 0
-        stop = (
-            stop if isinstance(stop, list) else [stop] if isinstance(stop, str) else []
-        )
-        model_name: str = model if model is not None else "replit-code-v1-3b"
-
-        # Truncate prompt if it is too long
-        max_tokens = min(max_tokens, max(0, self.max_seq_len - len(prompt_tokens)))
-        if len(prompt_tokens) + max_tokens > self.max_seq_len:
-            raise ValueError(
-                f"Requested tokens exceed context window of {self.max_seq_len}"
-            )
-
-        stop_sequences = stop if stop != [] else []
-        finish_reason = "length"
-        for token in self.generate(
-            prompt_tokens,
-            top_p=top_p,
-            temperature=temperature,
-            frequency_penalty=frequency_penalty,
-            presence_penalty=presence_penalty,
-        ):
-            if token == self.eos_token():
-                text = self.detokenize(completion_tokens)
-                finish_reason = "stop"
-                break
-
-            completion_tokens.append(token)
-
-            all_text = self.detokenize(completion_tokens)
-            any_stop = [s for s in stop_sequences if s in all_text]
-            if len(any_stop) > 0:
-                first_stop = any_stop[0]
-                text = all_text[: all_text.index(first_stop)]
-                finish_reason = "stop"
-                break
-
-            if stream:
-                remaining_tokens = completion_tokens[returned_tokens:]
-                remaining_text = self.detokenize(remaining_tokens)
-                remaining_length = len(remaining_text)
-
-                # We want to avoid yielding any characters from
-                # the generated text if they are part of a stop
-                # sequence.
-                first_stop_position = 0
-                for s in stop_sequences:
-                    for i in range(min(len(s), remaining_length), 0, -1):
-                        if remaining_text.endswith(s[:i]):
-                            if i > first_stop_position:
-                                first_stop_position = i
-                            break
-
-                token_end_position = 0
-                for token in remaining_tokens:
-                    token_end_position += len(self.detokenize([token]))
-                    # Check if stop sequence is in the token
-                    if token_end_position >= (
-                        remaining_length - first_stop_position - 1
-                    ):
-                        break
-                    logprobs_or_none: Optional[CompletionLogprobs] = None
-                    if logprobs is not None:
-                        token_str = self.detokenize([token])
-                        text_offset = len(prompt) + len(
-                            self.detokenize(completion_tokens[:returned_tokens])
-                        )
-                        token_offset = len(prompt_tokens) + returned_tokens
-                        logits = self.scores[token_offset - 1, :].tolist()
-                        current_logprobs = logits_to_logprobs(logits)
-                        sorted_logprobs = list(
-                            sorted(
-                                zip(current_logprobs, range(len(current_logprobs))),
-                                reverse=True,
-                            )
-                        )
-                        top_logprob = {
-                            self.detokenize([i]): logprob
-                            for logprob, i in sorted_logprobs[:logprobs]
-                        }
-                        top_logprob[token_str] = current_logprobs[int(token)]
-                        logprobs_or_none = {
-                            "tokens": [self.detokenize([token])],
-                            "text_offset": [text_offset],
-                            "token_logprobs": [sorted_logprobs[int(token)][0]],
-                            "top_logprobs": [top_logprob],
-                        }
-                    returned_tokens += 1
-                    yield {
-                        "id": completion_id,
-                        "object": "text_completion",
-                        "created": created,
-                        "model": model_name,
-                        "choices": [
-                            {
-                                "text": self.detokenize([token]),
-                                "index": 0,
-                                "logprobs": logprobs_or_none,
-                                "finish_reason": None,
-                            }
-                        ],
-                    }
-
-            if len(completion_tokens) >= max_tokens:
-                text = self.detokenize(completion_tokens)
-                finish_reason = "length"
-                break
-
-        if stream:
-            remaining_tokens = completion_tokens[returned_tokens:]
-            all_text = self.detokenize(remaining_tokens)
-            any_stop = [s for s in stop_sequences if s in all_text]
-            if len(any_stop) > 0:
-                end = min(all_text.index(stop) for stop in any_stop)
-            else:
-                end = len(all_text)
-
-            token_end_position = 0
-            for token in remaining_tokens:
-                token_end_position += len(self.detokenize([token]))
-
-                logprobs_or_none: Optional[CompletionLogprobs] = None
-                if logprobs is not None:
-                    token_str = self.detokenize([token])
-                    text_offset = len(prompt) + len(
-                        self.detokenize(completion_tokens[:returned_tokens])
-                    )
-                    token_offset = len(prompt_tokens) + returned_tokens - 1
-                    logits = self.scores[token_offset, :].tolist()
-                    current_logprobs = logits_to_logprobs(logits)
-                    sorted_logprobs = list(
-                        sorted(
-                            zip(current_logprobs, range(len(current_logprobs))),
-                            reverse=True,
-                        )
-                    )
-                    top_logprob = {
-                        self.detokenize([i]): logprob
-                        for logprob, i in sorted_logprobs[:logprobs]
-                    }
-                    top_logprob[token_str] = current_logprobs[int(token)]
-                    logprobs_or_none = {
-                        "tokens": [self.detokenize([token])],
-                        "text_offset": [text_offset],
-                        "token_logprobs": [sorted_logprobs[int(token)][0]],
-                        "top_logprobs": [top_logprob],
-                    }
-
-                if token_end_position >= end:
-                    last_text = self.detokenize([token])
-                    if token_end_position == end - 1:
-                        break
-                    returned_tokens += 1
-                    yield {
-                        "id": completion_id,
-                        "object": "text_completion",
-                        "created": created,
-                        "model": model_name,
-                        "choices": [
-                            {
-                                "text": last_text[
-                                    : len(last_text) - (token_end_position - end)
-                                ],
-                                "index": 0,
-                                "logprobs": logprobs_or_none,
-                                "finish_reason": finish_reason,
-                            }
-                        ],
-                    }
-                    break
-                returned_tokens += 1
-                yield {
-                    "id": completion_id,
-                    "object": "text_completion",
-                    "created": created,
-                    "model": model_name,
-                    "choices": [
-                        {
-                            "text": self.detokenize([token]),
-                            "index": 0,
-                            "logprobs": logprobs_or_none,
-                            "finish_reason": finish_reason
-                            if returned_tokens == len(completion_tokens)
-                            else None,
-                        }
-                    ],
-                }
-            return
-
-        text_str = text
-
-        if echo:
-            text_str = prompt + text_str
-
-        if suffix is not None:
-            text_str = text_str + suffix
-
-        logprobs_or_none: Optional[CompletionLogprobs] = None
-        if logprobs is not None:
-            text_offset = 0 if echo else len(prompt)
-            token_offset = 0 if echo else len(prompt_tokens[1:])
-            text_offsets: List[int] = []
-            token_logprobs: List[Optional[float]] = []
-            tokens: List[str] = []
-            top_logprobs: List[Optional[Dict[str, float]]] = []
-
-            if echo:
-                # Remove leading BOS token
-                all_tokens = prompt_tokens[1:] + completion_tokens
-            else:
-                all_tokens = completion_tokens
-
-            all_token_strs = [self.detokenize([token]) for token in all_tokens]
-            all_logprobs = [logits_to_logprobs(row.tolist()) for row in self.scores][
-                token_offset:
-            ]
-            for token, token_str, logprobs_token in zip(
-                all_tokens, all_token_strs, all_logprobs
-            ):
-                text_offsets.append(text_offset)
-                text_offset += len(token_str)
-                tokens.append(token_str)
-                sorted_logprobs = list(
-                    sorted(
-                        zip(logprobs_token, range(len(logprobs_token))), reverse=True
-                    )
-                )
-                token_logprobs.append(sorted_logprobs[int(token)][0])
-                top_logprob: Optional[Dict[str, float]] = {
-                    self.detokenize([i]): logprob
-                    for logprob, i in sorted_logprobs[:logprobs]
-                }
-                top_logprob.update({token_str: logprobs_token[int(token)]})
-                top_logprobs.append(top_logprob)
-            # Weird idosincracy of the OpenAI API where
-            # token_logprobs and top_logprobs are null for
-            # the first token.
-            if echo and len(all_tokens) > 0:
-                token_logprobs[0] = None
-                top_logprobs[0] = None
-            logprobs_or_none = {
-                "tokens": tokens,
-                "text_offset": text_offsets,
-                "token_logprobs": token_logprobs,
-                "top_logprobs": top_logprobs,
-            }
-
-        yield {
-            "id": completion_id,
-            "object": "text_completion",
-            "created": created,
-            "model": model_name,
-            "choices": [
-                {
-                    "text": text_str,
-                    "index": 0,
-                    "logprobs": logprobs_or_none,
-                    "finish_reason": finish_reason,
-                }
-            ],
-            "usage": {
-                "prompt_tokens": len(prompt_tokens),
-                "completion_tokens": len(completion_tokens),
-                "total_tokens": len(prompt_tokens) + len(completion_tokens),
-            },
-        }
-
-    def create_completion(
-        self,
-        prompt: str,
-        suffix: Optional[str] = None,
-        max_tokens: int = 128,
-        temperature: float = 0.8,
-        top_p: float = 0.95,
-        logprobs: Optional[int] = None,
-        echo: bool = False,
-        stop: Optional[Union[str, List[str]]] = [],
-        frequency_penalty: float = 0.0,
-        presence_penalty: float = 0.0,
-        stream: bool = False,
-        model: Optional[str] = None,
-    ) -> Union[Completion, Iterator[CompletionChunk]]:
-        """Generate text from a prompt.
-
-        Args:
-            prompt: The prompt to generate text from.
-            suffix: A suffix to append to the generated text. If None, no suffix is appended.
-            max_tokens: The maximum number of tokens to generate.
-            temperature: The temperature to use for sampling.
-            top_p: The top-p value to use for sampling.
-            logprobs: The number of logprobs to return. If None, no logprobs are returned.
-            echo: Whether to echo the prompt.
-            stop: A list of strings to stop generation when encountered.
-            repeat_penalty: The penalty to apply to repeated tokens.
-            top_k: The top-k value to use for sampling.
-            stream: Whether to stream the results.
-
-        Raises:
-            ValueError: If the requested tokens exceed the context window.
-            RuntimeError: If the prompt fails to tokenize or the model fails to evaluate the prompt.
-
-        Returns:
-            Response object containing the generated text.
-        """
-        completion_or_chunks = self._create_completion(
-            prompt=prompt,
-            suffix=suffix,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            top_p=top_p,
-            logprobs=logprobs,
-            echo=echo,
-            stop=stop,
-            frequency_penalty=frequency_penalty,
-            presence_penalty=presence_penalty,
-            stream=stream,
-            model=model,
-        )
-        if stream:
-            chunks: Iterator[CompletionChunk] = completion_or_chunks
-            return chunks
-        completion: Completion = next(completion_or_chunks)  # type: ignore
-        return completion
 
     @staticmethod
     def eos_token():
@@ -1333,7 +949,10 @@ class ReplitModel:
                     if any(name.endswith(s) for s in should_offload_suffix):
                         tensor.contents.backend = ggml.GGML_BACKEND_GPU
                         ggml.ggml_cuda_transform_tensor(tensor.contents.data, tensor)
-                    if name == "transformer.wte.weight" or name == "transformer.norm_f.weight":
+                    if (
+                        name == "transformer.wte.weight"
+                        or name == "transformer.norm_f.weight"
+                    ):
                         tensor.contents.backend = ggml.GGML_BACKEND_GPU
                         ggml.ggml_cuda_transform_tensor(tensor.contents.data, tensor)
 
