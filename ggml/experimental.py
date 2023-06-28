@@ -828,9 +828,7 @@ class Tensor:
         return Tensor(tensor=op, ctx=ctx)
 
     @staticmethod
-    def get_rows_back(
-        a: Tensor, b: Tensor, c: Tensor, ctx: Optional[Context] = None
-    ):
+    def get_rows_back(a: Tensor, b: Tensor, c: Tensor, ctx: Optional[Context] = None):
         ctx = ctx or default_context()
         op = ggml.ggml_get_rows_back(ctx.context, a.tensor, b.tensor, c.tensor)
         return Tensor(tensor=op, ctx=ctx)
@@ -972,6 +970,12 @@ class Tensor:
         return Tensor(tensor=op, ctx=ctx)
 
     @staticmethod
+    def conv_2d_sk_p0(a: Tensor, b: Tensor, ctx: Optional[Context] = None):
+        ctx = ctx or default_context()
+        op = ggml.ggml_conv_2d_sk_p0(ctx.context, a.tensor, b.tensor)
+        return Tensor(tensor=op, ctx=ctx)
+
+    @staticmethod
     def conv_1d_s2_ph(
         a: Tensor,
         b: Tensor,
@@ -1101,9 +1105,7 @@ class CGraph:
         return CGraph(cgraph=ggml.ggml_build_forward(tensor.tensor), ctx=tensor.ctx)
 
     @classmethod
-    def build_backward(
-        cls, forward: CGraph, keep: bool, ctx: Optional[Context] = None
-    ):
+    def build_backward(cls, forward: CGraph, keep: bool, ctx: Optional[Context] = None):
         ctx = ctx or default_context()
         return CGraph(
             cgraph=ggml.ggml_build_backward(
