@@ -103,6 +103,17 @@ To learn more about ggml-python, check out the following resources:
 - Examples
     - [Code Completion Server](https://github.com/abetlen/ggml-python/tree/main/examples/replit) - A code completion server using ggml-python and the replit-code-v1-3b model that you can drop into your editor as a local Github Copilot replacement.
 
+## Development
+
+```bash
+git clone https://github.com/abetlen/ggml-python.git
+cd ggml-python
+# (Optional) Create a virtual environment
+python -m venv venv
+source venv/bin/activate
+# Install dependencies
+make build
+```
 
 ## Contributing
 
