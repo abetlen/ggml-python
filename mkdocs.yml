@@ -23,6 +23,7 @@ plugins:
             show_root_heading: true
           import:
             - https://docs.python.org/3/objects.inv
+            - https://numpy.org/doc/stable/objects.inv
   - search
 
 markdown_extensions:
