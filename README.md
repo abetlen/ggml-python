@@ -12,6 +12,10 @@ Python bindings for the [`ggml`](https://github.com/ggerganov/ggml) tensor libra
 
 > **⚠️ This project is in a very early state and currently only offers the basic low-level bindings to ggml**
 
+# Documentation
+
+Documentation is available at [ggml-python.readthedocs.io](https://ggml-python.readthedocs.io/en/latest/)
+
 # Installation
 
 
