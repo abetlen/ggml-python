@@ -100,7 +100,7 @@ def ggml_context_manager(params: ggml.ggml_init_params):
         params: context parameters
 
     Returns:
-        ggml_context_p context manager
+        (contextlib.AbstractContextManager): ggml_context_p context manager
     """
     ctx = ggml.ggml_init(params)
     try:
