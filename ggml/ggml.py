@@ -671,6 +671,7 @@ class ggml_compute_params(ctypes.Structure):
         ("wdata", ctypes.c_void_p),
     ]
 
+# // misc
 
 # GGML_API void    ggml_time_init(void); // call this once at the beginning of the program
 def ggml_time_init():
@@ -1266,7 +1267,15 @@ lib.ggml_new_f32.restype = ctypes.POINTER(ggml_tensor)
 # GGML_API struct ggml_tensor * ggml_dup_tensor (struct ggml_context * ctx, const struct ggml_tensor * src);
 def ggml_dup_tensor(
     ctx: ggml_context_p, src: ggml_tensor_p  
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
+    """Create a new tensor with the same type and dimensions as the source tensor.
+    
+    Parameters:
+        ctx: ggml context
+        src: source tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
     return lib.ggml_dup_tensor(ctx, src)
 
 
@@ -1278,6 +1287,14 @@ lib.ggml_dup_tensor.restype = ctypes.POINTER(ggml_tensor)
 def ggml_view_tensor(
     ctx: ggml_context_p, src: ggml_tensor_p  
 ) -> ggml_tensor_p:
+    """Create a new tensor with the same type, dimensions and data as the source tensor.
+
+    Parameters:
+        ctx: ggml context
+        src: source tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
     return lib.ggml_view_tensor(ctx, src)
 
 
@@ -1308,6 +1325,13 @@ lib.ggml_get_tensor.restype = ctypes.POINTER(ggml_tensor)
 def ggml_set_zero(
     tensor: ggml_tensor_p,  
 ) -> ggml_tensor_p:
+    """Zero all elements in a tensor.
+    
+    Parameters:
+        tensor: tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
     return lib.ggml_set_zero(tensor)
 
 
@@ -1320,6 +1344,14 @@ def ggml_set_i32(
     tensor: ggml_tensor_p,  
     value: Union[ctypes.c_int32, int],
 ) -> ggml_tensor_p:
+    """Set all elements in a tensor to the given integer value.
+    
+    Parameters:
+        tensor: tensor
+        value: integer value
+
+    Returns:
+        Pointer to ggml_tensor"""
     return lib.ggml_set_i32(tensor, value)
 
 
@@ -1332,6 +1364,14 @@ def ggml_set_f32(
     tensor: ggml_tensor_p,  
     value: Union[ctypes.c_float, float],
 ) -> ggml_tensor_p:
+    """Set all elements in a tensor to the given float value.
+    
+    Parameters:
+        tensor: tensor
+        value: float value
+
+    Returns:
+        Pointer to ggml_tensor"""
     return lib.ggml_set_f32(tensor, value)
 
 
@@ -1344,6 +1384,14 @@ def ggml_get_i32_1d(
     tensor: ggml_tensor_p,  
     i: Union[ctypes.c_int, int],
 ) -> int:
+    """Get the integer value of the i-th element in a 1-dimensional tensor.
+    
+    Parameters:
+        tensor: tensor
+        i: index of element
+
+    Returns:
+        integer value of element at index i"""
     return lib.ggml_get_i32_1d(tensor, i)
 
 
@@ -1357,6 +1405,15 @@ def ggml_set_i32_1d(
     i: Union[ctypes.c_int, int],
     value: Union[ctypes.c_int32, int],
 ):
+    """Set the integer value of the i-th element in a 1-dimensional tensor.
+
+    Parameters:
+        tensor: tensor
+        i: index of element
+        value: integer value to set element to
+
+    Returns:
+        Pointer to ggml_tensor"""
     return lib.ggml_set_i32_1d(tensor, i, value)
 
 
@@ -1373,6 +1430,13 @@ def ggml_get_f32_1d(
     tensor: ggml_tensor_p,  
     i: Union[ctypes.c_int, int],
 ) -> float:
+    """Get the float value of the i-th element in a 1-dimensional tensor.
+    
+    Parameters:
+        tensor: tensor
+
+    Returns:
+        float value of element at index i"""
     return lib.ggml_get_f32_1d(tensor, i)
 
 
@@ -1386,6 +1450,15 @@ def ggml_set_f32_1d(
     i: Union[ctypes.c_int, int],
     value: Union[ctypes.c_float, float],
 ):
+    """Set the float value of the i-th element in a 1-dimensional tensor.
+
+    Parameters:
+        tensor: tensor
+        i: index of element
+        value: float value to set element to
+
+    Returns:
+        Pointer to ggml_tensor"""
     return lib.ggml_set_f32_1d(tensor, i, value)
 
 
@@ -1401,6 +1474,13 @@ lib.ggml_set_f32_1d.restype = None
 def ggml_get_data(
     tensor: ggml_tensor_p,  
 ) -> Optional[ctypes.c_void_p]:
+    """Get the data pointer of a tensor.
+    
+    Parameters:
+        tensor: tensor
+
+    Returns:
+        Pointer to data, or None if tensor has no data"""
     return lib.ggml_get_data(tensor)
 
 
@@ -1412,6 +1492,13 @@ lib.ggml_get_data.restype = ctypes.c_void_p
 def ggml_get_data_f32(
     tensor: ggml_tensor_p,  
 ):  # type: (...) -> ctypes.Array[ctypes.c_float] # type: ignore
+    """Get the data pointer of a tensor as a float array.
+    
+    Parameters:
+        tensor: tensor
+
+    Returns:
+        ctypes.Array of float to data, or None if tensor has no data"""
     return lib.ggml_get_data_f32(tensor)
 
 
@@ -1423,6 +1510,13 @@ lib.ggml_get_data_f32.restype = ctypes.POINTER(ctypes.c_float)
 def ggml_get_name(
     tensor: ggml_tensor_p,  
 ) -> bytes:
+    """Get the name of a tensor.
+
+    Parameters:
+        tensor: tensor
+
+    Returns:
+        name of tensor"""
     return lib.ggml_get_name(tensor)
 
 
@@ -1434,7 +1528,15 @@ lib.ggml_get_name.restype = ctypes.c_char_p
 def ggml_set_name(
     tensor: ggml_tensor_p,  
     name: bytes,
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
+    """Set the name of a tensor.
+
+    Parameters:
+        tensor: tensor
+        name: name to set tensor to
+
+    Returns:
+        Pointer to ggml_tensor"""
     return lib.ggml_set_name(tensor, name)
 
 
@@ -1448,10 +1550,23 @@ def ggml_format_name(
     fmt: bytes,
     *args,
 ) -> ggml_tensor_p:
+    """Format the name of a tensor using the given format c string and arguments.
+
+    Parameters:
+        tensor: tensor
+        fmt: format c string
+        args: arguments to format string
+
+    Returns:
+        Pointer to ggml_tensor"""
     return lib.ggml_format_name(tensor, fmt, *args)
 
 lib.ggml_format_name.argtypes = [ctypes.POINTER(ggml_tensor), ctypes.c_char_p]
 lib.ggml_format_name.restype = ctypes.POINTER(ggml_tensor)
+
+# //
+# // operations on tensors with backpropagation
+# //
 
 # GGML_API struct ggml_tensor * ggml_dup(
 #         struct ggml_context * ctx,
@@ -3643,6 +3758,9 @@ lib.ggml_cross_entropy_loss_back.argtypes = [
 ]
 lib.ggml_cross_entropy_loss_back.restype = ctypes.POINTER(ggml_tensor)
 
+# //
+# // automatic differentiation
+# //
 
 # GGML_API void ggml_set_param(
 #         struct ggml_context * ctx,
