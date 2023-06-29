@@ -5,6 +5,10 @@ theme:
   name: material
   palette:
     primary: white
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - toc.integrate
 
 plugins:
   - mkdocstrings:
@@ -16,6 +20,7 @@ plugins:
             signature_crossrefs: true
             show_signature: true
             docstring_section_style: list
+            show_root_heading: true
           import:
             - https://docs.python.org/3/objects.inv
   - search
