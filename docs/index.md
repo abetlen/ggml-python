@@ -102,6 +102,7 @@ To learn more about ggml-python, check out the following resources:
 - [API Reference](api-reference.md)
 - Examples
     - [Code Completion Server](https://github.com/abetlen/ggml-python/tree/main/examples/replit) - A code completion server using ggml-python and the replit-code-v1-3b model that you can drop into your editor as a local Github Copilot replacement.
+    - [CLIP Embeddings](https://github.com/abetlen/ggml-python/tree/main/examples/clip) - A simple example of using ggml-python to implement CLIP text / image embeddings.
 
 ## Development
 
