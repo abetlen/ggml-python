@@ -44,3 +44,60 @@ def test_ggml_custom_op():
     output = ggml.ggml_get_f32_1d(x_out, 0)
     assert output == 42.0
     ggml.ggml_free(ctx)
+
+
+def test_ggml_min_alloc():
+    overhead = ggml.ggml_tensor_overhead()
+    max_overhead = overhead * 2 * ggml.GGML_MAX_NODES
+    assert max_overhead < 16 * 1024 * 1024  # 16MB
+    params = ggml.ggml_init_params(
+        mem_size=max_overhead, mem_buffer=None, no_alloc=True
+    )
+    ctx = ggml.ggml_init(params=params)
+
+    def build_graph(ctx: ggml.ggml_context_p):
+        x = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
+        ggml.ggml_set_name(x, b"x")
+        a = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
+        ggml.ggml_set_name(a, b"a")
+        b = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
+        ggml.ggml_set_name(b, b"b")
+        x2 = ggml.ggml_mul(ctx, x, x)
+        tmp = ggml.ggml_mul(ctx, a, x2)
+        f = ggml.ggml_add(ctx, tmp, b)
+        ggml.ggml_set_name(f, b"f")
+        gf = ggml.ggml_build_forward(f)
+        return gf
+
+    gf = build_graph(ctx)
+
+    n_nodes = gf.n_nodes
+    nodes_size = sum(ggml.ggml_nbytes(gf.nodes[i]) for i in range(n_nodes))
+    n_leafs = gf.n_leafs
+    leafs_size = sum(ggml.ggml_nbytes(gf.leafs[i]) for i in range(n_leafs))
+
+    ggml.ggml_free(ctx)
+
+    assert n_nodes == 3  # 3 nodes: mul, mul, add
+    assert n_leafs == 3  # 3 leafs: x, a, b
+
+    mem_size = nodes_size + leafs_size + overhead * (n_nodes + n_leafs)
+    params = ggml.ggml_init_params(mem_size=mem_size, mem_buffer=None)
+    ctx = ggml.ggml_init(params=params)
+    gf = build_graph(ctx)
+
+    a = ggml.ggml_get_tensor(ctx, b"a")
+    b = ggml.ggml_get_tensor(ctx, b"b")
+    x = ggml.ggml_get_tensor(ctx, b"x")
+    f = ggml.ggml_get_tensor(ctx, b"f")
+
+    assert a is not None and b is not None and x is not None and f is not None
+
+    ggml.ggml_set_f32(x, 2.0)
+    ggml.ggml_set_f32(a, 3.0)
+    ggml.ggml_set_f32(b, 4.0)
+
+    ggml.ggml_graph_compute(ctx, ctypes.pointer(gf))
+    output = ggml.ggml_get_f32_1d(f, 0)
+    assert output == 16.0
+    ggml.ggml_free(ctx)

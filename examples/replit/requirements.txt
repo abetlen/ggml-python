@@ -1,0 +1,4 @@
+ggml-python==0.0.7
+fastapi==0.98.0
+sse-starlette==1.6.1
+uvicorn==0.22.0

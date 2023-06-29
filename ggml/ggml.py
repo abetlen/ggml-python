@@ -1,13 +1,15 @@
-"""Low-level [ctypes](https://docs.python.org/3/library/ctypes.html) interface for ggml.
+"""This module is the core of the ggml-python library, it exposes a low-level [ctypes](https://docs.python.org/3/library/ctypes.html)-based interface for ggml.
 
-Functions in this module are named as in the original C library.
-This module does not perform additional checks on the input parameters or memory management for the ggml objects created by the library.
+Structures and functions in the `ggml.ggml` module map directly to the original ggml C library and
+they operate at a fairly low level.
+No additional runtime checks checks are performed nor is memory management handled automatically.
+You've been warned :).
 
-Some things to keep in mind when using this module:
+With that in mind here are some useful things to keep in mind
 
 - Functions accept both ctypes types (c_int, c_bool, c_float, etc.) and Python types (int, bool, float, etc.) as parameters.
-- Functions return Python types for simple values (int, bool, float, etc.) and ctypes types for complex values (ggml_context_p, ggml_tensor_p, etc.).
-- Memory management is the responsibility of the user. The user must call `ggml_free` on the context after calling `ggml_init`.
+- Functions return Python types for simple values (int, bool, float, etc.) and ctypes types for complex values ([ggml_context_p][ggml.ggml_context_p], [ggml_tensor_p][ggml.ggml_tensor_p], etc.).
+- Memory management is the responsibility of the user. The user must call [ggml.ggml_free][] on the context after calling [ggml.ggml_init][].
 
 Example
 
@@ -126,8 +128,8 @@ GGML_MAX_PARAMS = 256
 GGML_MAX_CONTEXTS = 64
 # #define GGML_MAX_OPT           4
 GGML_MAX_OPT = 4
-# #define GGML_MAX_NAME          32
-GGML_MAX_NAME = 32
+# #define GGML_MAX_NAME          48
+GGML_MAX_NAME = 48
 # #define GGML_DEFAULT_N_THREADS 4
 GGML_DEFAULT_N_THREADS = 4
 
@@ -191,6 +193,9 @@ lib.ggml_fp32_to_fp16_row.restype = None
 
 # struct ggml_context;
 ggml_context_p = ctypes.c_void_p
+"""Opaque pointer to a ggml_context.
+
+ggml_context structs are not accessed directly instead they must be created using [ggml_init](ggml.ggml_init) and freed using [ggml_free](ggml.ggml_free)."""
 
 
 # enum ggml_type {
@@ -237,8 +242,8 @@ GGML_TYPE_COUNT = 19
 
 # enum ggml_backend {
 #     GGML_BACKEND_CPU = 0,
-#     GGML_BACKEND_CUDA = 1,
-#     GGML_BACKEND_CL = 2,
+#     GGML_BACKEND_GPU = 10,
+#     GGML_BACKEND_GPU_SPLIT = 20,
 # };
 GGML_BACKEND_CPU = 0
 GGML_BACKEND_GPU = 10
@@ -488,24 +493,24 @@ class ggml_tensor(ctypes.Structure):
     """n-dimensional tensor
 
     Attributes:
-        type (int): ggml_type
-        backend (int): ggml_backend
-        n_dims (int): number of dimensions
-        ne (int64_t * GGML_MAX_DIMS): number of elements in each dimension
-        nb (size_t * GGML_MAX_DIMS): stride in bytes for each dimension
-        op (int): ggml operation
-        is_param (bool): is this a parameter tensor
+        type (Union[ctypes.c_int, int]): ggml_type
+        backend (Union[ctypes.c_int, int]): ggml_backend
+        n_dims (Union[ctypes.c_int, int]): number of dimensions
+        ne (ctypes.c_int64_t * GGML_MAX_DIMS): number of elements in each dimension
+        nb (ctypes.c_size_t * GGML_MAX_DIMS): stride in bytes for each dimension
+        op (ctypes.c_int): ggml operation
+        is_param (ctypes.c_bool): is this a parameter tensor
         grad (ggml_tensor_p): reference to gradient tensor
         src0 (ggml_tensor_p): reference to source tensor 0
         src1 (ggml_tensor_p): reference to source tensor 1
         opt (ggml_tensor_p * GGML_MAX_OPT): optimization tensors
-        n_tasks (int): number of tasks
-        perf_runs (int): number of performance runs
-        perf_cycles (int64_t): number of cycles
-        perf_time_us (int64_t): time in microseconds
-        data (void_p): reference to raw tensor data
-        name (char * GGML_MAX_NAME): name of tensor
-        extra (void_p): extra data (e.g. for CUDA)
+        n_tasks (ctypes.c_int): number of tasks
+        perf_runs (ctypes.c_int): number of performance runs
+        perf_cycles (ctypes.c_int64_t): number of cycles
+        perf_time_us (ctypes.c_int64_t): time in microseconds
+        data (ctypes.void_p): reference to raw tensor data
+        name (ctypes.c_char * GGML_MAX_NAME): name of tensor
+        extra (ctypes.void_p): extra data (e.g. for CUDA)
     """
 
     pass
@@ -536,6 +541,10 @@ ggml_tensor._fields_ = [
 GGML_TENSOR_SIZE = ctypes.sizeof(ggml_tensor)
 
 ggml_tensor_p: TypeAlias = "ctypes._Pointer[ggml_tensor]"  # type: ignore
+"""ctypes pointer to a [ggml_tensor][ggml.ggml_tensor]
+
+Can be dereferenced to a [ggml_tensor][ggml.ggml_tensor] object using
+the `.contents` attribute."""
 
 # // computation graph
 # struct ggml_cgraph {
@@ -557,6 +566,21 @@ ggml_tensor_p: TypeAlias = "ctypes._Pointer[ggml_tensor]"  # type: ignore
 #     int64_t perf_time_us;
 # };
 class ggml_cgraph(ctypes.Structure):
+    """ggml computation graph
+    
+    Attributes:
+        n_nodes (ctypes.c_int): number of nodes
+        n_leafs (ctypes.c_int): number of leafs
+        n_threads (ctypes.c_int): number of threads to use when computing the graph using [ggml_graph_compute][ggml.ggml_graph_compute]
+        work_size (ctypes.c_int): size of work buffer
+        work (ggml_tensor_p): work buffer
+        nodes (ggml_tensor_p * GGML_MAX_NODES): n_nodes length array of compute tensors
+        grads (ggml_tensor_p * GGML_MAX_NODES): n_nodes length array of gradient tensors
+        leafs (ggml_tensor_p * GGML_MAX_NODES): n_leafs length array of parameter tensors
+        perf_runs (ctypes.c_int): number of performance runs
+        perf_cycles (ctypes.c_int64_t): number of cycles
+        perf_time_us (ctypes.c_int64_t): time in microseconds"""
+
     _fields_ = [
         ("n_nodes", ctypes.c_int),
         ("n_leafs", ctypes.c_int),
@@ -572,6 +596,10 @@ class ggml_cgraph(ctypes.Structure):
     ]
 
 ggml_cgraph_p: TypeAlias = "ctypes._Pointer[ggml_cgraph]"  # type: ignore
+"""ctypes pointer to a [ggml_cgraph][ggml.ggml_cgraph]
+
+Can be dereferenced to a [ggml_cgraph][ggml.ggml_cgraph] object using
+the `.contents` attribute."""
 
 
 # struct ggml_scratch {
@@ -595,6 +623,10 @@ class ggml_scratch(ctypes.Structure):
 # };
 class ggml_init_params(ctypes.Structure):
     """Initialization parameters for a ggml context
+
+    **NOTE**: Reference counting does not cross into ggml, if you allocate a memory buffer
+    in python using ctypes Arrays or a numpy array, you must keep a reference to it until
+    you free the ggml context otherwise you will encounter a segmentation fault. 
 
     Attributes:
         mem_size (int): size of memory pool in bytes
@@ -719,7 +751,14 @@ lib.ggml_print_objects.restype = None
 # GGML_API int64_t ggml_nelements   (const struct ggml_tensor * tensor);
 def ggml_nelements(
     tensor: ggml_tensor_p,  
-) -> int:  
+) -> int:
+    """Get the number of elements in a tensor
+    
+    Parameters:
+        tensor: tensor
+    
+    Returns:
+        number of elements"""
     return lib.ggml_nelements(tensor)
 
 
@@ -730,7 +769,14 @@ lib.ggml_nelements.restype = ctypes.c_int64
 # GGML_API int64_t ggml_nrows       (const struct ggml_tensor * tensor);
 def ggml_nrows(
     tensor: ggml_tensor_p,  
-) -> int:  
+) -> int:
+    """Get the number of rows in a tensor
+
+    Parameters:
+        tensor: tensor
+    
+    Returns:
+        number of rows"""
     return lib.ggml_nrows(tensor)
 
 
@@ -741,7 +787,14 @@ lib.ggml_nrows.restype = ctypes.c_int64
 # GGML_API size_t  ggml_nbytes      (const struct ggml_tensor * tensor);
 def ggml_nbytes(
     tensor: ggml_tensor_p,  
-) -> int:  
+) -> int:
+    """Get the number of bytes required to store tensor data
+
+    Parameters:
+        tensor: tensor
+    
+    Returns:
+        number of bytes"""
     return lib.ggml_nbytes(tensor)
 
 
@@ -839,7 +892,14 @@ lib.ggml_ftype_to_ggml_type.restype = ctypes.c_int
 # GGML_API bool ggml_is_transposed(const struct ggml_tensor * tensor);
 def ggml_is_transposed(
     tensor: ggml_tensor_p,  
-) -> bool:  
+) -> bool:
+    """Check if a tensor is transposed
+    
+    Parameters:
+        tensor: tensor
+    
+    Returns:
+        True if tensor is transposed else False"""
     return lib.ggml_is_transposed(tensor)
 
 
@@ -850,7 +910,14 @@ lib.ggml_is_transposed.restype = ctypes.c_bool
 # GGML_API bool ggml_is_contiguous(const struct ggml_tensor * tensor);
 def ggml_is_contiguous(
     tensor: ggml_tensor_p,  
-) -> bool:  
+) -> bool:
+    """Check if a tensor is contiguous
+
+    Parameters:
+        tensor: tensor
+
+    Returns:
+        True if tensor is contiguous else False"""
     return lib.ggml_is_contiguous(tensor)
 
 
@@ -861,7 +928,14 @@ lib.ggml_is_contiguous.restype = ctypes.c_bool
 # GGML_API bool ggml_is_permuted  (const struct ggml_tensor * tensor);
 def ggml_is_permuted(
     tensor: ggml_tensor_p,  
-) -> bool:  
+) -> bool:
+    """Check if a tensor is permuted
+
+    Parameters:
+        tensor: tensor
+
+    Returns:
+        True if tensor is permuted else False"""
     return lib.ggml_is_permuted(tensor)
 
 
@@ -872,6 +946,10 @@ lib.ggml_is_permuted.restype = ctypes.c_bool
 # // use this to compute the memory overhead of a tensor
 # GGML_API size_t ggml_tensor_overhead(void);
 def ggml_tensor_overhead() -> int:
+    """Overhead required for a tensor struct in bytes
+    
+    Returns:
+        size of tensor struct in bytes"""
     return lib.ggml_tensor_overhead()
 
 
@@ -903,7 +981,10 @@ lib.ggml_init.restype = ggml_context_p
 
 # GGML_API void                  ggml_free(struct ggml_context * ctx);
 def ggml_free(ctx: ggml_context_p):
-    """Free the ggml context."""
+    """Free the ggml context.
+    
+    Parameters:
+        ctx: ggml context"""
     return lib.ggml_free(ctx)
 
 
@@ -913,7 +994,13 @@ lib.ggml_free.restype = None
 
 # GGML_API size_t  ggml_used_mem(const struct ggml_context * ctx);
 def ggml_used_mem(ctx: ggml_context_p) -> int:
-    """Return the amount of memory used by the ggml context in bytes."""
+    """Return the amount of memory used by the ggml context in bytes.
+    
+    Parameters:
+        ctx: ggml context
+    
+    Returns:
+        amount of memory used in bytes"""
     return lib.ggml_used_mem(ctx)
 
 
@@ -942,7 +1029,7 @@ lib.ggml_set_no_alloc.restype = None
 
 
 # GGML_API void *  ggml_get_mem_buffer     (struct ggml_context * ctx);
-def ggml_get_mem_buffer(ctx: ggml_context_p) -> ctypes.c_void_p:
+def ggml_get_mem_buffer(ctx: ggml_context_p) -> Optional[ctypes.c_void_p]:
     """Return the memory buffer for the ggml context."""
     return lib.ggml_get_mem_buffer(ctx)
 
@@ -988,7 +1075,7 @@ def ggml_new_tensor(
         ctx: ggml context
         type: ggml type
         n_dims: number of dimensions
-        ne: number of elements in each dimension
+        ne (int64_t * n_dims): number of elements in each dimension (array of length n_dims
     
     Returns:
         Pointer to ggml_tensor"""
@@ -1202,6 +1289,14 @@ lib.ggml_view_tensor.restype = ctypes.POINTER(ggml_tensor)
 def ggml_get_tensor(
     ctx: ggml_context_p, name: bytes
 ) -> ggml_tensor_p:
+    """Get a tensor from the ggml context by name.
+    
+    Parameters:
+        ctx: ggml context
+        name: name of tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
     return lib.ggml_get_tensor(ctx, name)
 
 
@@ -1305,7 +1400,7 @@ lib.ggml_set_f32_1d.restype = None
 # GGML_API void *  ggml_get_data    (const struct ggml_tensor * tensor);
 def ggml_get_data(
     tensor: ggml_tensor_p,  
-) -> ctypes.c_void_p:
+) -> Optional[ctypes.c_void_p]:
     return lib.ggml_get_data(tensor)
 
 
@@ -2904,26 +2999,30 @@ lib.ggml_soft_max_back_inplace.restype = ctypes.POINTER(ggml_tensor)
 # // rotary position embedding
 # // if mode & 1 == 1, skip n_past elements
 # // if mode & 2 == 1, GPT-NeoX style
+# // if mode & 4 == 1, ChatGLM style
 # // TODO: avoid creating a new tensor every time
 # GGML_API struct ggml_tensor * ggml_rope(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a,
 #         int                   n_past,
 #         int                   n_dims,
-#         int                   mode);
+#         int                   mode,
+#         int                   n_ctx);
 def ggml_rope(
     ctx: ggml_context_p,
     a: ggml_tensor_p,  
     n_past: Union[ctypes.c_int, int],
     n_dims: Union[ctypes.c_int, int],
     mode: Union[ctypes.c_int, int],
+    n_ctx: Union[ctypes.c_int, int],
 ) -> ggml_tensor_p:  
-    return lib.ggml_rope(ctx, a, n_past, n_dims, mode)
+    return lib.ggml_rope(ctx, a, n_past, n_dims, mode, n_ctx)
 
 
 lib.ggml_rope.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_tensor),
+    ctypes.c_int,
     ctypes.c_int,
     ctypes.c_int,
     ctypes.c_int,
@@ -2937,20 +3036,23 @@ lib.ggml_rope.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * a,
 #         int                   n_past,
 #         int                   n_dims,
-#         int                   mode);
+#         int                   mode,
+#         int                   n_ctx);
 def ggml_rope_inplace(
     ctx: ggml_context_p,
     a: ggml_tensor_p,  
     n_past: Union[ctypes.c_int, int],
     n_dims: Union[ctypes.c_int, int],
     mode: Union[ctypes.c_int, int],
+    n_ctx: Union[ctypes.c_int, int],
 ) -> ggml_tensor_p:  
-    return lib.ggml_rope_inplace(ctx, a, n_past, n_dims, mode)
+    return lib.ggml_rope_inplace(ctx, a, n_past, n_dims, mode, n_ctx)
 
 
 lib.ggml_rope_inplace.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_tensor),
+    ctypes.c_int,
     ctypes.c_int,
     ctypes.c_int,
     ctypes.c_int,
@@ -3602,6 +3704,11 @@ lib.ggml_build_backward.restype = ggml_cgraph
 def ggml_graph_compute(
     ctx: ggml_context_p, cgraph: ggml_cgraph_p
 ):
+    """Compute the graph.
+    
+    Parameters:
+        ctx: The context.
+        cgraph: The graph."""
     return lib.ggml_graph_compute(ctx, cgraph)
 
 
@@ -4346,7 +4453,7 @@ GGML_CUDA_MAX_DEVICES = ctypes.c_int(16)
 # void * ggml_cuda_host_malloc(size_t size);
 def ggml_cuda_host_malloc(
     size: Union[ctypes.c_size_t, int],
-) -> ctypes.c_void_p:
+) -> Optional[ctypes.c_void_p]:
     return lib.ggml_cuda_host_malloc(size)
 
 

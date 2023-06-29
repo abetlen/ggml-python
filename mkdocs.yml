@@ -12,6 +12,12 @@ plugins:
         python:
           options:
             members_order: source
+            group_by_category: false
+            signature_crossrefs: true
+            show_signature: true
+            docstring_section_style: list
+          import:
+            - https://docs.python.org/3/objects.inv
   - search
 
 markdown_extensions:
