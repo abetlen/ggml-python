@@ -1,13 +1,15 @@
-"""Low-level [ctypes](https://docs.python.org/3/library/ctypes.html) interface for ggml.
+"""This module is the core of the ggml-python library, it exposes a low-level [ctypes](https://docs.python.org/3/library/ctypes.html)-based interface for ggml.
 
-Functions in this module are named as in the original C library.
-This module does not perform additional checks on the input parameters or memory management for the ggml objects created by the library.
+Structures and functions in the `ggml.ggml` module map directly to the original ggml C library and
+they operate at a fairly low level.
+No additional runtime checks checks are performed nor is memory management handled automatically.
+You've been warned :).
 
-Some things to keep in mind when using this module:
+With that in mind here are some useful things to keep in mind
 
 - Functions accept both ctypes types (c_int, c_bool, c_float, etc.) and Python types (int, bool, float, etc.) as parameters.
-- Functions return Python types for simple values (int, bool, float, etc.) and ctypes types for complex values (ggml_context_p, ggml_tensor_p, etc.).
-- Memory management is the responsibility of the user. The user must call `ggml_free` on the context after calling `ggml_init`.
+- Functions return Python types for simple values (int, bool, float, etc.) and ctypes types for complex values ([ggml_context_p][ggml.ggml_context_p], [ggml_tensor_p][ggml.ggml_tensor_p], etc.).
+- Memory management is the responsibility of the user. The user must call [ggml.ggml_free][] on the context after calling [ggml.ggml_init][].
 
 Example
 
@@ -191,6 +193,9 @@ lib.ggml_fp32_to_fp16_row.restype = None
 
 # struct ggml_context;
 ggml_context_p = ctypes.c_void_p
+"""Opaque pointer to a ggml_context.
+
+ggml_context structs are not accessed directly instead they must be created using [ggml_init](ggml.ggml_init) and freed using [ggml_free](ggml.ggml_free)."""
 
 
 # enum ggml_type {
@@ -536,6 +541,10 @@ ggml_tensor._fields_ = [
 GGML_TENSOR_SIZE = ctypes.sizeof(ggml_tensor)
 
 ggml_tensor_p: TypeAlias = "ctypes._Pointer[ggml_tensor]"  # type: ignore
+"""ctypes pointer to a [ggml_tensor][ggml.ggml_tensor]
+
+Can be dereferenced to a [ggml_tensor][ggml.ggml_tensor] object using
+the `.contents` attribute."""
 
 # // computation graph
 # struct ggml_cgraph {
@@ -557,6 +566,21 @@ ggml_tensor_p: TypeAlias = "ctypes._Pointer[ggml_tensor]"  # type: ignore
 #     int64_t perf_time_us;
 # };
 class ggml_cgraph(ctypes.Structure):
+    """ggml computation graph
+    
+    Attributes:
+        n_nodes (int): number of nodes
+        n_leafs (int): number of leafs
+        n_threads (int): number of threads to use when computing the graph using [ggml_graph_compute][ggml.ggml_graph_compute]
+        work_size (int): size of work buffer
+        work (ggml_tensor_p): work buffer
+        nodes (ggml_tensor_p * GGML_MAX_NODES): n_nodes length array of compute tensors
+        grads (ggml_tensor_p * GGML_MAX_NODES): n_nodes length array of gradient tensors
+        leafs (ggml_tensor_p * GGML_MAX_NODES): n_leafs length array of parameter tensors
+        perf_runs (int): number of performance runs
+        perf_cycles (int64_t): number of cycles
+        perf_time_us (int64_t): time in microseconds"""
+
     _fields_ = [
         ("n_nodes", ctypes.c_int),
         ("n_leafs", ctypes.c_int),
@@ -572,6 +596,10 @@ class ggml_cgraph(ctypes.Structure):
     ]
 
 ggml_cgraph_p: TypeAlias = "ctypes._Pointer[ggml_cgraph]"  # type: ignore
+"""ctypes pointer to a [ggml_cgraph][ggml.ggml_cgraph]
+
+Can be dereferenced to a [ggml_cgraph][ggml.ggml_cgraph] object using
+the `.contents` attribute."""
 
 
 # struct ggml_scratch {
@@ -1047,7 +1075,7 @@ def ggml_new_tensor(
         ctx: ggml context
         type: ggml type
         n_dims: number of dimensions
-        ne: number of elements in each dimension
+        ne (int64_t * n_dims): number of elements in each dimension (array of length n_dims
     
     Returns:
         Pointer to ggml_tensor"""
@@ -3676,6 +3704,11 @@ lib.ggml_build_backward.restype = ggml_cgraph
 def ggml_graph_compute(
     ctx: ggml_context_p, cgraph: ggml_cgraph_p
 ):
+    """Compute the graph.
+    
+    Parameters:
+        ctx: The context.
+        cgraph: The graph."""
     return lib.ggml_graph_compute(ctx, cgraph)
 
 
