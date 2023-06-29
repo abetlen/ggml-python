@@ -723,7 +723,14 @@ lib.ggml_print_objects.restype = None
 # GGML_API int64_t ggml_nelements   (const struct ggml_tensor * tensor);
 def ggml_nelements(
     tensor: ggml_tensor_p,  
-) -> int:  
+) -> int:
+    """Get the number of elements in a tensor
+    
+    Parameters:
+        tensor: tensor
+    
+    Returns:
+        number of elements"""
     return lib.ggml_nelements(tensor)
 
 
@@ -734,7 +741,14 @@ lib.ggml_nelements.restype = ctypes.c_int64
 # GGML_API int64_t ggml_nrows       (const struct ggml_tensor * tensor);
 def ggml_nrows(
     tensor: ggml_tensor_p,  
-) -> int:  
+) -> int:
+    """Get the number of rows in a tensor
+
+    Parameters:
+        tensor: tensor
+    
+    Returns:
+        number of rows"""
     return lib.ggml_nrows(tensor)
 
 
@@ -745,7 +759,14 @@ lib.ggml_nrows.restype = ctypes.c_int64
 # GGML_API size_t  ggml_nbytes      (const struct ggml_tensor * tensor);
 def ggml_nbytes(
     tensor: ggml_tensor_p,  
-) -> int:  
+) -> int:
+    """Get the number of bytes required to store tensor data
+
+    Parameters:
+        tensor: tensor
+    
+    Returns:
+        number of bytes"""
     return lib.ggml_nbytes(tensor)
 
 
@@ -843,7 +864,14 @@ lib.ggml_ftype_to_ggml_type.restype = ctypes.c_int
 # GGML_API bool ggml_is_transposed(const struct ggml_tensor * tensor);
 def ggml_is_transposed(
     tensor: ggml_tensor_p,  
-) -> bool:  
+) -> bool:
+    """Check if a tensor is transposed
+    
+    Parameters:
+        tensor: tensor
+    
+    Returns:
+        True if tensor is transposed else False"""
     return lib.ggml_is_transposed(tensor)
 
 
@@ -854,7 +882,14 @@ lib.ggml_is_transposed.restype = ctypes.c_bool
 # GGML_API bool ggml_is_contiguous(const struct ggml_tensor * tensor);
 def ggml_is_contiguous(
     tensor: ggml_tensor_p,  
-) -> bool:  
+) -> bool:
+    """Check if a tensor is contiguous
+
+    Parameters:
+        tensor: tensor
+
+    Returns:
+        True if tensor is contiguous else False"""
     return lib.ggml_is_contiguous(tensor)
 
 
@@ -865,7 +900,14 @@ lib.ggml_is_contiguous.restype = ctypes.c_bool
 # GGML_API bool ggml_is_permuted  (const struct ggml_tensor * tensor);
 def ggml_is_permuted(
     tensor: ggml_tensor_p,  
-) -> bool:  
+) -> bool:
+    """Check if a tensor is permuted
+
+    Parameters:
+        tensor: tensor
+
+    Returns:
+        True if tensor is permuted else False"""
     return lib.ggml_is_permuted(tensor)
 
 
@@ -876,6 +918,10 @@ lib.ggml_is_permuted.restype = ctypes.c_bool
 # // use this to compute the memory overhead of a tensor
 # GGML_API size_t ggml_tensor_overhead(void);
 def ggml_tensor_overhead() -> int:
+    """Overhead required for a tensor struct in bytes
+    
+    Returns:
+        size of tensor struct in bytes"""
     return lib.ggml_tensor_overhead()
 
 
@@ -907,7 +953,10 @@ lib.ggml_init.restype = ggml_context_p
 
 # GGML_API void                  ggml_free(struct ggml_context * ctx);
 def ggml_free(ctx: ggml_context_p):
-    """Free the ggml context."""
+    """Free the ggml context.
+    
+    Parameters:
+        ctx: ggml context"""
     return lib.ggml_free(ctx)
 
 
@@ -917,7 +966,13 @@ lib.ggml_free.restype = None
 
 # GGML_API size_t  ggml_used_mem(const struct ggml_context * ctx);
 def ggml_used_mem(ctx: ggml_context_p) -> int:
-    """Return the amount of memory used by the ggml context in bytes."""
+    """Return the amount of memory used by the ggml context in bytes.
+    
+    Parameters:
+        ctx: ggml context
+    
+    Returns:
+        amount of memory used in bytes"""
     return lib.ggml_used_mem(ctx)
 
 
@@ -1206,6 +1261,14 @@ lib.ggml_view_tensor.restype = ctypes.POINTER(ggml_tensor)
 def ggml_get_tensor(
     ctx: ggml_context_p, name: bytes
 ) -> ggml_tensor_p:
+    """Get a tensor from the ggml context by name.
+    
+    Parameters:
+        ctx: ggml context
+        name: name of tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
     return lib.ggml_get_tensor(ctx, name)
 
 
