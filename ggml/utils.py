@@ -49,15 +49,19 @@ def to_numpy(
         Numpy array with a view of data from tensor
     """
     ggml_type = GGML_TYPE(tensor.contents.type)
-    ctypes_type = np.ctypeslib.as_ctypes_type(GGML_TYPE_TO_NUMPY_DTYPE[ggml_type])
+    if ggml_type == GGML_TYPE.F16:
+        ctypes_type = ctypes.c_uint16
+    else:
+        ctypes_type = np.ctypeslib.as_ctypes_type(GGML_TYPE_TO_NUMPY_DTYPE[ggml_type])
+
     array = ctypes.cast(ggml.ggml_get_data(tensor), ctypes.POINTER(ctypes_type))
     shape = tuple(reversed(tensor.contents.ne[: tensor.contents.n_dims]))
-    return np.ctypeslib.as_array(array, shape=shape).T
+    return np.ctypeslib.as_array(array, shape=shape).T.astype(
+        GGML_TYPE_TO_NUMPY_DTYPE[ggml_type]
+    )
 
 
-def from_numpy(
-    x: npt.NDArray[Any], ctx: ggml.ggml_context_p
-) -> ggml.ggml_tensor_p:
+def from_numpy(x: npt.NDArray[Any], ctx: ggml.ggml_context_p) -> ggml.ggml_tensor_p:
     """Create a new ggml tensor with data copied from a numpy array.
 
     Parameters:
@@ -68,7 +72,12 @@ def from_numpy(
         New ggml tensor with data copied from x
     """
     ggml_type = NUMPY_DTYPE_TO_GGML_TYPE[x.dtype.type]
-    ctypes_type = np.ctypeslib.as_ctypes_type(x.dtype)
+
+    if x.dtype.type == np.float16:
+        ctypes_type = ctypes.c_uint16
+    else:
+        ctypes_type = np.ctypeslib.as_ctypes_type(x.dtype)
+
     shape = x.shape
     tensor = ggml.ggml_new_tensor(
         ctx,
