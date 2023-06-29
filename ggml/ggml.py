@@ -493,24 +493,24 @@ class ggml_tensor(ctypes.Structure):
     """n-dimensional tensor
 
     Attributes:
-        type (int): ggml_type
-        backend (int): ggml_backend
-        n_dims (int): number of dimensions
-        ne (int64_t * GGML_MAX_DIMS): number of elements in each dimension
-        nb (size_t * GGML_MAX_DIMS): stride in bytes for each dimension
-        op (int): ggml operation
-        is_param (bool): is this a parameter tensor
+        type (Union[ctypes.c_int, int]): ggml_type
+        backend (Union[ctypes.c_int, int]): ggml_backend
+        n_dims (Union[ctypes.c_int, int]): number of dimensions
+        ne (ctypes.c_int64_t * GGML_MAX_DIMS): number of elements in each dimension
+        nb (ctypes.c_size_t * GGML_MAX_DIMS): stride in bytes for each dimension
+        op (ctypes.c_int): ggml operation
+        is_param (ctypes.c_bool): is this a parameter tensor
         grad (ggml_tensor_p): reference to gradient tensor
         src0 (ggml_tensor_p): reference to source tensor 0
         src1 (ggml_tensor_p): reference to source tensor 1
         opt (ggml_tensor_p * GGML_MAX_OPT): optimization tensors
-        n_tasks (int): number of tasks
-        perf_runs (int): number of performance runs
-        perf_cycles (int64_t): number of cycles
-        perf_time_us (int64_t): time in microseconds
-        data (void_p): reference to raw tensor data
-        name (char * GGML_MAX_NAME): name of tensor
-        extra (void_p): extra data (e.g. for CUDA)
+        n_tasks (ctypes.c_int): number of tasks
+        perf_runs (ctypes.c_int): number of performance runs
+        perf_cycles (ctypes.c_int64_t): number of cycles
+        perf_time_us (ctypes.c_int64_t): time in microseconds
+        data (ctypes.void_p): reference to raw tensor data
+        name (ctypes.c_char * GGML_MAX_NAME): name of tensor
+        extra (ctypes.void_p): extra data (e.g. for CUDA)
     """
 
     pass
@@ -569,17 +569,17 @@ class ggml_cgraph(ctypes.Structure):
     """ggml computation graph
     
     Attributes:
-        n_nodes (int): number of nodes
-        n_leafs (int): number of leafs
-        n_threads (int): number of threads to use when computing the graph using [ggml_graph_compute][ggml.ggml_graph_compute]
-        work_size (int): size of work buffer
+        n_nodes (ctypes.c_int): number of nodes
+        n_leafs (ctypes.c_int): number of leafs
+        n_threads (ctypes.c_int): number of threads to use when computing the graph using [ggml_graph_compute][ggml.ggml_graph_compute]
+        work_size (ctypes.c_int): size of work buffer
         work (ggml_tensor_p): work buffer
         nodes (ggml_tensor_p * GGML_MAX_NODES): n_nodes length array of compute tensors
         grads (ggml_tensor_p * GGML_MAX_NODES): n_nodes length array of gradient tensors
         leafs (ggml_tensor_p * GGML_MAX_NODES): n_leafs length array of parameter tensors
-        perf_runs (int): number of performance runs
-        perf_cycles (int64_t): number of cycles
-        perf_time_us (int64_t): time in microseconds"""
+        perf_runs (ctypes.c_int): number of performance runs
+        perf_cycles (ctypes.c_int64_t): number of cycles
+        perf_time_us (ctypes.c_int64_t): time in microseconds"""
 
     _fields_ = [
         ("n_nodes", ctypes.c_int),
