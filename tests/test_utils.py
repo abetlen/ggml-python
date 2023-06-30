@@ -40,7 +40,7 @@ def test_numpy_arrays_transposed():
         x_t_2 = ggml.utils.to_numpy(t_t_2)
         assert np.array_equal(x_t, x_t_2)
 
-        # 3D case
+        # 3D
         x = np.array(
             [[[1, 2], [3, 4], [5, 6]], [[7, 8], [9, 10], [11, 12]]], dtype=np.int32
         )
