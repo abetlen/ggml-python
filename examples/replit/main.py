@@ -276,7 +276,7 @@ class ReplitModel:
             (self.max_seq_len), dtype=np.intc
         )
         self.scores: npt.NDArray[np.single] = np.ndarray(
-            (n_vocab, self.max_seq_len), dtype=np.single
+            (self.max_seq_len, n_vocab), dtype=np.single
         )
 
     def __del__(self):
@@ -748,7 +748,7 @@ class ReplitModel:
 
         embd_w = to_numpy(inpL).reshape(
             -1, n_vocab
-        ).T  # .copy() # NOTE: likely wrong to not copy here
+        )  # .copy() # NOTE: likely wrong to not copy here
 
         self.mem_per_token = int(ggml.ggml_used_mem(ctx0) / N)
 
@@ -771,10 +771,10 @@ class ReplitModel:
             # Save tokens
             self.input_ids[self.n_tokens : self.n_tokens + len(batch)] = batch
             # Save logits
-            self.scores[:, self.n_tokens : self.n_tokens + len(batch)] = scores
+            self.scores[self.n_tokens : self.n_tokens + len(batch), :] = scores
             # Update token count
             self.n_tokens += len(batch)
-        return self.scores[:, : self.n_tokens]
+        return self.scores[: self.n_tokens, :]
 
     def generate(
         self,
@@ -802,7 +802,7 @@ class ReplitModel:
 
         while True:
             scores = self.eval(tokens)
-            logits = scores[:, -1]
+            logits = scores[-1, :]
             token = sample(
                 logits,
                 top_p=top_p,
@@ -1051,7 +1051,7 @@ if __name__ == "__main__":
     for _ in range(max_tokens):
         # eval
         scores = model.eval(tokens)
-        logits = scores[:, -1]
+        logits = scores[-1,:]
         # sample
         token_id = sample(
             logits,
