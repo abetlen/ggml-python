@@ -92,7 +92,6 @@ def from_numpy(x: npt.NDArray[Any], ctx: ggml.ggml_context_p) -> ggml.ggml_tenso
     if x.dtype.type == np.float16:
         arr.dtype = np.dtype("<f2")
     arr[:] = x
-
     return tensor
 
 
