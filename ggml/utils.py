@@ -57,7 +57,9 @@ def to_numpy(
     array = ctypes.cast(ggml.ggml_get_data(tensor), ctypes.POINTER(ctypes_type))
     shape = tuple(reversed(tensor.contents.ne[: tensor.contents.n_dims]))
     output = np.ctypeslib.as_array(array, shape=shape)
-    return output if ggml_type != GGML_TYPE.F16 else output.astype(np.float16)
+    if ggml_type == GGML_TYPE.F16:
+        output.dtype = np.float16
+    return output
 
 
 def from_numpy(x: npt.NDArray[Any], ctx: ggml.ggml_context_p) -> ggml.ggml_tensor_p:
@@ -86,6 +88,8 @@ def from_numpy(x: npt.NDArray[Any], ctx: ggml.ggml_context_p) -> ggml.ggml_tenso
     )
     array = ctypes.cast(ggml.ggml_get_data(tensor), ctypes.POINTER(ctypes_type))
     arr = np.ctypeslib.as_array(array, shape=x.shape)
+    if x.dtype.type == np.float16:
+        arr.dtype = np.float16
     arr[:] = x
     return tensor
 
