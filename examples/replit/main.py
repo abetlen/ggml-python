@@ -393,6 +393,8 @@ class ReplitModel:
             offload_func_nr = ggml.ggml_cuda_assign_buffers_no_scratch
             offload_func_kq = ggml.ggml_cuda_assign_buffers_no_scratch
             offload_func_v = ggml.ggml_cuda_assign_buffers_no_scratch
+        
+        # offload_func_nr(inpL)
 
         for il in range(n_layer):
             offload_func = offload_nop
@@ -678,7 +680,7 @@ class ReplitModel:
                 ggml.ggml_repeat(ctx0, self.layers[il].ln_2_weight, cur),
                 cur,
             )
-            # offload_func(cur)
+            offload_func(cur)
             ggml.ggml_set_name(cur, b"norm")
 
             # // n = self.mlp(m)
@@ -691,7 +693,7 @@ class ReplitModel:
             ggml.ggml_set_name(cur, b"result_mlp_up")
 
             # // GELU activation
-            cur = ggml.ggml_gelu(
+            cur = ggml.ggml_gelu_quick(
                 ctx0,
                 cur,
             )
@@ -745,8 +747,8 @@ class ReplitModel:
         ggml.ggml_graph_compute(ctx0, ctypes.pointer(gf))
 
         embd_w = to_numpy(inpL).reshape(
-            n_vocab, -1
-        )  # .copy() # NOTE: likely wrong to not copy here
+            -1, n_vocab
+        ).T  # .copy() # NOTE: likely wrong to not copy here
 
         self.mem_per_token = int(ggml.ggml_used_mem(ctx0) / N)
 
