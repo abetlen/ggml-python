@@ -57,7 +57,6 @@ def to_numpy(
     array = ctypes.cast(ggml.ggml_get_data(tensor), ctypes.POINTER(ctypes_type))
     shape = tuple(reversed(tensor.contents.ne[: tensor.contents.n_dims]))
     output = np.ctypeslib.as_array(array, shape=shape)
-
     if ggml_type == GGML_TYPE.F16:
         output.dtype = np.dtype("<f2")
     return output
