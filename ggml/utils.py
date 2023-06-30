@@ -56,9 +56,8 @@ def to_numpy(
 
     array = ctypes.cast(ggml.ggml_get_data(tensor), ctypes.POINTER(ctypes_type))
     shape = tuple(reversed(tensor.contents.ne[: tensor.contents.n_dims]))
-    return np.ctypeslib.as_array(array, shape=shape).astype(
-        GGML_TYPE_TO_NUMPY_DTYPE[ggml_type]
-    )
+    output = np.ctypeslib.as_array(array, shape=shape)
+    return output if ggml_type != GGML_TYPE.F16 else output.astype(np.float32)
 
 
 def from_numpy(x: npt.NDArray[Any], ctx: ggml.ggml_context_p) -> ggml.ggml_tensor_p:
@@ -73,10 +72,10 @@ def from_numpy(x: npt.NDArray[Any], ctx: ggml.ggml_context_p) -> ggml.ggml_tenso
     """
     ggml_type = NUMPY_DTYPE_TO_GGML_TYPE[x.dtype.type]
 
-    if x.dtype.type == np.float16:
-        ctypes_type = ctypes.c_uint16
-    else:
-        ctypes_type = np.ctypeslib.as_ctypes_type(x.dtype)
+    # if x.dtype.type == np.float16:
+    #     ctypes_type = ctypes.c_uint16
+    # else:
+    ctypes_type = np.ctypeslib.as_ctypes_type(x.dtype)
 
     shape = tuple(reversed(x.shape))
     tensor = ggml.ggml_new_tensor(
@@ -109,7 +108,7 @@ def ggml_context_manager(params: ggml.ggml_init_params):
         params: context parameters
 
     Returns:
-        ggml_context_p context manager
+        (contextlib.AbstractContextManager): ggml_context_p context manager
     """
     ctx = ggml.ggml_init(params)
     try:
