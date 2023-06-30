@@ -73,24 +73,14 @@ def from_numpy(x: npt.NDArray[Any], ctx: ggml.ggml_context_p) -> ggml.ggml_tenso
         New ggml tensor with data copied from x
     """
     ggml_type = NUMPY_DTYPE_TO_GGML_TYPE[x.dtype.type]
-
-    if x.dtype.type == np.float16:
-        ctypes_type = ctypes.c_uint16
-    else:
-        ctypes_type = np.ctypeslib.as_ctypes_type(x.dtype)
-
     shape = tuple(reversed(x.shape))
     tensor = ggml.ggml_new_tensor(
         ctx,
-        ctypes.c_int(ggml_type.value),
-        ctypes.c_int(len(shape)),
+        ggml_type.value,
+        len(shape),
         (ctypes.c_int64 * len(shape))(*shape),
     )
-    array = ctypes.cast(ggml.ggml_get_data(tensor), ctypes.POINTER(ctypes_type))
-    arr = np.ctypeslib.as_array(array, shape=x.shape)
-    if x.dtype.type == np.float16:
-        arr.dtype = np.float16
-    arr[:] = x
+    to_numpy(tensor)[:] = x
     return tensor
 
 

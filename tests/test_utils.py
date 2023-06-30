@@ -20,6 +20,6 @@ def test_numpy_arrays():
                       [4, 5, 6]], dtype=np.float32, order='F')
         assert x.shape == (2, 3)
         t = ggml.utils.from_numpy(x, ctx)
-        assert t.contents.ne[:2] == [2, 3] # <- this breaks
+        assert t.contents.ne[:2] == [3, 2]
         y = ggml.utils.to_numpy(t)
         assert y.shape == (2, 3)
