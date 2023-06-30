@@ -72,10 +72,10 @@ def from_numpy(x: npt.NDArray[Any], ctx: ggml.ggml_context_p) -> ggml.ggml_tenso
     """
     ggml_type = NUMPY_DTYPE_TO_GGML_TYPE[x.dtype.type]
 
-    # if x.dtype.type == np.float16:
-    #     ctypes_type = ctypes.c_uint16
-    # else:
-    ctypes_type = np.ctypeslib.as_ctypes_type(x.dtype)
+    if x.dtype.type == np.float16:
+        ctypes_type = ctypes.c_uint16
+    else:
+        ctypes_type = np.ctypeslib.as_ctypes_type(x.dtype)
 
     shape = tuple(reversed(x.shape))
     tensor = ggml.ggml_new_tensor(
