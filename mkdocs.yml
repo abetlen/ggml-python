@@ -9,6 +9,7 @@ theme:
     - navigation.tabs
     - navigation.tabs.sticky
     - toc.integrate
+    - navigation.footer
 
 plugins:
   - mkdocstrings:
@@ -25,6 +26,7 @@ plugins:
             - https://docs.python.org/3/objects.inv
             - https://numpy.org/doc/stable/objects.inv
   - search
+  - social
 
 markdown_extensions:
   - pymdownx.superfences
