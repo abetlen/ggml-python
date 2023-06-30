@@ -26,7 +26,7 @@ def test_numpy_arrays():
         assert y.shape == (2, 3)
 
 
-def test_numpy_array_transposed():
+def test_numpy_arrays_transposed():
     params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024)
     with ggml.utils.ggml_context_manager(params) as ctx:
         # 2D
