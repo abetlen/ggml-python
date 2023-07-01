@@ -174,18 +174,18 @@ class CudaContextBuffer(ContextBuffer):
 
 class ReplitLayer:
     def __init__(self, wtype: int, n_embd: int, ctx: ggml.ggml_context_p):
-        self.ln_1_weight = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, n_embd)
+        self.norm_1_weight = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, n_embd)
         self.c_attn_wqkv_weight = ggml.ggml_new_tensor_2d(
             ctx, wtype, n_embd, 3 * n_embd
         )
         self.c_attn_out_proj_weight = ggml.ggml_new_tensor_2d(
             ctx, wtype, n_embd, n_embd
         )
-        self.ln_2_weight = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, n_embd)
-        self.c_mlp_mlp_up_weight = ggml.ggml_new_tensor_2d(
+        self.norm_2_weight = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, n_embd)
+        self.c_ffn_up_proj_weight = ggml.ggml_new_tensor_2d(
             ctx, wtype, n_embd, 4 * n_embd
         )
-        self.c_mlp_mlp_down_weight = ggml.ggml_new_tensor_2d(
+        self.c_ffn_down_proj_weight = ggml.ggml_new_tensor_2d(
             ctx, wtype, 4 * n_embd, n_embd
         )
 
@@ -238,9 +238,9 @@ class ReplitModel:
             ggml.ggml_cuda_transform_tensor(self.memory_v.contents.data, self.memory_v)
 
         self.wte_weight = ggml.ggml_new_tensor_2d(ctx, wtype, n_embd, n_vocab)
-        self.ln_f_weight = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, n_embd)
+        self.norm_f_weight = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, n_embd)
         self.tensors["transformer.wte.weight"] = self.wte_weight
-        self.tensors["transformer.norm_f.weight"] = self.ln_f_weight
+        self.tensors["transformer.norm_f.weight"] = self.norm_f_weight
 
         self.mem_per_token = 0
         if ggml.GGML_USE_CUBLAS:
@@ -256,20 +256,20 @@ class ReplitModel:
             )
             self.layers.append(layer)
 
-            self.tensors[f"transformer.blocks.{i}.norm_1.weight"] = layer.ln_1_weight
+            self.tensors[f"transformer.blocks.{i}.norm_1.weight"] = layer.norm_1_weight
             self.tensors[
                 f"transformer.blocks.{i}.attn.Wqkv.weight"
             ] = layer.c_attn_wqkv_weight
             self.tensors[
                 f"transformer.blocks.{i}.attn.out_proj.weight"
             ] = layer.c_attn_out_proj_weight
-            self.tensors[f"transformer.blocks.{i}.norm_2.weight"] = layer.ln_2_weight
+            self.tensors[f"transformer.blocks.{i}.norm_2.weight"] = layer.norm_2_weight
             self.tensors[
                 f"transformer.blocks.{i}.ffn.up_proj.weight"
-            ] = layer.c_mlp_mlp_up_weight
+            ] = layer.c_ffn_up_proj_weight
             self.tensors[
                 f"transformer.blocks.{i}.ffn.down_proj.weight"
-            ] = layer.c_mlp_mlp_down_weight
+            ] = layer.c_ffn_down_proj_weight
 
         self.n_tokens = 0
         self.input_ids: npt.NDArray[np.intc] = np.ndarray(
@@ -410,7 +410,7 @@ class ReplitModel:
             ggml.ggml_set_name(cur, b"norm_0")
             cur = ggml.ggml_mul(
                 ctx0,
-                ggml.ggml_repeat(ctx0, self.layers[il].ln_1_weight, cur),
+                ggml.ggml_repeat(ctx0, self.layers[il].norm_1_weight, cur),
                 cur,
             )
             offload_func(cur)
@@ -677,7 +677,7 @@ class ReplitModel:
             ggml.ggml_set_name(cur, b"norm_1")
             cur = ggml.ggml_mul(
                 ctx0,
-                ggml.ggml_repeat(ctx0, self.layers[il].ln_2_weight, cur),
+                ggml.ggml_repeat(ctx0, self.layers[il].norm_2_weight, cur),
                 cur,
             )
             offload_func(cur)
@@ -686,7 +686,7 @@ class ReplitModel:
             # // n = self.mlp(m)
             cur = ggml.ggml_mul_mat(
                 ctx0,
-                self.layers[il].c_mlp_mlp_up_weight,
+                self.layers[il].c_ffn_up_proj_weight,
                 cur,
             )
             # offload_func(cur)
@@ -703,7 +703,7 @@ class ReplitModel:
             # // cur = proj_w*cur + proj_b
             cur = ggml.ggml_mul_mat(
                 ctx0,
-                self.layers[il].c_mlp_mlp_down_weight,
+                self.layers[il].c_ffn_down_proj_weight,
                 cur,
             )
             offload_func(cur)
@@ -728,7 +728,7 @@ class ReplitModel:
         # // inpL = ln_f_g*inpL
         inpL = ggml.ggml_mul(
             ctx0,
-            ggml.ggml_repeat(ctx0, self.ln_f_weight, inpL),
+            ggml.ggml_repeat(ctx0, self.norm_f_weight, inpL),
             inpL,
         )
         ggml.ggml_set_name(inpL, b"norm_f_mul")
