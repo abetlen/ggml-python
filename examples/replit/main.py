@@ -1051,7 +1051,7 @@ if __name__ == "__main__":
     for _ in range(max_tokens):
         # eval
         scores = model.eval(tokens)
-        logits = scores[-1,:]
+        logits = scores[-1, :]
         # sample
         token_id = sample(
             logits,
