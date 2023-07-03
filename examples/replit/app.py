@@ -531,7 +531,7 @@ class CreateCompletionRequest(BaseModel):
         }
 
 
-settings = Settings(model_file=environ.get("MODEL"))
+settings = Settings(model_file=environ.get("MODEL")) # type: ignore
 app = FastAPI(
     title="Code Completion API",
     description="""
