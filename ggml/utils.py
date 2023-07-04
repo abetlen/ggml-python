@@ -59,7 +59,9 @@ def to_numpy(
     output = np.ctypeslib.as_array(array, shape=shape)
     if ggml_type == GGML_TYPE.F16:
         output.dtype = np.float16
-    return np.lib.stride_tricks.as_strided(output, strides=tensor.contents.nb[:tensor.contents.n_dims])
+
+    strides = tuple(reversed(tensor.contents.nb[: tensor.contents.n_dims]))
+    return np.lib.stride_tricks.as_strided(output, strides=strides)
 
 
 def from_numpy(x: npt.NDArray[Any], ctx: ggml.ggml_context_p) -> ggml.ggml_tensor_p:
@@ -80,7 +82,9 @@ def from_numpy(x: npt.NDArray[Any], ctx: ggml.ggml_context_p) -> ggml.ggml_tenso
         len(shape),
         (ctypes.c_int64 * len(shape))(*shape),
     )
-    tensor.contents.nb[: len(shape)] = (ctypes.c_int64 * len(shape))(*x.strides)
+
+    strides = tuple(reversed(x.strides))
+    tensor.contents.nb[: len(shape)] = (ctypes.c_int64 * len(shape))(*strides)
     to_numpy(tensor)[:] = x
     return tensor
 
