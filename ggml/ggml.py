@@ -3354,7 +3354,17 @@ lib.ggml_permute.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * a);
 def ggml_transpose(
     ctx: ggml_context_p, a: ggml_tensor_p  
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
+    """Transpose *the first two dimensions* of a tensor and return the result.
+    
+    alias for `ggml_permute(ctx, a, 1, 0, 2, 3)`
+    
+    Parameters:
+        ctx: ggml context
+        a: tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
     return lib.ggml_transpose(ctx, a)
 
 
@@ -3996,6 +4006,7 @@ ggml_binary_op_f32_t = ctypes.CFUNCTYPE(
 ggml_custom1_op_f32_t = ctypes.CFUNCTYPE(
     None, ctypes.POINTER(ggml_tensor), ctypes.POINTER(ggml_tensor)
 )
+"""Unary operator function type"""
 
 # typedef void (*ggml_custom2_op_f32_t)(struct ggml_tensor *, const struct ggml_tensor *, const struct ggml_tensor *);
 ggml_custom2_op_f32_t = ctypes.CFUNCTYPE(
@@ -4004,6 +4015,7 @@ ggml_custom2_op_f32_t = ctypes.CFUNCTYPE(
     ctypes.POINTER(ggml_tensor),
     ctypes.POINTER(ggml_tensor),
 )
+"""Binary operator function type"""
 
 # typedef void (*ggml_custom3_op_f32_t)(struct ggml_tensor *, const struct ggml_tensor *, const struct ggml_tensor *, const struct ggml_tensor *);
 ggml_custom3_op_f32_t = ctypes.CFUNCTYPE(
@@ -4013,6 +4025,7 @@ ggml_custom3_op_f32_t = ctypes.CFUNCTYPE(
     ctypes.POINTER(ggml_tensor),
     ctypes.POINTER(ggml_tensor),
 )
+"""Ternary operator function type"""
 
 # GGML_API struct ggml_tensor * ggml_map_unary_f32(
 #         struct ggml_context        * ctx,
@@ -4105,6 +4118,28 @@ def ggml_map_custom1_f32(
     a: ggml_tensor_p,
     fun: "ctypes._FuncPointer" # type: ignore
 ) -> ggml_tensor_p:
+    """Custom unary operator on a tensor.
+
+    Example:
+        ```python
+        import ggml
+
+        @ggml.ggml_custom1_op_f32_t
+        def custom_op(b: ggml.tensor_p, a: ggml.tensor_p):
+            # do something with a and copy to b
+            return
+
+        ...
+
+        b = ggml.ggml_map_custom1_f32(ctx, a, custom_op)
+        ```
+    
+    Parameters:
+        a: input tensor
+        fun (ggml.ggml_custom1_op_f32_t): function to apply to each element
+        
+    Returns:
+        output tensor"""
     return lib.ggml_map_custom1_f32(ctx, a, fun)
 
 lib.ggml_map_custom1_f32.argtypes = [
@@ -4123,6 +4158,14 @@ def ggml_map_custom1_inplace_f32(
     a: ggml_tensor_p,
     fun: "ctypes._CFuncPtr" # type: ignore
 ) -> ggml_tensor_p:
+    """Custom unary operator on a tensor inplace.
+
+    Parameters:
+        a: input tensor
+        fun (ggml.ggml_custom1_op_f32_t): function to apply to each element
+
+    Returns:
+        output tensor"""
     return lib.ggml_map_custom1_inplace_f32(ctx, a, fun)
 
 lib.ggml_map_custom1_inplace_f32.argtypes = [
@@ -4143,6 +4186,15 @@ def ggml_map_custom2_f32(
     b: ggml_tensor_p,
     fun: "ctypes._FuncPointer" # type: ignore
 ) -> ggml_tensor_p:
+    """Custom binary operator on two tensors.
+    
+    Parameters:
+        a: input tensor
+        b: input tensor
+        fun (ggml.ggml_custom2_op_f32_t): function to apply to each element
+
+    Returns:
+        output tensor"""
     return lib.ggml_map_custom2_f32(ctx, a, b, fun)
 
 lib.ggml_map_custom2_f32.argtypes = [
@@ -4164,6 +4216,15 @@ def ggml_map_custom2_inplace_f32(
     b: ggml_tensor_p,
     fun: "ctypes._FuncPointer" # type: ignore
 ) -> ggml_tensor_p:
+    """Custom binary operator on two tensors inplace.
+    
+    Parameters:
+        a: input tensor
+        b: input tensor
+        fun (ggml.ggml_custom2_op_f32_t): function to apply to each element
+
+    Returns:
+        output tensor"""
     return lib.ggml_map_custom2_inplace_f32(ctx, a, b, fun)
 
 lib.ggml_map_custom2_inplace_f32.argtypes = [
@@ -4187,6 +4248,16 @@ def ggml_map_custom3_f32(
     c: ggml_tensor_p,
     fun: "ctypes._FuncPointer" # type: ignore
 ) -> ggml_tensor_p:
+    """Custom ternary operator on three tensors.
+    
+    Parameters:
+        a: input tensor
+        b: input tensor
+        c: input tensor
+        fun (ggml.ggml_custom3_op_f32_t): function to apply to each element
+        
+    Returns:
+        output tensor"""
     return lib.ggml_map_custom3_f32(ctx, a, b, c, fun)
 
 lib.ggml_map_custom3_f32.argtypes = [
@@ -4211,6 +4282,16 @@ def ggml_map_custom3_inplace_f32(
     c: ggml_tensor_p,
     fun: "ctypes._FuncPointer" # type: ignore
 ) -> ggml_tensor_p:
+    """Custom ternary operator on three tensors inplace.
+
+    Parameters:
+        a: input tensor
+        b: input tensor
+        c: input tensor
+        fun (ggml.ggml_custom3_op_f32_t): function to apply to each element
+
+    Returns:
+        output tensor"""
     return lib.ggml_map_custom3_inplace_f32(ctx, a, b, c, fun)
 
 lib.ggml_map_custom3_inplace_f32.argtypes = [
