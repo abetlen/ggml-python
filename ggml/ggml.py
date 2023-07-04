@@ -300,12 +300,15 @@ GGML_FTYPE_MOSTLY_Q6_K = 14
 #     GGML_OP_SUM,
 #     GGML_OP_SUM_ROWS,
 #     GGML_OP_MEAN,
+#     GGML_OP_ARGMAX,
 #     GGML_OP_REPEAT,
 #     GGML_OP_REPEAT_BACK,
 #     GGML_OP_ABS,
 #     GGML_OP_SGN,
 #     GGML_OP_NEG,
 #     GGML_OP_STEP,
+#     GGML_OP_TANH,
+#     GGML_OP_ELU,
 #     GGML_OP_RELU,
 #     GGML_OP_GELU,
 #     GGML_OP_GELU_QUICK,
@@ -337,9 +340,8 @@ GGML_FTYPE_MOSTLY_Q6_K = 14
 #     GGML_OP_ROPE_BACK,
 #     GGML_OP_ALIBI,
 #     GGML_OP_CLAMP,
-#     GGML_OP_CONV_1D_1S_PH,
-#     GGML_OP_CONV_1D_2S_PH,
-#     GGML_OP_CONV_2D_SK_P0,
+#     GGML_OP_CONV_1D,
+#     GGML_OP_CONV_2D,
 
 #     GGML_OP_FLASH_ATTN,
 #     GGML_OP_FLASH_FF,
@@ -373,57 +375,59 @@ GGML_OP_LOG = 10
 GGML_OP_SUM = 11
 GGML_OP_SUM_ROWS = 12
 GGML_OP_MEAN = 13
-GGML_OP_REPEAT = 14
-GGML_OP_REPEAT_BACK = 15
-GGML_OP_ABS = 16
-GGML_OP_SGN = 17
-GGML_OP_NEG = 18
-GGML_OP_STEP = 19
-GGML_OP_RELU = 20
-GGML_OP_GELU = 21   
-GGML_OP_GELU_QUICK = 22
-GGML_OP_SILU = 23
-GGML_OP_SILU_BACK = 24
-GGML_OP_NORM = 25
-GGML_OP_RMS_NORM = 26
-GGML_OP_RMS_NORM_BACK = 27
-GGML_OP_MUL_MAT = 28
-GGML_OP_OUT_PROD = 29
-GGML_OP_SCALE = 30
-GGML_OP_SET = 31
-GGML_OP_CPY = 32
-GGML_OP_CONT = 33
-GGML_OP_RESHAPE = 34
-GGML_OP_VIEW = 35
-GGML_OP_PERMUTE = 36
-GGML_OP_TRANSPOSE = 37
-GGML_OP_GET_ROWS = 38
-GGML_OP_GET_ROWS_BACK = 39
-GGML_OP_DIAG = 40
-GGML_OP_DIAG_MASK_INF = 41
-GGML_OP_DIAG_MASK_ZERO = 42
-GGML_OP_SOFT_MAX = 43
-GGML_OP_SOFT_MAX_BACK = 44
-GGML_OP_ROPE = 45
-GGML_OP_ROPE_BACK = 46
-GGML_OP_ALIBI = 47
-GGML_OP_CLAMP = 48
-GGML_OP_CONV_1D_1S_PH = 49
-GGML_OP_CONV_1D_2S_PH = 50
-GGML_OP_CONV_2D_SK_P0 = 51
-GGML_OP_FLASH_ATTN = 52
-GGML_OP_FLASH_FF = 53
-GGML_OP_FLASH_ATTN_BACK = 54
-GGML_OP_WIN_PART = 55
-GGML_OP_WIN_UNPART = 56
-GGML_OP_MAP_UNARY = 57
-GGML_OP_MAP_BINARY = 58
-GGML_OP_MAP_CUSTOM1 = 59
-GGML_OP_MAP_CUSTOM2 = 60
-GGML_OP_MAP_CUSTOM3 = 61
-GGML_OP_CROSS_ENTROPY_LOSS = 62
-GGML_OP_CROSS_ENTROPY_LOSS_BACK = 63
-GGML_OP_COUNT = 64
+GGML_OP_ARGMAX = 14
+GGML_OP_REPEAT = 15
+GGML_OP_REPEAT_BACK = 16
+GGML_OP_ABS = 17
+GGML_OP_SGN = 18
+GGML_OP_NEG = 19
+GGML_OP_STEP = 20
+GGML_OP_TANH = 21
+GGML_OP_ELU = 22
+GGML_OP_RELU = 23
+GGML_OP_GELU = 24
+GGML_OP_GELU_QUICK = 25
+GGML_OP_SILU = 26
+GGML_OP_SILU_BACK = 27
+GGML_OP_NORM = 28
+GGML_OP_RMS_NORM = 29
+GGML_OP_RMS_NORM_BACK = 30
+GGML_OP_MUL_MAT = 31
+GGML_OP_OUT_PROD = 32
+GGML_OP_SCALE = 33
+GGML_OP_SET = 34
+GGML_OP_CPY = 35
+GGML_OP_CONT = 36
+GGML_OP_RESHAPE = 37
+GGML_OP_VIEW = 38
+GGML_OP_PERMUTE = 39
+GGML_OP_TRANSPOSE = 40
+GGML_OP_GET_ROWS = 41
+GGML_OP_GET_ROWS_BACK = 42
+GGML_OP_DIAG = 43
+GGML_OP_DIAG_MASK_INF = 44
+GGML_OP_DIAG_MASK_ZERO = 45
+GGML_OP_SOFT_MAX = 46
+GGML_OP_SOFT_MAX_BACK = 47
+GGML_OP_ROPE = 48
+GGML_OP_ROPE_BACK = 49
+GGML_OP_ALIBI = 50
+GGML_OP_CLAMP = 51
+GGML_OP_CONV_1D = 52
+GGML_OP_CONV_2D = 53
+GGML_OP_FLASH_ATTN = 54
+GGML_OP_FLASH_FF = 55
+GGML_OP_FLASH_ATTN_BACK = 56
+GGML_OP_WIN_PART = 57
+GGML_OP_WIN_UNPART = 58
+GGML_OP_MAP_UNARY = 59
+GGML_OP_MAP_BINARY = 60
+GGML_OP_MAP_CUSTOM1 = 61
+GGML_OP_MAP_CUSTOM2 = 62
+GGML_OP_MAP_CUSTOM3 = 63
+GGML_OP_CROSS_ENTROPY_LOSS = 64
+GGML_OP_CROSS_ENTROPY_LOSS_BACK = 65
+GGML_OP_COUNT = 66
 
 # struct ggml_object {
 #     size_t offs;
@@ -642,6 +646,9 @@ class ggml_init_params(ctypes.Structure):
 
 
 # // compute types
+
+# // NOTE: the INIT or FINALIZE pass is not scheduled unless explicitly enabled.
+# // This behavior was changed since https://github.com/ggerganov/llama.cpp/pull/1995.
 # enum ggml_task_type {
 #     GGML_TASK_INIT = 0,
 #     GGML_TASK_COMPUTE,
@@ -2108,6 +2115,27 @@ def ggml_mean(
 lib.ggml_mean.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
 lib.ggml_mean.restype = ctypes.POINTER(ggml_tensor)
 
+# // argmax along rows
+# GGML_API struct ggml_tensor * ggml_argmax(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+def ggml_argmax(
+    ctx: ggml_context_p, a: ggml_tensor_p
+) -> ggml_tensor_p:
+    """Take the argmax of all elements in a tensor and return the result.
+
+    argmax along rows
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+    
+    Returns:
+        Pointer to ggml_tensor"""
+    return lib.ggml_argmax(ctx, a)
+
+lib.ggml_argmax.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
+lib.ggml_argmax.restype = ctypes.POINTER(ggml_tensor)
 
 # // if a is the same shape as b, and a is not parameter, return a
 # // otherwise, return a new tensor: repeat(a) to fit in b
@@ -2303,6 +2331,84 @@ def ggml_step(
 lib.ggml_step.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
 lib.ggml_step.restype = ctypes.POINTER(ggml_tensor)
 
+
+# GGML_API struct ggml_tensor * ggml_tanh(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+def ggml_tanh(
+    ctx: ggml_context_p, a: ggml_tensor_p
+) -> ggml_tensor_p:
+    """Apply the tanh activation function to all elements in a tensor and return the result.
+    
+    Parameters:
+        ctx: ggml context
+        a: tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
+    return lib.ggml_tanh(ctx, a)
+
+lib.ggml_tanh.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
+lib.ggml_tanh.restype = ctypes.POINTER(ggml_tensor)
+
+# GGML_API struct ggml_tensor * ggml_tanh_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+def ggml_tanh_inplace(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+) -> ggml_tensor_p:
+    """Apply the tanh activation function to all elements in a tensor and store the result in the first tensor.
+    
+    Parameters:
+        ctx: ggml context
+        a: tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
+    return lib.ggml_tanh_inplace(ctx, a)
+
+lib.ggml_tanh_inplace.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
+lib.ggml_tanh_inplace.restype = ctypes.POINTER(ggml_tensor)
+
+# GGML_API struct ggml_tensor * ggml_elu(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+def ggml_elu(
+    ctx: ggml_context_p, a: ggml_tensor_p
+) -> ggml_tensor_p:
+    """Apply the ELU activation function to all elements in a tensor and return the result.
+    
+    Parameters:
+        ctx: ggml context
+        a: tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
+    return lib.ggml_elu(ctx, a)
+
+lib.ggml_elu.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
+lib.ggml_elu.restype = ctypes.POINTER(ggml_tensor)
+
+# GGML_API struct ggml_tensor * ggml_elu_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+def ggml_elu_inplace(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+) -> ggml_tensor_p:
+    """Apply the ELU activation function to all elements in a tensor and store the result in the first tensor.
+    
+    Parameters:
+        ctx: ggml context
+        a: tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
+    return lib.ggml_elu_inplace(ctx, a)
+
+lib.ggml_elu_inplace.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
+lib.ggml_elu_inplace.restype = ctypes.POINTER(ggml_tensor)
 
 # GGML_API struct ggml_tensor * ggml_relu(
 #         struct ggml_context * ctx,
@@ -3608,80 +3714,130 @@ lib.ggml_clamp.argtypes = [
 ]
 lib.ggml_clamp.restype = ctypes.POINTER(ggml_tensor)
 
-
-# // padding = half
-# // TODO: we don't support extra parameters for now
-# //       that's why we are hard-coding the stride, padding, and dilation
-# //       not great ..
-# // example:
-# // a:      3   80  768    1
-# // b:   3000   80    1    1
-# // res: 3000  768    1    1
-# // used in whisper
-def ggml_conv_1d_s1_ph(
-    ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
-) -> ggml_tensor_p:  
-    return lib.ggml_conv_1d_s1_ph(ctx, a, b)
-
-
-lib.ggml_conv_1d_s1_ph.argtypes = [
-    ggml_context_p,
-    ctypes.POINTER(ggml_tensor),
-    ctypes.POINTER(ggml_tensor),
-]
-lib.ggml_conv_1d_s1_ph.restype = ctypes.POINTER(ggml_tensor)
-
-
-# // used in whisper
-# GGML_API struct ggml_tensor * ggml_conv_1d_s2_ph(
+# GGML_API struct ggml_tensor * ggml_conv_1d(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a,
-#         struct ggml_tensor  * b);
-def ggml_conv_1d_s2_ph(
+#         struct ggml_tensor  * b,
+#         int                   s0,  // stride
+#         int                   p0,  // padding
+#         int                   d0); // dilation
+def ggml_conv_1d(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
-) -> ggml_tensor_p:  
-    return lib.ggml_conv_1d_s2_ph(ctx, a, b)
-
-
-lib.ggml_conv_1d_s2_ph.argtypes = [
-    ggml_context_p,
-    ctypes.POINTER(ggml_tensor),
-    ctypes.POINTER(ggml_tensor),
-]
-lib.ggml_conv_1d_s2_ph.restype = ctypes.POINTER(ggml_tensor)
-
-
-# // kernel size is a->ne[0] x a->ne[1]
-# // stride is equal to kernel size
-# // padding is zero
-# // example:
-# // a:     16   16    3  768
-# // b:   1024 1024    3    1
-# // res:   64   64  768    1
-# // used in sam
-# GGML_API struct ggml_tensor * ggml_conv_2d_sk_p0(
-#         struct ggml_context * ctx,
-#         struct ggml_tensor  * a,
-#         struct ggml_tensor  * b);
-def ggml_conv_2d_sk_p0(
-    ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    s0: Union[ctypes.c_int, int],
+    p0: Union[ctypes.c_int, int],
+    d0: Union[ctypes.c_int, int],
 ) -> ggml_tensor_p:
-    return lib.ggml_conv_2d_sk_p0(ctx, a, b)
+    """Convolution 1D
+    
+    Parameters:
+        a: input tensor
+        b: filter tensor
+        s0: stride
+        p0: padding
+        d0: dilation
 
+    Returns:
+        output tensor"""
+    return lib.ggml_conv_1d(ctx, a, b, s0, p0, d0)
 
-lib.ggml_conv_2d_sk_p0.argtypes = [
+lib.ggml_conv_1d.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_tensor),
     ctypes.POINTER(ggml_tensor),
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
 ]
-lib.ggml_conv_2d_sk_p0.restype = ctypes.POINTER(ggml_tensor)
+lib.ggml_conv_1d.restype = ctypes.POINTER(ggml_tensor)
 
+# GGML_API struct ggml_tensor * ggml_conv_2d(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b,
+#         int                   s0,
+#         int                   s1,
+#         int                   p0,
+#         int                   p1,
+#         int                   d0,
+#         int                   d1);
+def ggml_conv_2d(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    s0: Union[ctypes.c_int, int],
+    s1: Union[ctypes.c_int, int],
+    p0: Union[ctypes.c_int, int],
+    p1: Union[ctypes.c_int, int],
+    d0: Union[ctypes.c_int, int],
+    d1: Union[ctypes.c_int, int],
+) -> ggml_tensor_p:
+    """Convolution 2D
+    
+    Parameters:
+        a: input tensor
+        b: filter tensor
+        s0: stride
+        s1: stride
+        p0: padding
+        p1: padding
+        d0: dilation
+        d1: dilation
+        
+    Returns:
+        output tensor"""
+    return lib.ggml_conv_2d(ctx, a, b, s0, s1, p0, p1, d0, d1)
+
+lib.ggml_conv_2d.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+]
+lib.ggml_conv_2d.restype = ctypes.POINTER(ggml_tensor)
+
+
+# // conv_1d with padding = half
+# // alias for ggml_conv_1d(a, b, s, a->ne[0]/2, d)
+# GGML_API struct ggml_tensor* ggml_conv_1d_ph(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b,
+#         int                   s,
+#         int                   d);
+def ggml_conv_1d_ph(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    s: Union[ctypes.c_int, int],
+    d: Union[ctypes.c_int, int],
+) -> ggml_tensor_p:
+    """Convolution 1D with padding = half
+    
+    Parameters:
+        a: input tensor
+        b: filter tensor
+        s: stride
+        d: dilation
+        
+    Returns:
+        output tensor"""
+    return lib.ggml_conv_1d_ph(ctx, a, b, s, d)
+
+lib.ggml_conv_1d_ph.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+    ctypes.c_int,
+    ctypes.c_int,
+]
+lib.ggml_conv_1d_ph.restype = ctypes.POINTER(ggml_tensor)
 
 # GGML_API struct ggml_tensor * ggml_flash_attn(
 #         struct ggml_context * ctx,
