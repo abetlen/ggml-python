@@ -7,6 +7,7 @@ import multiprocessing
 from functools import partial
 from threading import Lock
 from typing import Dict, List, Optional, Union, Iterator, AsyncIterator, Sequence
+from os import environ
 
 from typing_extensions import TypedDict, Literal
 
@@ -530,7 +531,7 @@ class CreateCompletionRequest(BaseModel):
         }
 
 
-settings = Settings()  # type: ignore
+settings = Settings(model_file=environ.get("MODEL")) # type: ignore
 app = FastAPI(
     title="Code Completion API",
     description="""
