@@ -14,7 +14,9 @@ Python bindings for the [`ggml`](https://github.com/ggerganov/ggml) tensor libra
 
 # Documentation
 
-Documentation is available at [ggml-python.readthedocs.io](https://ggml-python.readthedocs.io/en/latest/)
+- [Getting Started](https://ggml-python.readthedocs.io/en/latest/)
+- [API Reference](https://ggml-python.readthedocs.io/en/latest/api-reference/)
+- [Examples](https://github.com/abetlen/ggml-python/tree/main/examples)
 
 # Installation
 
