@@ -36,9 +36,9 @@ def test_numpy_arrays_transposed():
         x_t = ggml.utils.to_numpy(t_t)
         assert np.array_equal(x_t, x.T)
 
-        t_t_2 = ggml.utils.from_numpy(x_t, ctx)
-        x_t_2 = ggml.utils.to_numpy(t_t_2)
-        assert np.array_equal(x_t, x_t_2)
+        t = ggml.utils.from_numpy(x.T, ctx)
+        x_t = ggml.utils.to_numpy(t)
+        assert np.array_equal(x.T, x_t)
 
         # 3D
         x = np.array(
@@ -49,6 +49,6 @@ def test_numpy_arrays_transposed():
         x_t = ggml.utils.to_numpy(t_t)
         assert np.array_equal(x_t, x.T)
 
-        t_t_2 = ggml.utils.from_numpy(x_t, ctx)
-        x_t_2 = ggml.utils.to_numpy(t_t_2)
-        assert np.array_equal(x_t, x_t_2)
+        t = ggml.utils.from_numpy(x.T, ctx)
+        x_t = ggml.utils.to_numpy(t)
+        assert np.array_equal(x.T, x_t)
