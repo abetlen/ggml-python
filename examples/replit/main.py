@@ -22,7 +22,7 @@ import numpy.typing as npt
 
 import ggml
 
-from ggml.utils import to_numpy
+from ggml.utils import to_numpy, ggml_context_manager
 
 
 ## Generic Sampling Functions
@@ -347,14 +347,18 @@ class ReplitModel:
     def reset(self):
         self.n_tokens = 0
 
-    def _eval_internal(self, embd_inp: Sequence[int], n_past: int, n_threads: int):
-        N = len(embd_inp)
-
+    def _build_forward(
+        self,
+        ctx0: ggml.ggml_context_p,
+        n_tokens: int,
+        n_past: int,
+        n_threads: int,
+    ):
+        N = n_tokens
         n_embd = self.d_model
         n_layer = self.n_layers
         n_ctx = self.max_seq_len
         n_head = self.n_heads
-        n_vocab = self.vocab_size
 
         def offload_nop(tensor: ggml.ggml_tensor_p):
             pass
@@ -363,20 +367,6 @@ class ReplitModel:
         offload_func_kq = offload_nop
         offload_func_v = offload_nop
 
-        required_buffer_size = int(self.mem_per_token * N * 2.0)
-
-        if (
-            self.mem_per_token > 0
-            and self.eval_buffer.buffer_size < required_buffer_size
-        ):
-            self.eval_buffer.resize(required_buffer_size)
-
-        init_params = ggml.ggml_init_params(
-            mem_size=self.eval_buffer.buffer_size,
-            mem_buffer=self.eval_buffer.buffer,
-            no_alloc=False,
-        )
-        ctx0 = ggml.ggml_init(init_params)
         gf = ggml.ggml_cgraph(n_threads=n_threads)
 
         embd = ggml.ggml_new_tensor_1d(
@@ -385,7 +375,6 @@ class ReplitModel:
             N,
         )
         ggml.ggml_set_name(embd, b"embd")
-        to_numpy(embd)[:] = np.array(embd_inp, dtype=np.int32)
 
         inpL = ggml.ggml_get_rows(ctx0, self.wte_weight, embd)
 
@@ -393,7 +382,7 @@ class ReplitModel:
             offload_func_nr = ggml.ggml_cuda_assign_buffers_no_scratch
             offload_func_kq = ggml.ggml_cuda_assign_buffers_no_scratch
             offload_func_v = ggml.ggml_cuda_assign_buffers_no_scratch
-        
+
         # offload_func_nr(inpL)
 
         for il in range(n_layer):
@@ -744,17 +733,38 @@ class ReplitModel:
         # // lctx.use_buf(ctx0, -1)
 
         ggml.ggml_build_forward_expand(ctypes.pointer(gf), inpL)
-        ggml.ggml_graph_compute(ctx0, ctypes.pointer(gf))
 
-        embd_w = to_numpy(inpL).reshape(
-            -1, n_vocab
-        )  # .copy() # NOTE: likely wrong to not copy here
+        return gf
 
-        self.mem_per_token = int(ggml.ggml_used_mem(ctx0) / N)
+    def _eval_internal(self, embd_inp: Sequence[int], n_past: int, n_threads: int):
+        N = len(embd_inp)
+        n_vocab = self.vocab_size
+        required_buffer_size = int(self.mem_per_token * N * 2.0)
+        if (
+            self.mem_per_token > 0
+            and self.eval_buffer.buffer_size < required_buffer_size
+        ):
+            self.eval_buffer.resize(required_buffer_size)
 
-        ggml.ggml_free(ctx0)
-
-        return embd_w
+        init_params = ggml.ggml_init_params(
+            mem_size=self.eval_buffer.buffer_size,
+            mem_buffer=self.eval_buffer.buffer,
+            no_alloc=False,
+        )
+        with ggml_context_manager(init_params) as ctx0:
+            gf = self._build_forward(ctx0, len(embd_inp), n_past, n_threads)
+            embd = ggml.ggml_graph_get_tensor(ctypes.pointer(gf), b"embd")
+            assert embd is not None
+            inpL = ggml.ggml_graph_get_tensor(ctypes.pointer(gf), b"result_output")
+            assert inpL is not None
+            to_numpy(embd)[:] = np.array(embd_inp, dtype=np.int32)
+            ggml.ggml_graph_compute(ctx0, ctypes.pointer(gf))
+            embd_w = to_numpy(inpL).reshape(
+                -1, n_vocab
+            )  # .copy() # NOTE: likely wrong to not copy here
+            if self.mem_per_token == 0:
+                self.mem_per_token = int(ggml.ggml_used_mem(ctx0) / N)
+            return embd_w
 
     def eval(self, tokens: Sequence[int]):
         if self.mem_per_token == 0:
@@ -970,9 +980,6 @@ class ReplitModel:
                 "num tensors =",
                 n_tensors,
             )
-
-        model.eval([1, 2, 3, 4])
-        print("mem_per_token =", model.mem_per_token)
         return model
 
     @staticmethod
