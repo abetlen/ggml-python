@@ -161,7 +161,7 @@ lib.ggml_fp32_to_fp16.restype = ggml_fp16_t
 def ggml_fp16_to_fp32_row(
     x,  # type: ctypes.Array[ggml_fp16_t]
     y,  # type: ctypes.Array[ctypes.c_float]
-    n: ctypes.c_size_t,
+    n: Union[ctypes.c_int, int],
 ) -> None:
     return lib.ggml_fp16_to_fp32_row(x, y, n)
 
@@ -169,7 +169,7 @@ def ggml_fp16_to_fp32_row(
 lib.ggml_fp16_to_fp32_row.argtypes = [
     ctypes.POINTER(ggml_fp16_t),
     ctypes.POINTER(ctypes.c_float),
-    ctypes.c_size_t,
+    ctypes.c_int,
 ]
 lib.ggml_fp16_to_fp32_row.restype = None
 
@@ -178,7 +178,7 @@ lib.ggml_fp16_to_fp32_row.restype = None
 def ggml_fp32_to_fp16_row(
     x,  # type: ctypes.Array[ctypes.c_float]
     y,  # type: ctypes.Array[ggml_fp16_t]
-    n: ctypes.c_size_t,
+    n: Union[ctypes.c_int, int],
 ) -> None:
     return lib.ggml_fp32_to_fp16_row(x, y, n)
 
@@ -186,7 +186,7 @@ def ggml_fp32_to_fp16_row(
 lib.ggml_fp32_to_fp16_row.argtypes = [
     ctypes.POINTER(ctypes.c_float),
     ctypes.POINTER(ggml_fp16_t),
-    ctypes.c_size_t,
+    ctypes.c_int,
 ]
 lib.ggml_fp32_to_fp16_row.restype = None
 
@@ -5169,6 +5169,51 @@ def ggml_cpu_has_vsx() -> int:
 
 lib.ggml_cpu_has_vsx.argtypes = []
 lib.ggml_cpu_has_vsx.restype = ctypes.c_int
+
+
+# //
+# // Internal types and functions exposed for tests and benchmarks
+# //
+
+# typedef void (*ggml_to_float_t)(const void * x, float * y, int k);
+ggml_to_float_t = ctypes.CFUNCTYPE(
+    None, ctypes.c_void_p, ctypes.POINTER(ctypes.c_float), ctypes.c_int
+)
+
+# typedef void (*ggml_from_float_t)(const float * x, void * y, int k);
+ggml_from_float_t = ctypes.CFUNCTYPE(
+    None, ctypes.POINTER(ctypes.c_float), ctypes.c_void_p, ctypes.c_int
+)
+
+# typedef void (*ggml_vec_dot_t)(const int n, float * s, const void * x, const void * y);
+ggml_vec_dot_t = ctypes.CFUNCTYPE(
+    None, ctypes.c_int, ctypes.POINTER(ctypes.c_float), ctypes.c_void_p, ctypes.c_void_p
+)
+
+
+# typedef struct {
+#     ggml_to_float_t   to_float;
+#     ggml_from_float_t from_float;
+#     ggml_from_float_t from_float_reference;
+#     ggml_vec_dot_t    vec_dot;
+#     enum ggml_type    vec_dot_type;
+# } ggml_type_traits_t;
+class ggml_type_traits_t(ctypes.Structure):
+    _fields_ = [
+        ("to_float", ggml_to_float_t),
+        ("from_float", ggml_from_float_t),
+        ("from_float_reference", ggml_from_float_t),
+        ("vec_dot", ggml_vec_dot_t),
+        ("vec_dot_type", ctypes.c_int),
+    ]
+
+
+# ggml_type_traits_t ggml_internal_get_type_traits(enum ggml_type i);
+def ggml_internal_get_type_traits(i: Union[ctypes.c_int, int]) -> ggml_type_traits_t:
+    return lib.ggml_internal_get_type_traits(i)
+
+lib.ggml_internal_get_type_traits.argtypes = [ctypes.c_int]
+lib.ggml_internal_get_type_traits.restype = ggml_type_traits_t
 
 
 #####################################################
