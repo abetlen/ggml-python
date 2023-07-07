@@ -169,6 +169,89 @@ class CudaContextBuffer(ContextBuffer):
             self._buffer = None
 
 
+### Tokenizer
+
+
+class Tokenizer(abc.ABC):
+    @abc.abstractmethod
+    def tokenize(self, text: str) -> List[int]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def detokenize(self, tokens: List[int]) -> str:
+        raise NotImplementedError
+
+
+class ReplitTokenizer(Tokenizer):
+    def __init__(self, vocab: List[Tuple[int, str, float]]):
+        self.vocab = vocab
+        self.piece_map = {piece: (i, -score) for i, piece, score in self.vocab}
+        self.ws_symbol = b"\342\226\201"
+
+    def tokenize(self, text: str) -> List[int]:
+        normalized_text = text.replace(" ", self.ws_symbol.decode("utf-8"))
+        tokenized, _ = ReplitTokenizer.encode_word(normalized_text, self.piece_map)
+        return tokenized
+
+    def detokenize(self, tokens: List[int]) -> str:
+        text = "".join(self.vocab[token][1] for token in tokens)
+        detokenized = text.replace(self.ws_symbol.decode("utf-8"), " ")
+        return detokenized
+
+    @staticmethod
+    def encode_word(
+        word: str, model: Dict[str, Tuple[int, float]]
+    ) -> Tuple[List[int], float]:
+        len_word = len(word)
+        best_segmentation_starts = [-1] * (len_word + 1)
+        best_segmentation_scores = [math.inf] * (len_word + 1)
+        best_segmentation_starts[0], best_segmentation_scores[0] = 0, 0.0
+
+        for idx in range(len_word):
+            if best_segmentation_starts[idx] != -1:
+                end_idx = idx + 1
+                while end_idx <= len_word:
+                    token = word[idx:end_idx]
+                    if token in model:
+                        token_score = model[token][1]
+                        if (
+                            best_segmentation_scores[idx] + token_score
+                            < best_segmentation_scores[end_idx]
+                        ):
+                            best_segmentation_starts[end_idx] = idx
+                            best_segmentation_scores[end_idx] = (
+                                best_segmentation_scores[idx] + token_score
+                            )
+                    end_idx += 1
+
+        if best_segmentation_scores[-1] == math.inf:
+            return [], 0.0
+
+        tokens: Deque[int] = deque()
+        idx = len_word
+        while idx > 0:
+            start_idx = best_segmentation_starts[idx]
+            token = word[start_idx:idx]
+            token_id = model[token][0]
+            tokens.appendleft(token_id)
+            idx = start_idx
+
+        return list(tokens), best_segmentation_scores[-1]
+
+
+class ReplitSentencepieceTokenizer(Tokenizer):
+    def __init__(self, model_path: str):
+        import sentencepiece
+
+        self.tokenizer = sentencepiece.SentencePieceProcessor(model_file=model_path)
+
+    def tokenize(self, text: str) -> List[int]:
+        return self.tokenizer.encode(text)
+
+    def detokenize(self, tokens: List[int]) -> str:
+        return self.tokenizer.decode(tokens)
+
+
 ### Replit Model Definition
 
 
@@ -200,6 +283,7 @@ class ReplitModel:
         vocab_size: int,
         ftype: int,
         vocab: List[Tuple[int, str, float]],
+        tokenizer: Tokenizer,
         n_batch: int,
         n_threads: int,
         weights_buffer: ContextBuffer,
@@ -215,6 +299,7 @@ class ReplitModel:
         self.layers: List[ReplitLayer] = []
         self.tensors: Dict[str, ggml.ggml_tensor_p] = {}
         self.vocab = vocab
+        self.tokenizer = tokenizer
         self.n_batch = n_batch
         self.n_threads = n_threads
         self.weights_buffer = weights_buffer
@@ -293,56 +378,47 @@ class ReplitModel:
     def encode_word(
         word: str, model: Dict[str, Tuple[int, float]]
     ) -> Tuple[List[int], float]:
-        best_segmentation_starts = [-1] * (len(word) + 1)
-        best_segmentation_starts[0] = 0
+        len_word = len(word)
+        best_segmentation_starts = [-1] * (len_word + 1)
+        best_segmentation_scores = [math.inf] * (len_word + 1)
+        best_segmentation_starts[0], best_segmentation_scores[0] = 0, 0.0
 
-        best_segmentation_scores = [-math.inf] * (len(word) + 1)
-        best_segmentation_scores[0] = 1.0
+        for idx in range(len_word):
+            if best_segmentation_starts[idx] != -1:
+                end_idx = idx + 1
+                while end_idx <= len_word:
+                    token = word[idx:end_idx]
+                    if token in model:
+                        token_score = model[token][1]
+                        if (
+                            best_segmentation_scores[idx] + token_score
+                            < best_segmentation_scores[end_idx]
+                        ):
+                            best_segmentation_starts[end_idx] = idx
+                            best_segmentation_scores[end_idx] = (
+                                best_segmentation_scores[idx] + token_score
+                            )
+                    end_idx += 1
 
-        for start_idx in range(len(word)):
-            best_score_at_start = best_segmentation_scores[start_idx]
-            for end_idx in range(start_idx + 1, len(word) + 1):
-                token = word[start_idx:end_idx]
-                if token in model and best_score_at_start != -math.inf:
-                    token_score = model[token][1]
-                    score = token_score + best_score_at_start
-                    if (
-                        best_segmentation_scores[end_idx] == -math.inf
-                        or best_segmentation_scores[end_idx] > score
-                    ):
-                        best_segmentation_starts[end_idx] = start_idx
-                        best_segmentation_scores[end_idx] = score
-
-        if best_segmentation_scores[-1] == -math.inf:
+        if best_segmentation_scores[-1] == math.inf:
             return [], 0.0
 
-        score = best_segmentation_scores[-1]
-        start = best_segmentation_starts[-1]
-        end = len(word)
-        tokens: Deque[int] = deque()
-        while start != 0:
-            token_id = model[word[start:end]][0]
+        tokens = deque()
+        idx = len_word
+        while idx > 0:
+            start_idx = best_segmentation_starts[idx]
+            token = word[start_idx:idx]
+            token_id = model[token][0]
             tokens.appendleft(token_id)
-            next_start = best_segmentation_starts[start]
-            end = start
-            start = next_start
-        token_id = model[word[start:end]][0]
-        tokens.appendleft(token_id)
-        return list(tokens), score
+            idx = start_idx
+
+        return list(tokens), best_segmentation_scores[-1]
 
     def tokenize(self, text: str) -> List[int]:
-        ws_symbol = b"\342\226\201"
-        piece_map = {piece: (i, -score) for i, piece, score in self.vocab}
-        normalized_text = text.replace(" ", ws_symbol.decode("utf-8"))
-        tokenized, _ = ReplitModel.encode_word(normalized_text, piece_map)
-        return tokenized
+        return self.tokenizer.tokenize(text)
 
     def detokenize(self, tokens: List[int]) -> str:
-        id_to_token = self.vocab
-        ws_symbol = b"\342\226\201"
-        text = "".join(id_to_token[token][1] for token in tokens)
-        detokenized = text.replace(ws_symbol.decode("utf-8"), " ")
-        return detokenized
+        return self.tokenizer.detokenize(tokens)
 
     def reset(self):
         self.n_tokens = 0
@@ -904,6 +980,7 @@ class ReplitModel:
                 ftype=ftype,
                 # vocabulary
                 vocab=vocab,
+                tokenizer=ReplitTokenizer(vocab),
                 ctx=ctx,
                 n_batch=n_batch,
                 n_threads=n_threads,
