@@ -6,7 +6,16 @@ import json
 import multiprocessing
 from functools import partial
 from threading import Lock
-from typing import Dict, List, Optional, Union, Iterator, AsyncIterator, Sequence
+from typing import (
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Union,
+    Iterator,
+    AsyncIterator,
+    Sequence,
+)
 from os import environ
 
 from typing_extensions import TypedDict, Literal
@@ -66,8 +75,10 @@ class OpenAIify:
     def __init__(
         self,
         model: ReplitModel,
+        cancel_callback: Optional[Callable[[], bool]] = None,
     ):
         self.model = model
+        self.cancel_callback = cancel_callback
 
     def tokenize(self, text: str) -> List[int]:
         return self.model.tokenize(text)
@@ -137,6 +148,11 @@ class OpenAIify:
             presence_penalty=presence_penalty,
         ):
             if token == self.eos_token():
+                text = self.detokenize(completion_tokens)
+                finish_reason = "stop"
+                break
+
+            if self.cancel_callback is not None and self.cancel_callback():
                 text = self.detokenize(completion_tokens)
                 finish_reason = "stop"
                 break
@@ -527,11 +543,13 @@ class CreateCompletionRequest(BaseModel):
             "example": {
                 "prompt": "def fib(n):",
                 "stop": ["\n\n"],
+                "temperature": 0,
+                "max_tokens": 34,
             }
         }
 
 
-settings = Settings(model_file=environ.get("MODEL")) # type: ignore
+settings = Settings(model_file=environ.get("MODEL"))  # type: ignore
 app = FastAPI(
     title="Code Completion API",
     description="""
@@ -560,17 +578,35 @@ let g:copilot_strict_ssl = 0
 ```
 """,
 )
+outer_lock = Lock()
+inner_lock = Lock()
+
 model = OpenAIify(
     ReplitModel.init_from_file(
         model_file=settings.model_file, n_gpu_layers=settings.n_gpu_layers
-    )
+    ),
+    # check if any other requests are pending in the same thread and cancel the stream if so
+    cancel_callback=lambda: outer_lock.locked(),
 )
-model_lock = Lock()
 
 
 def get_model():
-    with model_lock:
-        yield model
+    # NOTE: This double lock allows the currently streaming model to check
+    # if any other requests are pending in the same thread and cancel the
+    # stream if so.
+    outer_lock.acquire()
+    release_outer_lock = True
+    try:
+        inner_lock.acquire()
+        try:
+            outer_lock.release()
+            release_outer_lock = False
+            yield model
+        finally:
+            inner_lock.release()
+    finally:
+        if release_outer_lock:
+            outer_lock.release()
 
 
 # Used to support copilot.vim
