@@ -378,18 +378,18 @@ class ReplitModel:
 
         inpL = ggml.ggml_get_rows(ctx0, self.wte_weight, embd)
 
-        if ggml.GGML_USE_CUBLAS:
-            offload_func_nr = ggml.ggml_cuda_assign_buffers_no_scratch
-            offload_func_kq = ggml.ggml_cuda_assign_buffers_no_scratch
-            offload_func_v = ggml.ggml_cuda_assign_buffers_no_scratch
+        # if ggml.GGML_USE_CUBLAS:
+        #     offload_func_nr = ggml.ggml_cuda_assign_buffers_no_scratch
+        #     offload_func_kq = ggml.ggml_cuda_assign_buffers_no_scratch
+        #     offload_func_v = ggml.ggml_cuda_assign_buffers_no_scratch
 
         # offload_func_nr(inpL)
 
         for il in range(n_layer):
             offload_func = offload_nop
 
-            if ggml.GGML_USE_CUBLAS:
-                offload_func = ggml.ggml_cuda_assign_buffers_no_scratch
+            # if ggml.GGML_USE_CUBLAS:
+            #     offload_func = ggml.ggml_cuda_assign_buffers_no_scratch
 
             # // lctx.use_buf(ctx0, 0)
 
@@ -952,15 +952,16 @@ class ReplitModel:
                 if ggml.GGML_USE_CUBLAS and name.startswith("transformer.block"):
                     should_offload_suffix = [
                         # "norm_1.weight",
-                        "attn.Wqkv.weight",
-                        "attn.out_proj.weight",
+                        # "attn.Wqkv.weight",
+                        # "attn.out_proj.weight",
                         # "norm_2.weight",
-                        "ffn.up_proj.weight",
-                        "ffn.down_proj.weight",
+                        # "ffn.up_proj.weight",
+                        # "ffn.down_proj.weight",
                     ]
                     if any(name.endswith(s) for s in should_offload_suffix):
                         tensor.contents.backend = ggml.GGML_BACKEND_GPU
                         ggml.ggml_cuda_transform_tensor(tensor.contents.data, tensor)
+                if ggml.GGML_USE_CUBLAS and name.startswith("transformer.block"):
                     if (
                         name == "transformer.wte.weight"
                         or name == "transformer.norm_f.weight"
