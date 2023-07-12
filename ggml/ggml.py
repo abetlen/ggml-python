@@ -126,13 +126,17 @@ GGML_MAX_NODES = 4096
 GGML_MAX_PARAMS = 256
 # #define GGML_MAX_CONTEXTS      64
 GGML_MAX_CONTEXTS = 64
-# #define GGML_MAX_OPT           4
-GGML_MAX_OPT = 4
+# #define GGML_MAX_SRC           6
+GGML_MAX_SRC = 6
 # #define GGML_MAX_NAME          48
 GGML_MAX_NAME = 48
 # #define GGML_DEFAULT_N_THREADS 4
 GGML_DEFAULT_N_THREADS = 4
 
+# #define GGML_EXIT_SUCCESS 0
+GGML_EXIT_SUCCESS = 0
+# #define GGML_EXIT_ABORTED 1
+GGML_EXIT_ABORTED = 1
 
 # TODO: Check if this is correct
 # typedef uint16_t ggml_fp16_t;
@@ -342,6 +346,8 @@ GGML_FTYPE_MOSTLY_Q6_K = 14
 #     GGML_OP_CLAMP,
 #     GGML_OP_CONV_1D,
 #     GGML_OP_CONV_2D,
+#     GGML_OP_POOL_1D,
+#     GGML_OP_POOL_2D,
 
 #     GGML_OP_FLASH_ATTN,
 #     GGML_OP_FLASH_FF,
@@ -415,19 +421,21 @@ GGML_OP_ALIBI = 50
 GGML_OP_CLAMP = 51
 GGML_OP_CONV_1D = 52
 GGML_OP_CONV_2D = 53
-GGML_OP_FLASH_ATTN = 54
-GGML_OP_FLASH_FF = 55
-GGML_OP_FLASH_ATTN_BACK = 56
-GGML_OP_WIN_PART = 57
-GGML_OP_WIN_UNPART = 58
-GGML_OP_MAP_UNARY = 59
-GGML_OP_MAP_BINARY = 60
-GGML_OP_MAP_CUSTOM1 = 61
-GGML_OP_MAP_CUSTOM2 = 62
-GGML_OP_MAP_CUSTOM3 = 63
-GGML_OP_CROSS_ENTROPY_LOSS = 64
-GGML_OP_CROSS_ENTROPY_LOSS_BACK = 65
-GGML_OP_COUNT = 66
+GGML_OP_POOL_1D = 54
+GGML_OP_POOL_2D = 55
+GGML_OP_FLASH_ATTN = 56
+GGML_OP_FLASH_FF = 57
+GGML_OP_FLASH_ATTN_BACK = 58
+GGML_OP_WIN_PART = 59
+GGML_OP_WIN_UNPART = 60
+GGML_OP_MAP_UNARY = 61
+GGML_OP_MAP_BINARY = 62
+GGML_OP_MAP_CUSTOM1 = 63
+GGML_OP_MAP_CUSTOM2 = 64
+GGML_OP_MAP_CUSTOM3 = 65
+GGML_OP_CROSS_ENTROPY_LOSS = 66
+GGML_OP_CROSS_ENTROPY_LOSS_BACK = 67
+GGML_OP_COUNT = 68
 
 # struct ggml_object {
 #     size_t offs;
@@ -472,9 +480,7 @@ GGML_OBJECT_SIZE = ctypes.sizeof(ggml_object)
 #     bool is_param;
 
 #     struct ggml_tensor * grad;
-#     struct ggml_tensor * src0;
-#     struct ggml_tensor * src1;
-#     struct ggml_tensor * opt[GGML_MAX_OPT];
+#     struct ggml_tensor * src[GGML_MAX_SRC];
 
 #     // performance
 #     int     perf_runs;
@@ -502,9 +508,7 @@ class ggml_tensor(ctypes.Structure):
         op (int): ggml operation
         is_param (bool): is this a parameter tensor
         grad (ggml_tensor_p): reference to gradient tensor
-        src0 (ggml_tensor_p): reference to source tensor 0
-        src1 (ggml_tensor_p): reference to source tensor 1
-        opt (ctypes.Array[ggml_tensor_p]): optimization tensors
+        src (ctypes.Array[ggml_tensor_p]): `GGML_MAX_SRC`-length array of source tensors
         perf_runs (int): number of performance runs
         perf_cycles (int): number of cycles
         perf_time_us (int): time in microseconds
@@ -525,9 +529,7 @@ ggml_tensor._fields_ = [
     ("op", ctypes.c_int),
     ("is_param", ctypes.c_bool),
     ("grad", ctypes.POINTER(ggml_tensor)),
-    ("src0", ctypes.POINTER(ggml_tensor)),
-    ("src1", ctypes.POINTER(ggml_tensor)),
-    ("opt", ctypes.POINTER(ggml_tensor) * GGML_MAX_OPT),
+    ("src", ctypes.POINTER(ggml_tensor) * GGML_MAX_SRC),
     ("perf_runs", ctypes.c_int),
     ("perf_cycles", ctypes.c_int64),
     ("perf_time_us", ctypes.c_int64),
@@ -555,6 +557,10 @@ the `.contents` attribute."""
 
 #     // the `n_tasks` of nodes, 1:1 mapping to cgraph nodes
 #     int n_tasks[GGML_MAX_NODES];
+
+#     // abort ggml_graph_compute when true
+#     bool (*abort_callback)(void * data);
+#     void * abort_callback_data;
 # };
 class ggml_cplan(ctypes.Structure):
     """Compute plan for a ggml computation graph
@@ -564,6 +570,8 @@ class ggml_cplan(ctypes.Structure):
         work_data (ctypes.c_void_p): work buffer
         n_threads (int): number of threads to use when computing the graph using [ggml_graph_compute][ggml.ggml_graph_compute]
         n_tasks (ctypes.Array[ctypes.c_int]): `n_tasks` of nodes, 1:1 mapping to cgraph nodes
+        abort_callback (ctypes.CFUNCTYPE[ctypes.c_bool, ctypes.c_void_p]): abort callback
+        abort_callback_data (ctypes.c_void_p): abort callback data
     """
 
     _fields_ = [
@@ -571,6 +579,11 @@ class ggml_cplan(ctypes.Structure):
         ("work_data", ctypes.c_void_p),
         ("n_threads", ctypes.c_int),
         ("n_tasks", ctypes.c_int * GGML_MAX_NODES),
+        (
+            "abort_callback",
+            ctypes.CFUNCTYPE(ctypes.c_bool, ctypes.c_void_p),
+        ),
+        ("abort_callback_data", ctypes.c_void_p),
     ]
 
 GGML_CPLAN_SIZE = ctypes.sizeof(ggml_cplan)
@@ -3870,6 +3883,102 @@ lib.ggml_conv_1d_ph.argtypes = [
 ]
 lib.ggml_conv_1d_ph.restype = ctypes.POINTER(ggml_tensor)
 
+# enum ggml_op_pool {
+#     GGML_OP_POOL_MAX,
+#     GGML_OP_POOL_AVG,
+#     GGML_OP_POOL_COUNT,
+# };
+GGML_OP_POOL_MAX = 0
+GGML_OP_POOL_AVG = 1
+GGML_OP_POOL_COUNT = 2
+
+# GGML_API struct ggml_tensor* ggml_pool_1d(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         enum ggml_op_pool     op,
+#         int                   k0, // kernel size
+#         int                   s0, // stride
+#         int                   p0); // padding
+def ggml_pool_1d(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    op: Union[ctypes.c_int, int],
+    k0: Union[ctypes.c_int, int],
+    s0: Union[ctypes.c_int, int],
+    p0: Union[ctypes.c_int, int],
+) -> ggml_tensor_p:
+    """1D Pooling
+    
+    Parameters:
+        a: input tensor
+        op: pooling operation
+        k0: kernel size
+        s0: stride
+        p0: padding
+        
+    Returns:
+        output tensor"""
+    return lib.ggml_pool_1d(ctx, a, op, k0, s0, p0)
+
+lib.ggml_pool_1d.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+]
+lib.ggml_pool_1d.restype = ctypes.POINTER(ggml_tensor)
+
+# GGML_API struct ggml_tensor* ggml_pool_2d(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         enum ggml_op_pool     op,
+#         int                   k0,
+#         int                   k1,
+#         int                   s0,
+#         int                   s1,
+#         int                   p0,
+#         int                   p1);
+def ggml_pool_2d(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    op: Union[ctypes.c_int, int],
+    k0: Union[ctypes.c_int, int],
+    k1: Union[ctypes.c_int, int],
+    s0: Union[ctypes.c_int, int],
+    s1: Union[ctypes.c_int, int],
+    p0: Union[ctypes.c_int, int],
+    p1: Union[ctypes.c_int, int],
+) -> ggml_tensor_p:
+    """2D Pooling
+    
+    Parameters:
+        a: input tensor
+        op: pooling operation
+        k0: kernel size
+        k1: kernel size
+        s0: stride
+        s1: stride
+        p0: padding
+        p1: padding
+        
+    Returns:
+        output tensor"""
+    return lib.ggml_pool_2d(ctx, a, op, k0, k1, s0, s1, p0, p1)
+
+lib.ggml_pool_2d.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+]
+lib.ggml_pool_2d.restype = ctypes.POINTER(ggml_tensor)
+
 # GGML_API struct ggml_tensor * ggml_flash_attn(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * q,
@@ -4465,7 +4574,7 @@ lib.ggml_graph_plan.argtypes = [
 ]
 lib.ggml_graph_plan.restype = ggml_cplan
 
-# GGML_API              void ggml_graph_compute(struct ggml_cgraph * cgraph, struct ggml_cplan * cplan);
+# GGML_API               int ggml_graph_compute(struct ggml_cgraph * cgraph, struct ggml_cplan * cplan);
 def ggml_graph_compute(
     cgraph: ggml_cgraph_p,
     cplan: ggml_cplan_p,
@@ -4481,7 +4590,7 @@ lib.ggml_graph_compute.argtypes = [
     ctypes.POINTER(ggml_cgraph),
     ctypes.POINTER(ggml_cplan),
 ]
-lib.ggml_graph_compute.restype = None
+lib.ggml_graph_compute.restype = ctypes.c_int
 
 # GGML_API              void ggml_graph_reset  (struct ggml_cgraph * cgraph);
 def ggml_graph_reset(
