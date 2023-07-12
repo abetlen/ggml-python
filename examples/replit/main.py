@@ -834,7 +834,7 @@ class ReplitModel:
             inpL = ggml.ggml_graph_get_tensor(ctypes.pointer(gf), b"result_output")
             assert inpL is not None
             to_numpy(embd)[:] = np.array(embd_inp, dtype=np.int32)
-            ggml.ggml_graph_compute(ctx0, ctypes.pointer(gf))
+            ggml.ggml_graph_compute_with_ctx(ctx0, ctypes.pointer(gf), self.n_threads)
             embd_w = to_numpy(inpL).reshape(
                 -1, n_vocab
             )  # .copy() # NOTE: likely wrong to not copy here

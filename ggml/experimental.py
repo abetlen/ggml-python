@@ -1067,8 +1067,8 @@ class CGraph:
         self.cgraph = cgraph
         self.ctx = ctx or default_context()
 
-    def compute(self):
-        ggml.ggml_graph_compute(self.ctx.context, ctypes.pointer(self.cgraph))
+    def compute(self, n_threads: int = 1):
+        ggml.ggml_graph_compute_with_ctx(self.ctx.context, ctypes.pointer(self.cgraph), n_threads=n_threads)
 
     def reset(self):
         ggml.ggml_graph_reset(ctypes.pointer(self.cgraph))

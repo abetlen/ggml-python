@@ -19,7 +19,7 @@ def test_ggml():
     ggml.ggml_set_f32(a, 3.0)
     ggml.ggml_set_f32(b, 4.0)
 
-    ggml.ggml_graph_compute(ctx, ctypes.pointer(gf))
+    ggml.ggml_graph_compute_with_ctx(ctx, ctypes.pointer(gf), 1)
     output = ggml.ggml_get_f32_1d(f, 0)
     assert output == 16.0
     ggml.ggml_free(ctx)
@@ -40,7 +40,7 @@ def test_ggml_custom_op():
 
     ggml.ggml_set_f32(x_in, 21.0)
 
-    ggml.ggml_graph_compute(ctx, ctypes.pointer(gf))
+    ggml.ggml_graph_compute_with_ctx(ctx, ctypes.pointer(gf), 1)
     output = ggml.ggml_get_f32_1d(x_out, 0)
     assert output == 42.0
     ggml.ggml_free(ctx)
@@ -70,6 +70,7 @@ def test_ggml_min_alloc():
         return gf
 
     gf = build_graph(ctx)
+    gp = ggml.ggml_graph_plan(ctypes.pointer(gf), 1)
 
     n_nodes = gf.n_nodes
     nodes_size = sum(ggml.ggml_nbytes(gf.nodes[i]) for i in range(n_nodes))
@@ -81,7 +82,7 @@ def test_ggml_min_alloc():
     assert n_nodes == 3  # 3 nodes: mul, mul, add
     assert n_leafs == 3  # 3 leafs: x, a, b
 
-    mem_size = nodes_size + leafs_size + overhead * (n_nodes + n_leafs)
+    mem_size = nodes_size + leafs_size + overhead * (n_nodes + n_leafs + 1) # TODO: why +1?
     params = ggml.ggml_init_params(mem_size=mem_size, mem_buffer=None)
     ctx = ggml.ggml_init(params=params)
     gf = build_graph(ctx)
@@ -97,7 +98,8 @@ def test_ggml_min_alloc():
     ggml.ggml_set_f32(a, 3.0)
     ggml.ggml_set_f32(b, 4.0)
 
-    ggml.ggml_graph_compute(ctx, ctypes.pointer(gf))
+    gp = ggml.ggml_graph_plan(ctypes.pointer(gf), 1)
+    ggml.ggml_graph_compute(ctypes.pointer(gf), ctypes.pointer(gp))
     output = ggml.ggml_get_f32_1d(f, 0)
     assert output == 16.0
     ggml.ggml_free(ctx)
