@@ -38,7 +38,7 @@ ggml.ggml_set_f32(a, 3.0)
 ggml.ggml_set_f32(b, 4.0)
 
 # Compute the graph
-ggml.ggml_graph_compute(ctx, ctypes.pointer(gf))
+ggml.ggml_graph_compute_with_ctx(ctx, ctypes.pointer(gf), 1)
 
 # Get the output value
 output = ggml.ggml_get_f32_1d(f, 0)
@@ -476,9 +476,6 @@ GGML_OBJECT_SIZE = ctypes.sizeof(ggml_object)
 #     struct ggml_tensor * src1;
 #     struct ggml_tensor * opt[GGML_MAX_OPT];
 
-#     // thread scheduling
-#     int n_tasks;
-
 #     // performance
 #     int     perf_runs;
 #     int64_t perf_cycles;
@@ -491,7 +488,7 @@ GGML_OBJECT_SIZE = ctypes.sizeof(ggml_object)
 #     void * extra; // extra things e.g. for ggml-cuda.cu
 
 
-#     char padding[4];
+#     char padding[8];
 # };
 class ggml_tensor(ctypes.Structure):
     """n-dimensional tensor
@@ -508,7 +505,6 @@ class ggml_tensor(ctypes.Structure):
         src0 (ggml_tensor_p): reference to source tensor 0
         src1 (ggml_tensor_p): reference to source tensor 1
         opt (ctypes.Array[ggml_tensor_p]): optimization tensors
-        n_tasks (int): number of tasks
         perf_runs (int): number of performance runs
         perf_cycles (int): number of cycles
         perf_time_us (int): time in microseconds
@@ -532,14 +528,13 @@ ggml_tensor._fields_ = [
     ("src0", ctypes.POINTER(ggml_tensor)),
     ("src1", ctypes.POINTER(ggml_tensor)),
     ("opt", ctypes.POINTER(ggml_tensor) * GGML_MAX_OPT),
-    ("n_tasks", ctypes.c_int),
     ("perf_runs", ctypes.c_int),
     ("perf_cycles", ctypes.c_int64),
     ("perf_time_us", ctypes.c_int64),
     ("data", ctypes.c_void_p),
     ("name", ctypes.c_char * GGML_MAX_NAME),
     ("extra", ctypes.c_void_p),
-    ("padding", ctypes.c_char * 4),
+    ("padding", ctypes.c_char * 8),
 ]
 
 GGML_TENSOR_SIZE = ctypes.sizeof(ggml_tensor)
@@ -550,14 +545,46 @@ ggml_tensor_p: TypeAlias = "ctypes._Pointer[ggml_tensor]"  # type: ignore
 Can be dereferenced to a [ggml_tensor][ggml.ggml_tensor] object using
 the `.contents` attribute."""
 
+# // the compute plan that needs to be prepared for ggml_graph_compute()
+# // since https://github.com/ggerganov/ggml/issues/287
+# struct ggml_cplan {
+#     size_t    work_size; // size of work buffer, calculated by `ggml_graph_plan()`
+#     uint8_t * work_data; // work buffer, to be allocated by caller before calling to `ggml_graph_compute()`
+
+#     int n_threads;
+
+#     // the `n_tasks` of nodes, 1:1 mapping to cgraph nodes
+#     int n_tasks[GGML_MAX_NODES];
+# };
+class ggml_cplan(ctypes.Structure):
+    """Compute plan for a ggml computation graph
+
+    Attributes:
+        work_size (int): size of work buffer
+        work_data (ctypes.c_void_p): work buffer
+        n_threads (int): number of threads to use when computing the graph using [ggml_graph_compute][ggml.ggml_graph_compute]
+        n_tasks (ctypes.Array[ctypes.c_int]): `n_tasks` of nodes, 1:1 mapping to cgraph nodes
+    """
+
+    _fields_ = [
+        ("work_size", ctypes.c_size_t),
+        ("work_data", ctypes.c_void_p),
+        ("n_threads", ctypes.c_int),
+        ("n_tasks", ctypes.c_int * GGML_MAX_NODES),
+    ]
+
+GGML_CPLAN_SIZE = ctypes.sizeof(ggml_cplan)
+
+ggml_cplan_p: TypeAlias = "ctypes._Pointer[ggml_cplan]"  # type: ignore
+"""ctypes pointer to a [ggml_cplan][ggml.ggml_cplan]
+
+Can be dereferenced to a [ggml_cplan][ggml.ggml_cplan] object using
+the `.contents` attribute."""
+
 # // computation graph
 # struct ggml_cgraph {
 #     int n_nodes;
 #     int n_leafs;
-#     int n_threads;
-
-#     size_t work_size;
-#     struct ggml_tensor * work;
 
 #     struct ggml_tensor * nodes[GGML_MAX_NODES];
 #     struct ggml_tensor * grads[GGML_MAX_NODES];
@@ -575,9 +602,6 @@ class ggml_cgraph(ctypes.Structure):
     Attributes:
         n_nodes (int): number of nodes
         n_leafs (int): number of leafs
-        n_threads (int): number of threads to use when computing the graph using [ggml_graph_compute][ggml.ggml_graph_compute]
-        work_size (int): size of work buffer
-        work (ggml_tensor_p): work buffer
         nodes (ctypes.Array[ggml_tensor_p]): `n_nodes`-length array of compute tensors
         grads (ctypes.Array[ggml_tensor_p]): `n_nodes`-length array of gradient tensors
         leafs (ctypes.Array[ggml_tensor_p]): `n_leafs`-length array of parameter tensors
@@ -588,9 +612,6 @@ class ggml_cgraph(ctypes.Structure):
     _fields_ = [
         ("n_nodes", ctypes.c_int),
         ("n_leafs", ctypes.c_int),
-        ("n_threads", ctypes.c_int),
-        ("work_size", ctypes.c_size_t),
-        ("work", ctypes.POINTER(ggml_tensor)),
         ("nodes", ctypes.POINTER(ggml_tensor) * GGML_MAX_NODES),
         ("grads", ctypes.POINTER(ggml_tensor) * GGML_MAX_NODES),
         ("leafs", ctypes.POINTER(ggml_tensor) * GGML_MAX_NODES),
@@ -4354,7 +4375,7 @@ lib.ggml_cross_entropy_loss_back.restype = ctypes.POINTER(ggml_tensor)
 
 # GGML_API void ggml_set_param(
 #         struct ggml_context * ctx,
-#         struct ggml_tensor * tensor);
+#         struct ggml_tensor  * tensor);
 def ggml_set_param(
     ctx: ggml_context_p, tensor: ggml_tensor_p  
 ):
@@ -4421,36 +4442,79 @@ lib.ggml_build_backward.argtypes = [
 lib.ggml_build_backward.restype = ggml_cgraph
 
 
-# GGML_API void ggml_graph_compute(struct ggml_context * ctx, struct ggml_cgraph * cgraph);
+# // ggml_graph_plan() has to be called before ggml_graph_compute()
+# // when plan.work_size > 0, caller must allocate memory for plan.work_data
+# GGML_API struct ggml_cplan ggml_graph_plan   (struct ggml_cgraph * cgraph, int n_threads /*= GGML_DEFAULT_N_THREADS*/);
+def ggml_graph_plan(
+    cgraph: ggml_cgraph_p,
+    n_threads: Union[ctypes.c_int, int] = GGML_DEFAULT_N_THREADS,
+) -> ggml_cplan:
+    """Plan the computation graph.
+    
+    Parameters:
+        cgraph: The graph.
+        n_threads: The number of threads to use.
+
+    Returns:
+        The plan."""
+    return lib.ggml_graph_plan(cgraph, n_threads)
+
+lib.ggml_graph_plan.argtypes = [
+    ctypes.POINTER(ggml_cgraph),
+    ctypes.c_int,
+]
+lib.ggml_graph_plan.restype = ggml_cplan
+
+# GGML_API              void ggml_graph_compute(struct ggml_cgraph * cgraph, struct ggml_cplan * cplan);
 def ggml_graph_compute(
-    ctx: ggml_context_p, cgraph: ggml_cgraph_p
+    cgraph: ggml_cgraph_p,
+    cplan: ggml_cplan_p,
 ):
     """Compute the graph.
     
     Parameters:
-        ctx: The context.
-        cgraph: The graph."""
-    return lib.ggml_graph_compute(ctx, cgraph)
+        cgraph: The graph.
+        cplan: The plan."""
+    return lib.ggml_graph_compute(cgraph, cplan)
 
-
-lib.ggml_graph_compute.argtypes = [ggml_context_p, ctypes.POINTER(ggml_cgraph)]
+lib.ggml_graph_compute.argtypes = [
+    ctypes.POINTER(ggml_cgraph),
+    ctypes.POINTER(ggml_cplan),
+]
 lib.ggml_graph_compute.restype = None
 
-
-# GGML_API void ggml_graph_reset  (struct ggml_cgraph * cgraph);
+# GGML_API              void ggml_graph_reset  (struct ggml_cgraph * cgraph);
 def ggml_graph_reset(
-    cgraph: ggml_cgraph_p
+    cgraph: ggml_cgraph_p,
 ):
     """Reset the graph.
-
+    
     Parameters:
         cgraph: The graph."""
     return lib.ggml_graph_reset(cgraph)
 
+# // same as ggml_graph_compute() but the work data is allocated as a part of the context
+# // note: the drawback of this API is that you must have ensured that the context has enough memory for the work data
+# GGML_API void ggml_graph_compute_with_ctx(struct ggml_context * ctx, struct ggml_cgraph * cgraph, int n_threads);
+def ggml_graph_compute_with_ctx(
+    ctx: ggml_context_p,
+    cgraph: ggml_cgraph_p,
+    n_threads: Union[ctypes.c_int, int],
+):
+    """Compute the graph with a context.
+    
+    Parameters:
+        ctx: The context.
+        cgraph: The graph.
+        n_threads: The number of threads to use."""
+    return lib.ggml_graph_compute_with_ctx(ctx, cgraph, n_threads)
 
-lib.ggml_graph_reset.argtypes = [ctypes.POINTER(ggml_cgraph)]
-lib.ggml_graph_reset.restype = None
-
+lib.ggml_graph_compute_with_ctx.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_cgraph),
+    ctypes.c_int,
+]
+lib.ggml_graph_compute_with_ctx.restype = None
 
 # GGML_API struct ggml_tensor * ggml_graph_get_tensor(struct ggml_cgraph * cgraph, const char * name);
 def ggml_graph_get_tensor(
