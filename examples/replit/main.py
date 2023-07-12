@@ -454,18 +454,18 @@ class ReplitModel:
 
         inpL = ggml.ggml_get_rows(ctx0, self.wte_weight, embd)
 
-        # if ggml.GGML_USE_CUBLAS:
-        #     offload_func_nr = ggml.ggml_cuda_assign_buffers_no_scratch
-        #     offload_func_kq = ggml.ggml_cuda_assign_buffers_no_scratch
-        #     offload_func_v = ggml.ggml_cuda_assign_buffers_no_scratch
+        if ggml.GGML_USE_CUBLAS:
+            offload_func_nr = ggml.ggml_cuda_assign_buffers_no_scratch
+            offload_func_kq = ggml.ggml_cuda_assign_buffers_no_scratch
+            offload_func_v = ggml.ggml_cuda_assign_buffers_no_scratch
 
         # offload_func_nr(inpL)
 
         for il in range(n_layer):
             offload_func = offload_nop
 
-            # if ggml.GGML_USE_CUBLAS:
-            #     offload_func = ggml.ggml_cuda_assign_buffers_no_scratch
+            if ggml.GGML_USE_CUBLAS:
+                offload_func = ggml.ggml_cuda_assign_buffers_no_scratch
 
             # // lctx.use_buf(ctx0, 0)
 
@@ -478,7 +478,7 @@ class ReplitModel:
                 ggml.ggml_repeat(ctx0, self.layers[il].norm_1_weight, cur),
                 cur,
             )
-            offload_func(cur)
+            # offload_func(cur)
             ggml.ggml_set_name(cur, b"attention_norm_0")
 
             # // self-attention
@@ -490,7 +490,7 @@ class ReplitModel:
             cur = ggml.ggml_mul_mat(ctx0, self.layers[il].c_attn_wqkv_weight, cur)
             if ggml.GGML_USE_CUBLAS:
                 cur = ggml.ggml_cont(ctx0, cur)  # NOTE: needed for CUDA
-                offload_func_kq(cur)
+                # offload_func_kq(cur)
             ggml.ggml_set_name(cur, b"tmpkqv")
 
             Qcur = ggml.ggml_view_2d(
@@ -610,7 +610,7 @@ class ReplitModel:
 
             # // K * Q
             KQ = ggml.ggml_mul_mat(ctx0, K, Q)
-            offload_func_kq(KQ)
+            # offload_func_kq(KQ)
             ggml.ggml_set_name(KQ, b"KQ")
 
             # // KQ_scaled = KQ / sqrt(n_embd/n_head)
@@ -723,7 +723,7 @@ class ReplitModel:
                 self.layers[il].c_attn_out_proj_weight,
                 cur,
             )
-            offload_func_v(cur)
+            # offload_func_v(cur)
             ggml.ggml_set_name(cur, b"result_wo")
 
             # // lctx.use_buf(ctx0, 1)
@@ -733,7 +733,7 @@ class ReplitModel:
                 inpL,
                 cur,
             )
-            offload_func(cur)
+            # offload_func(cur)
             ggml.ggml_set_name(cur, b"inpFF")
 
             # // m = self.ln_2(x)
@@ -745,7 +745,7 @@ class ReplitModel:
                 ggml.ggml_repeat(ctx0, self.layers[il].norm_2_weight, cur),
                 cur,
             )
-            offload_func(cur)
+            # offload_func(cur)
             ggml.ggml_set_name(cur, b"norm")
 
             # // n = self.mlp(m)
@@ -771,7 +771,7 @@ class ReplitModel:
                 self.layers[il].c_ffn_down_proj_weight,
                 cur,
             )
-            offload_func(cur)
+            # offload_func(cur)
             ggml.ggml_set_name(cur, b"result_mlp_down")
 
             # // x = x + n
@@ -780,7 +780,7 @@ class ReplitModel:
                 inpL,
                 cur,
             )
-            offload_func(cur)
+            # offload_func(cur)
             ggml.ggml_set_name(cur, b"inpFF_+_result_mlp_down")
 
         # // lctx.use_buf(ctx0, 0)
@@ -796,6 +796,7 @@ class ReplitModel:
             ggml.ggml_repeat(ctx0, self.norm_f_weight, inpL),
             inpL,
         )
+        # offload_func_nr(inpL)
         ggml.ggml_set_name(inpL, b"norm_f_mul")
 
         # // output embedding weight tied to input embedding
