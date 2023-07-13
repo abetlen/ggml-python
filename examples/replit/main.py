@@ -488,9 +488,7 @@ class ReplitModel:
 
             # // compute QKV
             cur = ggml.ggml_mul_mat(ctx0, self.layers[il].c_attn_wqkv_weight, cur)
-            if ggml.GGML_USE_CUBLAS:
-                cur = ggml.ggml_cont(ctx0, cur)  # NOTE: needed for CUDA
-                # offload_func_kq(cur)
+            # offload_func_kq(cur)
             ggml.ggml_set_name(cur, b"tmpkqv")
 
             Qcur = ggml.ggml_view_2d(
