@@ -88,7 +88,7 @@ ggml.ggml_set_f32(a, ctypes.c_float(3.0))
 ggml.ggml_set_f32(b, ctypes.c_float(4.0))
 
 # Compute the graph
-ggml.ggml_graph_compute(ctx, ctypes.pointer(gf))
+ggml.ggml_graph_compute_with_ctx(ctx, ctypes.pointer(gf), 1)
 
 # Get the output value
 output = ggml.ggml_get_f32_1d(f, ctypes.c_int(0))
