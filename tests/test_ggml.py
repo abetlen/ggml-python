@@ -82,7 +82,9 @@ def test_ggml_min_alloc():
     assert n_nodes == 3  # 3 nodes: mul, mul, add
     assert n_leafs == 3  # 3 leafs: x, a, b
 
-    mem_size = nodes_size + leafs_size + overhead * (n_nodes + n_leafs + 1) # TODO: why +1?
+    mem_size = (
+        nodes_size + leafs_size + overhead * (n_nodes + n_leafs + 1)
+    )  # TODO: why +1?
     params = ggml.ggml_init_params(mem_size=mem_size, mem_buffer=None)
     ctx = ggml.ggml_init(params=params)
     gf = build_graph(ctx)
