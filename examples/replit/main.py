@@ -478,7 +478,7 @@ class ReplitModel:
                 ggml.ggml_repeat(ctx0, self.layers[il].norm_1_weight, cur),
                 cur,
             )
-            # offload_func(cur)
+            offload_func(cur)
             ggml.ggml_set_name(cur, b"attention_norm_0")
 
             # // self-attention
@@ -731,7 +731,7 @@ class ReplitModel:
                 inpL,
                 cur,
             )
-            # offload_func(cur)
+            offload_func(cur)
             ggml.ggml_set_name(cur, b"inpFF")
 
             # // m = self.ln_2(x)
@@ -752,15 +752,15 @@ class ReplitModel:
                 self.layers[il].c_ffn_up_proj_weight,
                 cur,
             )
-            # offload_func(cur)
+            offload_func(cur)
             ggml.ggml_set_name(cur, b"result_mlp_up")
 
             # // GELU activation
-            cur = ggml.ggml_gelu_quick(
+            cur = ggml.ggml_gelu(
                 ctx0,
                 cur,
             )
-            # offload_func(cur)
+            offload_func(cur)
             ggml.ggml_set_name(cur, b"gelu")
             # // projection
             # // cur = proj_w*cur + proj_b
@@ -769,7 +769,7 @@ class ReplitModel:
                 self.layers[il].c_ffn_down_proj_weight,
                 cur,
             )
-            # offload_func(cur)
+            offload_func(cur)
             ggml.ggml_set_name(cur, b"result_mlp_down")
 
             # // x = x + n
@@ -778,7 +778,7 @@ class ReplitModel:
                 inpL,
                 cur,
             )
-            # offload_func(cur)
+            offload_func(cur)
             ggml.ggml_set_name(cur, b"inpFF_+_result_mlp_down")
 
         # // lctx.use_buf(ctx0, 0)
@@ -794,7 +794,7 @@ class ReplitModel:
             ggml.ggml_repeat(ctx0, self.norm_f_weight, inpL),
             inpL,
         )
-        # offload_func_nr(inpL)
+        offload_func_nr(inpL)
         ggml.ggml_set_name(inpL, b"norm_f_mul")
 
         # // output embedding weight tied to input embedding
@@ -1028,11 +1028,11 @@ class ReplitModel:
                 if ggml.GGML_USE_CUBLAS and name.startswith("transformer.block"):
                     should_offload_suffix = [
                         # "norm_1.weight",
-                        # "attn.Wqkv.weight",
-                        # "attn.out_proj.weight",
+                        "attn.Wqkv.weight",
+                        "attn.out_proj.weight",
                         # "norm_2.weight",
-                        # "ffn.up_proj.weight",
-                        # "ffn.down_proj.weight",
+                        "ffn.up_proj.weight",
+                        "ffn.down_proj.weight",
                     ]
                     if any(name.endswith(s) for s in should_offload_suffix):
                         tensor.contents.backend = ggml.GGML_BACKEND_GPU
