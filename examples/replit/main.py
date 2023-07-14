@@ -908,6 +908,7 @@ class ReplitModel:
         n_gpu_layers: int = 0,
         n_batch: int = 1,
         n_threads: int = 1,
+        tokenizer: Optional[Tokenizer] = None,
         verbose: bool = True,
     ) -> ReplitModel:
         with open(model_file, "rb") as fin:
@@ -979,7 +980,7 @@ class ReplitModel:
                 ftype=ftype,
                 # vocabulary
                 vocab=vocab,
-                tokenizer=ReplitTokenizer(vocab),
+                tokenizer=ReplitTokenizer(vocab) if tokenizer is None else tokenizer,
                 ctx=ctx,
                 n_batch=n_batch,
                 n_threads=n_threads,

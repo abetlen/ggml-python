@@ -30,7 +30,7 @@ from fastapi import FastAPI, Request, Depends
 from pydantic import BaseModel, BaseSettings, Field, create_model_from_typeddict
 from sse_starlette.sse import EventSourceResponse
 
-from main import ReplitModel
+from main import ReplitModel, ReplitSentencepieceTokenizer
 
 
 ## Types
@@ -131,7 +131,7 @@ class OpenAIify:
 
         # Truncate prompt if it is too long
         max_tokens = min(
-            max_tokens, max(0, self.model.max_seq_len - len(prompt_tokens))
+            max_tokens, max(0, self.model.max_seq_len - len(prompt_tokens) - 1)
         )
         if len(prompt_tokens) + max_tokens > self.model.max_seq_len:
             raise ValueError(
@@ -468,6 +468,7 @@ class Settings(BaseSettings):
     n_gpu_layers: int = 32
     n_batch: int = 2048
     n_threads: int = max(multiprocessing.cpu_count() // 2, 1)
+    sentencepiece_model: Optional[str] = None
 
 
 class CreateCompletionRequest(BaseModel):
@@ -581,9 +582,11 @@ let g:copilot_strict_ssl = 0
 outer_lock = Lock()
 inner_lock = Lock()
 
+tokenizer = ReplitSentencepieceTokenizer(settings.sentencepiece_model) if settings.sentencepiece_model else None
+
 model = OpenAIify(
     ReplitModel.init_from_file(
-        model_file=settings.model_file, n_gpu_layers=settings.n_gpu_layers
+        model_file=settings.model_file, n_gpu_layers=settings.n_gpu_layers, tokenizer=tokenizer
     ),
     # check if any other requests are pending in the same thread and cancel the stream if so
     cancel_callback=lambda: outer_lock.locked(),
