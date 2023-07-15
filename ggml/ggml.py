@@ -3678,6 +3678,43 @@ lib.ggml_rope_inplace.argtypes = [
 lib.ggml_rope_inplace.restype = ctypes.POINTER(ggml_tensor)
 
 
+# // custom RoPE, in-place, returns view(a)
+# GGML_API struct ggml_tensor * ggml_rope_custom_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         int                   n_past,
+#         int                   n_dims,
+#         int                   mode,
+#         float                 freq_base,
+#         float                 freq_scale,
+#         int                   n_ctx);
+def ggml_rope_custom_inplace(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    n_past: Union[ctypes.c_int, int],
+    n_dims: Union[ctypes.c_int, int],
+    mode: Union[ctypes.c_int, int],
+    freq_base: Union[ctypes.c_float, float],
+    freq_scale: Union[ctypes.c_float, float],
+    n_ctx: Union[ctypes.c_int, int],
+) -> ggml_tensor_p:
+    return lib.ggml_rope_custom_inplace(
+        ctx, a, n_past, n_dims, mode, freq_base, freq_scale, n_ctx
+    )
+
+lib.ggml_rope_custom_inplace.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_float,
+    ctypes.c_float,
+    ctypes.c_int,
+]
+lib.ggml_rope_custom_inplace.restype = ctypes.POINTER(ggml_tensor)
+
+
 # // rotary position embedding backward, i.e compute dx from dy
 # // a - dy
 # GGML_API struct ggml_tensor * ggml_rope_back(
