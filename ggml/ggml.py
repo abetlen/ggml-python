@@ -547,6 +547,8 @@ ggml_tensor_p: TypeAlias = "ctypes._Pointer[ggml_tensor]"  # type: ignore
 Can be dereferenced to a [ggml_tensor][ggml.ggml_tensor] object using
 the `.contents` attribute."""
 
+abort_callback_t = ctypes.CFUNCTYPE(ctypes.c_bool, ctypes.c_void_p)
+
 # // the compute plan that needs to be prepared for ggml_graph_compute()
 # // since https://github.com/ggerganov/ggml/issues/287
 # struct ggml_cplan {
@@ -570,7 +572,7 @@ class ggml_cplan(ctypes.Structure):
         work_data (ctypes.c_void_p): work buffer
         n_threads (int): number of threads to use when computing the graph using [ggml_graph_compute][ggml.ggml_graph_compute]
         n_tasks (ctypes.Array[ctypes.c_int]): `n_tasks` of nodes, 1:1 mapping to cgraph nodes
-        abort_callback (ctypes.CFUNCTYPE[ctypes.c_bool, ctypes.c_void_p]): abort callback
+        abort_callback (abort_callback_t): abort callback
         abort_callback_data (ctypes.c_void_p): abort callback data
     """
 
@@ -581,7 +583,7 @@ class ggml_cplan(ctypes.Structure):
         ("n_tasks", ctypes.c_int * GGML_MAX_NODES),
         (
             "abort_callback",
-            ctypes.CFUNCTYPE(ctypes.c_bool, ctypes.c_void_p),
+            abort_callback_t,
         ),
         ("abort_callback_data", ctypes.c_void_p),
     ]
