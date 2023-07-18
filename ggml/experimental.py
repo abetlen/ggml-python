@@ -10,15 +10,6 @@ from ggml.utils import from_numpy, to_numpy
 import numpy as np
 import numpy.typing as npt
 
-_default_context: Optional[Context] = None
-
-
-def default_context() -> Context:
-    global _default_context
-    if _default_context is None:
-        _default_context = Context(InitParams())
-    return _default_context
-
 
 class InitParams:
     def __init__(
@@ -44,6 +35,10 @@ class Context:
 
     def __del__(self):
         ggml.ggml_free(self.context)
+
+    @classmethod
+    def with_tensor_overhead(cls):
+        return cls(InitParams(mem_size=ggml.ggml_tensor_overhead() * 2, no_alloc=True))
 
 
 class GGML_TYPE(enum.IntEnum):
@@ -87,9 +82,11 @@ class Tensor:
         self,
         tensor: ggml.ggml_tensor_p,
         ctx: Optional[Context] = None,
+        data: Optional[Any] = None,
     ):
         self.tensor = tensor
-        self.ctx = ctx or default_context()
+        self.ctx = ctx
+        self._data = data
 
     def nelements(self):
         return ggml.ggml_nelements(self.tensor)
@@ -130,48 +127,66 @@ class Tensor:
     def __len__(self):
         return self.nelements()
 
+    @classmethod
+    def with_buffer(cls, tensor: ggml.ggml_tensor_p, ctx: Context):
+        if tensor.contents.data is not None:
+            return cls(tensor=tensor, ctx=ctx)
+        nbytes = ggml.ggml_nbytes(tensor)
+        data = (ctypes.c_uint8 * nbytes)()
+        tensor.contents.data = ctypes.cast(data, ctypes.c_void_p)
+        return Tensor(tensor=tensor, ctx=ctx, data=data)
+
     def __add__(self, other: Tensor):
-        op = ggml.ggml_add(self.ctx.context, self.tensor, other.tensor)
-        return Tensor(tensor=op, ctx=self.ctx)
+        ctx = Context.with_tensor_overhead()
+        op = ggml.ggml_add(ctx.context, self.tensor, other.tensor)
+        return Tensor.with_buffer(op, ctx)
 
     def __sub__(self, other: Tensor):
-        op = ggml.ggml_sub(self.ctx.context, self.tensor, other.tensor)
-        return Tensor(tensor=op, ctx=self.ctx)
+        ctx = Context.with_tensor_overhead()
+        op = ggml.ggml_sub(ctx.context, self.tensor, other.tensor)
+        return Tensor.with_buffer(op, ctx)
 
     def __mul__(self, other: Tensor):
-        op = ggml.ggml_mul(self.ctx.context, self.tensor, other.tensor)
-        return Tensor(tensor=op, ctx=self.ctx)
+        ctx = Context.with_tensor_overhead()
+        op = ggml.ggml_mul(ctx.context, self.tensor, other.tensor)
+        return Tensor.with_buffer(op, ctx)
 
     def __truediv__(self, other: Tensor):
-        op = ggml.ggml_div(self.ctx.context, self.tensor, other.tensor)
-        return Tensor(tensor=op, ctx=self.ctx)
+        ctx = Context.with_tensor_overhead()
+        op = ggml.ggml_div(ctx.context, self.tensor, other.tensor)
+        return Tensor.with_buffer(op, ctx)
 
     def __neg__(self):
-        op = ggml.ggml_neg(self.ctx.context, self.tensor)
-        return Tensor(tensor=op, ctx=self.ctx)
+        ctx = Context.with_tensor_overhead()
+        op = ggml.ggml_neg(ctx.context, self.tensor)
+        return Tensor.with_buffer(op, ctx)
 
     def __abs__(self):
-        op = ggml.ggml_abs(self.ctx.context, self.tensor)
-        return Tensor(tensor=op, ctx=self.ctx)
+        ctx = Context.with_tensor_overhead()
+        op = ggml.ggml_abs(ctx.context, self.tensor)
+        return Tensor.with_buffer(op, ctx)
 
     @classmethod
     def with_shape(
         cls, shape: Sequence[int], ggml_type: GGML_TYPE, ctx: Optional[Context] = None
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         tensor = ggml.ggml_new_tensor(
             ctx.context,
             ggml_type.value,
             len(shape),
             (ctypes.c_int64 * len(shape))(*shape),
         )
-        return cls(tensor=tensor, ctx=ctx)
+        return cls.with_buffer(tensor, ctx)
 
     @classmethod
     def from_numpy(cls, x: npt.NDArray[Any], ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
-        tensor = from_numpy(x, ctx.context)
-        return cls(tensor=tensor, ctx=ctx)
+        _ctx = ctx or Context.with_tensor_overhead()
+        tensor = from_numpy(x, _ctx.context)
+        obj = cls.with_buffer(tensor=tensor, ctx=_ctx)
+        if ctx is None:
+            obj.numpy()[:] = x
+        return obj
 
     @staticmethod
     def new_tensor(
@@ -179,14 +194,14 @@ class Tensor:
         shape: Sequence[int] = (),
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         tensor = ggml.ggml_new_tensor(
             ctx.context,
             ggml_type.value,
             len(shape),
             (ctypes.c_int64 * len(shape))(*shape),
         )
-        return Tensor(tensor=tensor, ctx=ctx)
+        return Tensor.with_buffer(tensor=tensor, ctx=ctx)
 
     @staticmethod
     def new_tensor_1d(
@@ -194,13 +209,13 @@ class Tensor:
         ne0: int = 0,
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         tensor = ggml.ggml_new_tensor_1d(
             ctx.context,
             ggml_type.value,
             ne0,
         )
-        return Tensor(tensor=tensor, ctx=ctx)
+        return Tensor.with_buffer(tensor=tensor, ctx=ctx)
 
     @staticmethod
     def new_tensor_2d(
@@ -209,14 +224,14 @@ class Tensor:
         ne1: int = 0,
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         tensor = ggml.ggml_new_tensor_2d(
             ctx.context,
             ggml_type.value,
             ne0,
             ne1,
         )
-        return Tensor(tensor=tensor, ctx=ctx)
+        return Tensor.with_buffer(tensor=tensor, ctx=ctx)
 
     @staticmethod
     def new_tensor_3d(
@@ -226,7 +241,7 @@ class Tensor:
         ne2: int = 0,
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         tensor = ggml.ggml_new_tensor_3d(
             ctx.context,
             ggml_type.value,
@@ -234,7 +249,7 @@ class Tensor:
             ne1,
             ne2,
         )
-        return Tensor(tensor=tensor, ctx=ctx)
+        return Tensor.with_buffer(tensor=tensor, ctx=ctx)
 
     @staticmethod
     def new_tensor_4d(
@@ -245,7 +260,7 @@ class Tensor:
         ne3: int = 0,
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         tensor = ggml.ggml_new_tensor_4d(
             ctx.context,
             ggml_type.value,
@@ -254,47 +269,47 @@ class Tensor:
             ne2,
             ne3,
         )
-        return Tensor(tensor=tensor, ctx=ctx)
+        return Tensor.with_buffer(tensor=tensor, ctx=ctx)
 
     @staticmethod
     def new_i32(
         value: int,
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         tensor = ggml.ggml_new_i32(ctx.context, value)
-        return Tensor(tensor=tensor, ctx=ctx)
+        return Tensor.with_buffer(tensor=tensor, ctx=ctx)
 
     @staticmethod
     def new_f32(
         value: float,
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         tensor = ggml.ggml_new_f32(ctx.context, value)
-        return Tensor(tensor=tensor, ctx=ctx)
+        return Tensor.with_buffer(tensor=tensor, ctx=ctx)
 
     @staticmethod
     def dup_tensor(a: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_dup_tensor(ctx.context, a.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def view(a: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_view_tensor(ctx.context, a.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def set_zero(a: Tensor):
         op = ggml.ggml_set_zero(a.tensor)
-        return Tensor(tensor=op, ctx=a.ctx)
+        return Tensor.with_buffer(tensor=op, ctx=a.ctx)
 
     @staticmethod
     def set_i32(a: Tensor, value: int):
         op = ggml.ggml_set_i32(a.tensor, value)
-        return Tensor(tensor=op, ctx=a.ctx)
+        return Tensor.with_buffer(tensor=op, ctx=a.ctx)
 
     @staticmethod
     def get_i32_1d(a: Tensor, i: int):
@@ -332,27 +347,27 @@ class Tensor:
 
     @staticmethod
     def dup(a: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_dup(ctx.context, a.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def add(a: Tensor, b: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_add(ctx.context, a.tensor, b.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def add_inplace(a: Tensor, b: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_add_inplace(ctx.context, a.tensor, b.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def add1(a: Tensor, b: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_add1(ctx.context, a.tensor, b.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def acc(
@@ -364,7 +379,7 @@ class Tensor:
         offset: int,
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_acc(
             ctx.context,
             a.tensor,
@@ -374,7 +389,7 @@ class Tensor:
             nb3,
             offset,
         )
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def acc_inplace(
@@ -386,7 +401,7 @@ class Tensor:
         offset: int,
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_acc_inplace(
             ctx.context,
             a.tensor,
@@ -396,157 +411,157 @@ class Tensor:
             nb3,
             offset,
         )
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def sub(a: Tensor, b: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_sub(ctx.context, a.tensor, b.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def mul(a: Tensor, b: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_mul(ctx.context, a.tensor, b.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def div(a: Tensor, b: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_div(ctx.context, a.tensor, b.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def sqr(a: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_sqr(ctx.context, a.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def sqrt(a: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_sqrt(ctx.context, a.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def log(a: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_log(ctx.context, a.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def log_inplace(a: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_log_inplace(ctx.context, a.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def sum(a: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_sum(ctx.context, a.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def sum_rows(a: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_sum_rows(ctx.context, a.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def mean(a: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_mean(ctx.context, a.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def repeat(a: Tensor, b: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_repeat(ctx.context, a.tensor, b.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def abs(a: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_abs(ctx.context, a.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def sgn(a: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_sgn(ctx.context, a.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def neg(a: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_neg(ctx.context, a.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def step(a: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_step(ctx.context, a.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def relu(a: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_relu(ctx.context, a.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def gelu(a: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_gelu(ctx.context, a.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def silu(a: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_silu(ctx.context, a.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def silu_back(a: Tensor, b: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_silu_back(ctx.context, a.tensor, b.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def norm(a: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_norm(ctx.context, a.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def rms_norm(a: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_rms_norm(ctx.context, a.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def rms_norm_back(a: Tensor, b: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_rms_norm_back(ctx.context, a.tensor, b.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def mul_mat(a: Tensor, b: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_mul_mat(ctx.context, a.tensor, b.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def scale(a: Tensor, b: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_scale(ctx.context, a.tensor, b.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def scale_inplace(a: Tensor, b: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_scale_inplace(ctx.context, a.tensor, b.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def set(
@@ -558,7 +573,7 @@ class Tensor:
         offset: int,
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_set(
             ctx.context,
             a.tensor,
@@ -568,7 +583,7 @@ class Tensor:
             nb3,
             offset,
         )
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def set_inplace(
@@ -580,7 +595,7 @@ class Tensor:
         offset: int,
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_set_inplace(
             ctx.context,
             a.tensor,
@@ -590,21 +605,21 @@ class Tensor:
             nb3,
             offset,
         )
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def set_1d(a: Tensor, b: Tensor, offset: int, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_set_1d(ctx.context, a.tensor, b.tensor, offset)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def set_1d_inplace(
         a: Tensor, b: Tensor, offset: int, ctx: Optional[Context] = None
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_set_1d_inplace(ctx.context, a.tensor, b.tensor, offset)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def set_2d(
@@ -614,7 +629,7 @@ class Tensor:
         offset: int,
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_set_2d(
             ctx.context,
             a.tensor,
@@ -622,7 +637,7 @@ class Tensor:
             nb1,
             offset,
         )
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def set_2d_inplace(
@@ -632,7 +647,7 @@ class Tensor:
         offset: int,
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_set_2d_inplace(
             ctx.context,
             a.tensor,
@@ -640,43 +655,43 @@ class Tensor:
             nb1,
             offset,
         )
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def cpy(a: Tensor, b: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_cpy(ctx.context, a.tensor, b.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def cont(a: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_cont(ctx.context, a.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def reshape(a: Tensor, b: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_reshape(ctx.context, a.tensor, b.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def reshape_1d(a: Tensor, ne0: int, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_reshape_1d(ctx.context, a.tensor, ne0)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def reshape_2d(a: Tensor, ne0: int, ne1: int, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_reshape_2d(ctx.context, a.tensor, ne0, ne1)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def reshape_3d(
         a: Tensor, ne0: int, ne1: int, ne2: int, ctx: Optional[Context] = None
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_reshape_3d(
             ctx.context,
             a.tensor,
@@ -684,7 +699,7 @@ class Tensor:
             ne1,
             ne2,
         )
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def reshape_4d(
@@ -695,7 +710,7 @@ class Tensor:
         ne3: int,
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_reshape_4d(
             ctx.context,
             a.tensor,
@@ -704,7 +719,7 @@ class Tensor:
             ne2,
             ne3,
         )
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def view_1d(
@@ -713,9 +728,9 @@ class Tensor:
         offset: int,
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_view_1d(ctx.context, a.tensor, ne0, offset)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def view_2d(
@@ -726,7 +741,7 @@ class Tensor:
         offset: int,
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_view_2d(
             ctx.context,
             a.tensor,
@@ -735,7 +750,7 @@ class Tensor:
             nb1,
             offset,
         )
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def view_3d(
@@ -748,7 +763,7 @@ class Tensor:
         offset: int,
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_view_3d(
             ctx.context,
             a.tensor,
@@ -759,7 +774,7 @@ class Tensor:
             nb2,
             offset,
         )
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def view_4d(
@@ -774,7 +789,7 @@ class Tensor:
         offset: int,
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_view_4d(
             ctx.context,
             a.tensor,
@@ -787,7 +802,7 @@ class Tensor:
             nb3,
             offset,
         )
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def permute(
@@ -798,7 +813,7 @@ class Tensor:
         axis3: int,
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_permute(
             ctx.context,
             a.tensor,
@@ -807,67 +822,67 @@ class Tensor:
             axis2,
             axis3,
         )
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def transpose(a: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_transpose(ctx.context, a.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def get_rows(a: Tensor, b: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_get_rows(ctx.context, a.tensor, b.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def get_rows_back(a: Tensor, b: Tensor, c: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_get_rows_back(ctx.context, a.tensor, b.tensor, c.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def diag(a: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_diag(ctx.context, a.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def diag_mask_inf(a: Tensor, n_past: int, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_diag_mask_inf(ctx.context, a.tensor, n_past)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def diag_mask_inf_inplace(a: Tensor, n_past: int, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_diag_mask_inf_inplace(ctx.context, a.tensor, n_past)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def diag_mask_zero(a: Tensor, n_past: int, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_diag_mask_zero(ctx.context, a.tensor, n_past)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def diag_mask_zero_inplace(a: Tensor, n_past: int, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_diag_mask_zero_inplace(ctx.context, a.tensor, n_past)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def soft_max(a: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_soft_max(ctx.context, a.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def soft_max_inplace(a: Tensor, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_soft_max_inplace(ctx.context, a.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def rope(
@@ -878,7 +893,7 @@ class Tensor:
         n_ctx: int,
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_rope(
             ctx.context,
             a.tensor,
@@ -887,7 +902,7 @@ class Tensor:
             mode,
             n_ctx,
         )
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def rope_inplace(
@@ -898,9 +913,9 @@ class Tensor:
         n_ctx: int,
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_rope_inplace(ctx.context, a.tensor, n_past, n_dims, mode, n_ctx)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def rope_back(
@@ -910,7 +925,7 @@ class Tensor:
         mode: int,
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_rope_back(
             ctx.context,
             a.tensor,
@@ -918,7 +933,7 @@ class Tensor:
             n_dims,
             mode,
         )
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def alibi(
@@ -928,7 +943,7 @@ class Tensor:
         bias_max: float,
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_alibi(
             ctx.context,
             a.tensor,
@@ -936,13 +951,13 @@ class Tensor:
             n_head,
             bias_max,
         )
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def clamp(a: Tensor, min: float, max: float, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_clamp(ctx.context, a.tensor, min, max)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def conv_1d(
@@ -953,9 +968,9 @@ class Tensor:
         d0: int,
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_conv_1d(ctx.context, a.tensor, b.tensor, s0, p0, d0)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def conv_2d(
@@ -969,9 +984,9 @@ class Tensor:
         d1: int,
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_conv_2d(ctx.context, a.tensor, b.tensor, s0, s1, p0, p1, d0, d1)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def flash_attn(
@@ -981,7 +996,7 @@ class Tensor:
         masked: bool,
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_flash_attn(
             ctx.context,
             q.tensor,
@@ -989,7 +1004,7 @@ class Tensor:
             v.tensor,
             ctypes.c_bool(masked),
         )
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def flash_ff(
@@ -1000,11 +1015,11 @@ class Tensor:
         c1: Tensor,
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_flash_ff(
             ctx.context, a.tensor, b0.tensor, b1.tensor, c0.tensor, c1.tensor
         )
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     # TODO: fix type signature
     @staticmethod
@@ -1013,11 +1028,11 @@ class Tensor:
         fun: Callable[[float], float],
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_map_unary_f32(  # type: ignore
             ctx.context, a.tensor, ctypes.CFUNCTYPE(ctypes.c_float, ctypes.c_float)(fun)
         )
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     # TODO: fix type signature
     @staticmethod
@@ -1027,23 +1042,23 @@ class Tensor:
         fun: Callable[[float, float], float],
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_map_binary_f32(  # type: ignore
             ctx.context,
             a.tensor,
             b.tensor,
             ctypes.CFUNCTYPE(ctypes.c_float, ctypes.c_float, ctypes.c_float)(fun),
         )
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def set_param(
         a: Tensor,
         ctx: Optional[Context] = None,
     ):
-        ctx = ctx or default_context()
+        ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_set_param(ctx.context, a.tensor)
-        return Tensor(tensor=op, ctx=ctx)
+        return Tensor.with_buffer(tensor=op, ctx=ctx)
 
     @staticmethod
     def ggml_ftype_to_ggml_type(ftype: int):
@@ -1051,14 +1066,17 @@ class Tensor:
 
 
 class CGraph:
-    def __init__(self, cgraph: ggml.ggml_cgraph, ctx: Optional[Context] = None):
+    def __init__(self, cgraph: ggml.ggml_cgraph):
         self.cgraph = cgraph
-        self.ctx = ctx or default_context()
 
     def compute(self, n_threads: int = 1):
-        ggml.ggml_graph_compute_with_ctx(
-            self.ctx.context, ctypes.pointer(self.cgraph), n_threads=n_threads
-        )
+        gp = ggml.ggml_graph_plan(ctypes.pointer(self.cgraph), n_threads=n_threads)
+        if gp.work_size > 0:
+            work_data = (ctypes.c_uint8 * gp.work_size)()
+            gp.work_data = ctypes.cast(work_data, ctypes.c_void_p)
+            ggml.ggml_graph_compute(ctypes.pointer(self.cgraph), ctypes.pointer(gp))
+        else:
+            ggml.ggml_graph_compute(ctypes.pointer(self.cgraph), ctypes.pointer(gp))
 
     def reset(self):
         ggml.ggml_graph_reset(ctypes.pointer(self.cgraph))
@@ -1066,7 +1084,6 @@ class CGraph:
     def get_tensor(self, name: bytes):
         return Tensor(
             tensor=ggml.ggml_graph_get_tensor(ctypes.pointer(self.cgraph), name),
-            ctx=self.ctx,
         )
 
     def graph_export(self, fname: bytes):
@@ -1092,11 +1109,10 @@ class CGraph:
 
     @classmethod
     def build_forward(cls, tensor: Tensor):
-        return CGraph(cgraph=ggml.ggml_build_forward(tensor.tensor), ctx=tensor.ctx)
+        return CGraph(cgraph=ggml.ggml_build_forward(tensor.tensor))
 
     @classmethod
-    def build_backward(cls, forward: CGraph, keep: bool, ctx: Optional[Context] = None):
-        ctx = ctx or default_context()
+    def build_backward(cls, forward: CGraph, keep: bool, ctx: Context):
         return CGraph(
             cgraph=ggml.ggml_build_backward(
                 ctx.context, ctypes.pointer(forward.cgraph), ctypes.c_bool(keep)
@@ -1104,11 +1120,9 @@ class CGraph:
         )
 
     @classmethod
-    def graph_import(cls, fname: bytes, ctx: Optional[Context] = None) -> CGraph:
-        ctx = ctx or default_context()
+    def graph_import(cls, fname: bytes, ctx: Context) -> CGraph:
         return CGraph(
             cgraph=ggml.ggml_graph_import(
                 fname, ctypes.pointer(ctx.context), ctypes.pointer(ctx.context)
             ),
-            ctx=ctx,
         )
