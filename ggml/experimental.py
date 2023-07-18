@@ -128,7 +128,7 @@ class Tensor:
         return self.nelements()
 
     @classmethod
-    def with_buffer(cls, tensor: ggml.ggml_tensor_p, ctx: Context):
+    def with_buffer(cls, tensor: ggml.ggml_tensor_p, ctx: Optional[Context] = None):
         if tensor.contents.data is not None:
             return cls(tensor=tensor, ctx=ctx)
         nbytes = ggml.ggml_nbytes(tensor)
