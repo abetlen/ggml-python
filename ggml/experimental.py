@@ -38,7 +38,7 @@ class Context:
 
     @classmethod
     def with_tensor_overhead(cls):
-        return cls(InitParams(mem_size=ggml.ggml_tensor_overhead() * 2, no_alloc=True))
+        return cls(InitParams(mem_size=ggml.ggml_tensor_overhead(), no_alloc=True))
 
 
 class GGML_TYPE(enum.IntEnum):
