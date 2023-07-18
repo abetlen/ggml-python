@@ -130,13 +130,14 @@ class Tensor:
         return self.nelements()
 
     @classmethod
-    def with_buffer(cls, tensor: ggml.ggml_tensor_p, ctx: Optional[Context] = None, *args, **kwargs): # type: ignore
+    def with_buffer(cls, tensor: ggml.ggml_tensor_p, ctx: Optional[Context] = None, src: Optional[List[Tensor]] = None):
+        src = src or []
         if tensor.contents.data is not None:
-            return cls(tensor=tensor, ctx=ctx, *args, **kwargs)
+            return cls(tensor=tensor, ctx=ctx, src=src)
         nbytes = ggml.ggml_nbytes(tensor)
         data = (ctypes.c_uint8 * nbytes)()
         tensor.contents.data = ctypes.cast(data, ctypes.c_void_p)
-        return cls(tensor=tensor, ctx=ctx, data=data, *args, **kwargs)
+        return cls(tensor=tensor, ctx=ctx, data=data, src=src)
 
     def __add__(self, other: Tensor):
         ctx = Context.with_tensor_overhead()
