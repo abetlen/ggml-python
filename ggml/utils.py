@@ -4,7 +4,7 @@ import enum
 import ctypes
 import contextlib
 
-from typing import Any
+from typing import Any, Callable, Tuple
 
 from ggml import ggml
 
@@ -117,13 +117,15 @@ def ggml_context_manager(params: ggml.ggml_init_params):
         ggml.ggml_free(ctx)
 
 
-def copy_to_cpu(ctx: ggml.ggml_context_p, tensor: ggml.ggml_tensor_p) -> ggml.ggml_tensor_p:
+def copy_to_cpu(
+    ctx: ggml.ggml_context_p, tensor: ggml.ggml_tensor_p
+) -> ggml.ggml_tensor_p:
     """Copy a ggml tensor from a GPU backend to CPU.
-    
+
     Parameters:
         ctx: ggml context
         tensor: ggml tensor
-        
+
     Returns:
         New ggml tensor with data copied from tensor on CPU backend"""
     tmp = ggml.ggml_dup_tensor(ctx, tensor)
