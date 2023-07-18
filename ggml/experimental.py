@@ -1071,6 +1071,7 @@ class Tensor:
 class CGraph:
     def __init__(self, cgraph: ggml.ggml_cgraph):
         self.cgraph = cgraph
+        self._tensors: List[Tensor] = []
 
     def compute(self, n_threads: int = 1):
         gp = ggml.ggml_graph_plan(ctypes.pointer(self.cgraph), n_threads=n_threads)
@@ -1083,6 +1084,7 @@ class CGraph:
 
     def reset(self):
         ggml.ggml_graph_reset(ctypes.pointer(self.cgraph))
+        self._tensors = []
 
     def get_tensor(self, name: bytes):
         return Tensor(
@@ -1094,6 +1096,7 @@ class CGraph:
 
     def build_forward_expand(self, tensor: Tensor):
         ggml.ggml_build_forward_expand(ctypes.pointer(self.cgraph), tensor.tensor)
+        self._tensors.append(tensor)
 
     @staticmethod
     def print(a: CGraph):
@@ -1112,15 +1115,9 @@ class CGraph:
 
     @classmethod
     def build_forward(cls, tensor: Tensor):
-        return CGraph(cgraph=ggml.ggml_build_forward(tensor.tensor))
-
-    @classmethod
-    def build_backward(cls, forward: CGraph, keep: bool, ctx: Context):
-        return CGraph(
-            cgraph=ggml.ggml_build_backward(
-                ctx.context, ctypes.pointer(forward.cgraph), ctypes.c_bool(keep)
-            )
-        )
+        obj = CGraph(cgraph=ggml.ggml_build_forward(tensor.tensor))
+        obj._tensors.append(tensor)
+        return obj
 
     @classmethod
     def graph_import(cls, fname: bytes, ctx: Context) -> CGraph:
