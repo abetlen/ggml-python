@@ -505,7 +505,7 @@ GGML_OBJECT_SIZE = ctypes.sizeof(ggml_object)
 #     void * extra; // extra things e.g. for ggml-cuda.cu
 
 
-#     char padding[8];
+#     char padding[4];
 # };
 class ggml_tensor(ctypes.Structure):
     """n-dimensional tensor
@@ -549,7 +549,7 @@ ggml_tensor._fields_ = [
     ("data", ctypes.c_void_p),
     ("name", ctypes.c_char * GGML_MAX_NAME),
     ("extra", ctypes.c_void_p),
-    ("padding", ctypes.c_char * 8),
+    ("padding", ctypes.c_char * 4),
 ]
 
 GGML_TENSOR_SIZE = ctypes.sizeof(ggml_tensor)
@@ -609,6 +609,12 @@ ggml_cplan_p: TypeAlias = "ctypes._Pointer[ggml_cplan]"  # type: ignore
 Can be dereferenced to a [ggml_cplan][ggml.ggml_cplan] object using
 the `.contents` attribute."""
 
+# // next prime after GGML_MAX_NODES
+# // #define GGML_GRAPH_HASHTABLE_SIZE 4099
+# // next prime after GGML_MAX_NODES * 2 (nodes + leafs)
+# #define GGML_GRAPH_HASHTABLE_SIZE 8273
+GGML_GRAPH_HASHTABLE_SIZE = 8273
+
 # // computation graph
 # struct ggml_cgraph {
 #     int n_nodes;
@@ -618,6 +624,7 @@ the `.contents` attribute."""
 #     struct ggml_tensor * grads[GGML_MAX_NODES];
 #     struct ggml_tensor * leafs[GGML_MAX_NODES];
 
+#     void * visited_hash_table[GGML_GRAPH_HASHTABLE_SIZE];
 
 #     // performance
 #     int     perf_runs;
@@ -633,6 +640,7 @@ class ggml_cgraph(ctypes.Structure):
         nodes (ctypes.Array[ggml_tensor_p]): `n_nodes`-length array of compute tensors
         grads (ctypes.Array[ggml_tensor_p]): `n_nodes`-length array of gradient tensors
         leafs (ctypes.Array[ggml_tensor_p]): `n_leafs`-length array of parameter tensors
+        visited_hash_table (ctypes.Array[ctypes.c_void_p]): `GGML_GRAPH_HASHTABLE_SIZE`-length array of visited nodes
         perf_runs (int): number of runs
         perf_cycles (int): number of cycles
         perf_time_us (int): computation time in microseconds"""
@@ -643,6 +651,7 @@ class ggml_cgraph(ctypes.Structure):
         ("nodes", ctypes.POINTER(ggml_tensor) * GGML_MAX_NODES),
         ("grads", ctypes.POINTER(ggml_tensor) * GGML_MAX_NODES),
         ("leafs", ctypes.POINTER(ggml_tensor) * GGML_MAX_NODES),
+        ("visited_hash_table", ctypes.c_void_p * GGML_GRAPH_HASHTABLE_SIZE),
         ("perf_runs", ctypes.c_int),
         ("perf_cycles", ctypes.c_int64),
         ("perf_time_us", ctypes.c_int64),
@@ -2748,49 +2757,52 @@ lib.ggml_norm_inplace.restype = ctypes.POINTER(ggml_tensor)
 
 # GGML_API struct ggml_tensor * ggml_rms_norm(
 #         struct ggml_context * ctx,
-#         struct ggml_tensor  * a);
+#         struct ggml_tensor  * a,
+#         float                 eps);
 def ggml_rms_norm(
-    ctx: ggml_context_p, a: ggml_tensor_p  
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    eps: Union[ctypes.c_float, float],
 ) -> ggml_tensor_p:
-    """Compute the root mean square of all elements in a tensor and return the result.
+    """Compute the RMS norm of a tensor and return the result.
     
     Parameters:
         ctx: ggml context
         a: tensor
+        eps: float
 
     Returns:
         Pointer to ggml_tensor"""
-    return lib.ggml_rms_norm(ctx, a)
+    return lib.ggml_rms_norm(ctx, a, eps)
 
-
-lib.ggml_rms_norm.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
+lib.ggml_rms_norm.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.c_float,
+]
 lib.ggml_rms_norm.restype = ctypes.POINTER(ggml_tensor)
-
 
 # GGML_API struct ggml_tensor * ggml_rms_norm_inplace(
 #         struct ggml_context * ctx,
-#         struct ggml_tensor  * a);
+#         struct ggml_tensor  * a,
+#         float                 eps);
 def ggml_rms_norm_inplace(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
+    a: ggml_tensor_p,
+    eps: Union[ctypes.c_float, float],
 ) -> ggml_tensor_p:
-    """Compute the root mean square of all elements in a tensor and store the result in the first tensor.
+    return lib.ggml_rms_norm_inplace(ctx, a, eps)
 
-    Parameters:
-        ctx: ggml context
-        a: tensor
-
-    Returns:
-        Pointer to ggml_tensor"""
-    return lib.ggml_rms_norm_inplace(ctx, a)
-
-
-lib.ggml_rms_norm_inplace.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
+lib.ggml_rms_norm_inplace.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.c_float,
+]
 lib.ggml_rms_norm_inplace.restype = ctypes.POINTER(ggml_tensor)
-
 
 # // a - x
 # // b - dy
+# // TODO: update with configurable eps
 # GGML_API struct ggml_tensor * ggml_rms_norm_back(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a,
