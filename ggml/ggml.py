@@ -539,7 +539,7 @@ ggml_tensor._fields_ = [
     ("ne", ctypes.c_int64 * GGML_MAX_DIMS),
     ("nb", ctypes.c_size_t * GGML_MAX_DIMS),
     ("op", ctypes.c_int),
-    ("op_params", ctypes.c_int32 * GGML_MAX_OP_PARAMS),
+    ("op_params", ctypes.c_int32 * (GGML_MAX_OP_PARAMS // ctypes.sizeof(ctypes.c_uint32))),
     ("is_param", ctypes.c_bool),
     ("grad", ctypes.POINTER(ggml_tensor)),
     ("src", ctypes.POINTER(ggml_tensor) * GGML_MAX_SRC),
