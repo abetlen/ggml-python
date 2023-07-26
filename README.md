@@ -45,6 +45,7 @@ CMAKE_ARGS="-DGGML_CUBLAS=ON" pip install ggml-python
 | `GGML_CUBLAS` | Enable cuBLAS support | `OFF` |
 | `GGML_CLBLAST` | Enable CLBlast support | `OFF` |
 | `GGML_OPENBLAS` | Enable OpenBLAS support | `OFF` |
+| `GGML_METAL` | Enable Metal support | `OFF` |
 
 # Usage
 
