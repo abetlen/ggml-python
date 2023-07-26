@@ -111,8 +111,6 @@ class GgmlRuntimeBackend(Backend):
         for initializer in graph_def.initializer:
             weights[initializer.name] = initializer.raw_data
 
-        # ggml_rep -> GgmlBackendRep() -> return
-
         return GgmlBackendRep(
             graph_def, inputs=inputs, outputs=outputs, tensor_dict=weights
         )
