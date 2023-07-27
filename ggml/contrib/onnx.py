@@ -12,7 +12,9 @@ import ggml.utils
 
 
 class GgmlBackendRep(BackendRep):
-    def __init__(self, graph=None, inputs=None, outputs=None, weights=None):
+    def __init__(
+        self, graph: GraphProto = None, inputs=None, outputs=None, weights=None
+    ):
         super(GgmlBackendRep, self).__init__()
         self._graph = graph
         self._inputs = inputs or []
@@ -55,7 +57,49 @@ class GgmlBackendRep(BackendRep):
         """Abstract function."""
 
         # check where data is should be on CPU
-        return (None,)
+
+        model_graph = self._graph
+        exit_node = None
+        ggml_tensors = {}
+
+        tensor_types = {1: ggml.ggml_new_tensor_1d, 2: ggml.ggml_new_tensor_2d}
+        operation_types = {"Mul": ggml.ggml_mul, "Add": ggml.ggml_add}
+
+        # Define context
+        params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
+        ctx = ggml.ggml_init(params=params)
+
+        # Create entry inputs
+        for model_input in model_graph.input:
+            inp = ggml.ggml_new_tensor_1d(
+                ctx,
+                ggml.GGML_TYPE_F32,
+                1,
+            )
+            ggml_tensors[model_input.name] = inp
+
+        # Build layers
+        for node in model_graph.node:
+            node_inputs = [ggml_tensors[inp] for inp in node.input]
+            layer = operation_types[node.op_type](
+                ctx,
+                *node_inputs,
+            )
+            ggml_tensors[node.output[0]] = layer
+            if node.output[-1] == self._graph.output[-1].name:
+                exit_node = layer
+
+        # Build graph
+        gf = ggml.ggml_build_forward(exit_node)
+
+        # Set user inputs
+        for key, value in inputs.items():
+            ggml.ggml_set_f32(ggml_tensors[key], value)
+
+        # Compute graph
+        ggml.ggml_graph_compute_with_ctx(ctx, ctypes.pointer(gf), 1)
+
+        return ggml.ggml_get_f32_1d(exit_node, 0)
 
 
 class GgmlRuntimeBackend(Backend):
