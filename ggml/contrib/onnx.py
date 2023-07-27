@@ -1,18 +1,23 @@
+import ctypes
 from typing import Any, Tuple
 
+import onnx
 from onnx import defs
 from onnx.backend.base import Backend, BackendRep
 from onnx.helper import make_opsetid
-from onnx.onnx_ml_pb2 import GraphProto
+from onnx.onnx_ml_pb2 import GraphProto, ModelProto
+
+import ggml
+import ggml.utils
 
 
 class GgmlBackendRep(BackendRep):
-    def __init__(self, graph=None, inputs=None, outputs=None, tensor_dict=None):
-        super(GgmlRuntimeBackend, self).__init__()
+    def __init__(self, graph=None, inputs=None, outputs=None, weights=None):
+        super(GgmlBackendRep, self).__init__()
         self._graph = graph
-        self._inputs = inputs or {}
-        self._outputs = outputs or {}
-        self._tensor_dict = tensor_dict or {}
+        self._inputs = inputs or []
+        self._outputs = outputs or []
+        self._weights = weights or {}
 
     @property
     def graph(self):
@@ -39,12 +44,12 @@ class GgmlBackendRep(BackendRep):
         self._outputs = outputs
 
     @property
-    def tensor_dict(self):
-        return self._tensor_dict
+    def weights(self):
+        return self._weights
 
-    @tensor_dict.setter
-    def tensor_dict(self, tensor_dict):
-        self._tensor_dict = tensor_dict
+    @weights.setter
+    def weights(self, weights):
+        self._weights = weights
 
     def run(self, inputs: Any, **kwargs: Any) -> Tuple[Any, ...]:
         """Abstract function."""
@@ -59,7 +64,7 @@ class GgmlRuntimeBackend(Backend):
         return True, ""
 
     @classmethod
-    def prepare(cls, model, device="CPU", **kwargs):
+    def prepare(cls, model: ModelProto, device="CPU", **kwargs):
         """
         Load the model and creates a :class:`onnxruntime.InferenceSession`
         ready to be used as a backend.
@@ -79,7 +84,7 @@ class GgmlRuntimeBackend(Backend):
         return ggml_rep
 
     @classmethod
-    def onnx_model_to_ggml_rep(cls, model, **kwargs):
+    def onnx_model_to_ggml_rep(cls, model: ModelProto, **kwargs):
         """Convert ONNX model to GgmlRep.
 
         :param model: ONNX ModelProto object.
@@ -100,19 +105,44 @@ class GgmlRuntimeBackend(Backend):
 
     @classmethod
     def _onnx_graph_to_ggml_rep(cls, graph_def: GraphProto, opset, **kwargs):
-        inputs = {}
-        outputs = {}
         weights = {}
 
-        for node in graph_def.node:
-            inputs[node.name] = list(node.input)
-            outputs[node.name] = list(node.output)
+        n_tensors = len(graph_def.initializer)
+        init_params = ggml.ggml_init_params(
+            mem_size=n_tensors * ggml.ggml_tensor_overhead(),
+            no_alloc=True,
+        )
+
+        context = ggml.ggml_init(init_params)
+        total_nbytes = 0
+
+        pairs = []
 
         for initializer in graph_def.initializer:
-            weights[initializer.name] = initializer.raw_data
+            name = initializer.name
+            np_array = onnx.numpy_helper.to_array(initializer)
+            tensor = ggml.utils.from_numpy(x=np_array, ctx=context)
+            ggml.ggml_set_name(tensor=tensor, name=name.encode())
+            total_nbytes += ggml.ggml_nbytes(tensor)
+            weights[name] = tensor
+            pairs.append((tensor, initializer))
+
+        buffer = (ctypes.c_uint8 * total_nbytes)()
+        offset = 0
+
+        for tensor, initializer in pairs:
+            nbytes = ggml.ggml_nbytes(tensor)
+            tensor.contents.data = ctypes.cast(
+                ctypes.addressof(buffer) + offset, ctypes.c_void_p
+            )
+            ggml.utils.to_numpy(tensor)[:] = onnx.numpy_helper.to_array(initializer)
+            offset += nbytes
 
         return GgmlBackendRep(
-            graph_def, inputs=inputs, outputs=outputs, tensor_dict=weights
+            graph_def,
+            inputs=graph_def.input,
+            outputs=graph_def.output,
+            weights=weights,
         )
 
     @classmethod
