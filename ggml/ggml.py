@@ -105,6 +105,14 @@ lib = load_shared_library(module_name, lib_base_name)
 
 
 #####################################################
+# GGML Utility Types
+#####################################################
+
+CFloatArray: TypeAlias = "ctypes.Array[ctypes.c_float]"
+CInt64Array: TypeAlias = "ctypes.Array[ctypes.c_int64]"
+
+
+#####################################################
 # GGML API
 # source: ggml.h
 #####################################################
@@ -144,6 +152,8 @@ GGML_EXIT_ABORTED = 1
 # typedef uint16_t ggml_fp16_t;
 ggml_fp16_t = ctypes.c_uint16
 
+CFP16Array: TypeAlias = "ctypes.Array[ggml_fp16_t]"
+
 
 # GGML_API float       ggml_fp16_to_fp32(ggml_fp16_t x);
 def ggml_fp16_to_fp32(x: ggml_fp16_t) -> float:
@@ -165,8 +175,8 @@ lib.ggml_fp32_to_fp16.restype = ggml_fp16_t
 
 # GGML_API void ggml_fp16_to_fp32_row(const ggml_fp16_t * x, float * y, size_t n);
 def ggml_fp16_to_fp32_row(
-    x,  # type: ctypes.Array[ggml_fp16_t]
-    y,  # type: ctypes.Array[ctypes.c_float]
+    x: CFP16Array,
+    y: CFloatArray,
     n: Union[ctypes.c_int, int],
 ) -> None:
     return lib.ggml_fp16_to_fp32_row(x, y, n)
@@ -182,8 +192,8 @@ lib.ggml_fp16_to_fp32_row.restype = None
 
 # GGML_API void ggml_fp32_to_fp16_row(const float * x, ggml_fp16_t * y, size_t n);
 def ggml_fp32_to_fp16_row(
-    x,  # type: ctypes.Array[ctypes.c_float]
-    y,  # type: ctypes.Array[ggml_fp16_t]
+    x: CFloatArray,
+    y: CFP16Array,
     n: Union[ctypes.c_int, int],
 ) -> None:
     return lib.ggml_fp32_to_fp16_row(x, y, n)
@@ -1146,7 +1156,7 @@ def ggml_new_tensor(
     ctx: ggml_context_p,
     type: Union[ctypes.c_int, int],
     n_dims: Union[ctypes.c_int, int],
-    ne,  # type: ctypes.Array[ctypes.c_int64] # type: ignore
+    ne: CInt64Array
 ) -> ggml_tensor_p:  
     """Create a new tensor with the given type, number of dimensions, and number of elements in each dimension.
     
@@ -1563,7 +1573,7 @@ lib.ggml_get_data.restype = ctypes.c_void_p
 # GGML_API float * ggml_get_data_f32(const struct ggml_tensor * tensor);
 def ggml_get_data_f32(
     tensor: ggml_tensor_p,  
-):  # type: (...) -> Optional[ctypes.Array[ctypes.c_float]] # type: ignore
+) -> Optional[CFloatArray]:
     """Get the data pointer of a tensor as a float array.
     
     Parameters:
@@ -5131,6 +5141,8 @@ class ggml_opt_context(ctypes.Structure):
         ("lbfgs", ggml_opt_context_lbfgs),
     ]
 
+ggml_opt_context_p = ctypes.POINTER(ggml_opt_context)
+
 
 # GGML_API struct ggml_opt_params ggml_opt_default_params(enum ggml_opt_type type);
 def ggml_opt_default_params(type: Union[ctypes.c_int, bool]) -> ggml_opt_params:
@@ -5237,11 +5249,11 @@ lib.ggml_opt_resume_g.restype = ctypes.c_int
 
 # GGML_API size_t ggml_quantize_q4_0(const float * src, void * dst, int n, int k, int64_t * hist);
 def ggml_quantize_q4_0(
-    src,  # type: ctypes.Array[ctypes.c_float] 
+    src: CFloatArray, 
     dst: ctypes.c_void_p,
     n: Union[ctypes.c_int, int],
     k: Union[ctypes.c_int, int],
-    hist,  # type: ctypes.Array[ctypes.c_int64] 
+    hist: CInt64Array
 ) -> int:
     return lib.ggml_quantize_q4_0(src, dst, n, k, hist)
 
@@ -5258,11 +5270,11 @@ lib.ggml_quantize_q4_0.restype = ctypes.c_size_t
 
 # GGML_API size_t ggml_quantize_q4_1(const float * src, void * dst, int n, int k, int64_t * hist);
 def ggml_quantize_q4_1(
-    src,  # type: ctypes.Array[ctypes.c_float] 
+    src: CFloatArray, 
     dst: ctypes.c_void_p,
     n: Union[ctypes.c_int, int],
     k: Union[ctypes.c_int, int],
-    hist,  # type: ctypes.Array[ctypes.c_int64] 
+    hist: CInt64Array, 
 ) -> int:
     return lib.ggml_quantize_q4_1(src, dst, n, k, hist)
 
@@ -5279,11 +5291,11 @@ lib.ggml_quantize_q4_1.restype = ctypes.c_size_t
 
 # GGML_API size_t ggml_quantize_q5_0(const float * src, void * dst, int n, int k, int64_t * hist);
 def ggml_quantize_q5_0(
-    src,  # type: ctypes.Array[ctypes.c_float] 
+    src: CFloatArray, 
     dst: ctypes.c_void_p,
     n: Union[ctypes.c_int, int],
     k: Union[ctypes.c_int, int],
-    hist,  # type: ctypes.Array[ctypes.c_int64] 
+    hist: CInt64Array, 
 ) -> int:
     return lib.ggml_quantize_q5_0(src, dst, n, k, hist)
 
@@ -5300,11 +5312,11 @@ lib.ggml_quantize_q5_0.restype = ctypes.c_size_t
 
 # GGML_API size_t ggml_quantize_q5_1(const float * src, void * dst, int n, int k, int64_t * hist);
 def ggml_quantize_q5_1(
-    src,  # type: ctypes.Array[ctypes.c_float] 
+    src: CFloatArray, 
     dst: ctypes.c_void_p,
     n: Union[ctypes.c_int, int],
     k: Union[ctypes.c_int, int],
-    hist,  # type: ctypes.Array[ctypes.c_int64] 
+    hist: CInt64Array, 
 ) -> int:
     return lib.ggml_quantize_q5_1(src, dst, n, k, hist)
 
@@ -5321,11 +5333,11 @@ lib.ggml_quantize_q5_1.restype = ctypes.c_size_t
 
 # GGML_API size_t ggml_quantize_q8_0(const float * src, void * dst, int n, int k, int64_t * hist);
 def ggml_quantize_q8_0(
-    src,  # type: ctypes.Array[ctypes.c_float] 
+    src: CFloatArray, 
     dst: ctypes.c_void_p,
     n: Union[ctypes.c_int, int],
     k: Union[ctypes.c_int, int],
-    hist,  # type: ctypes.Array[ctypes.c_int64] 
+    hist: CInt64Array, 
 ) -> int:
     return lib.ggml_quantize_q8_0(src, dst, n, k, hist)
 
@@ -5343,11 +5355,11 @@ lib.ggml_quantize_q8_0.restype = ctypes.c_size_t
 # GGML_API size_t ggml_quantize_chunk(enum ggml_type type, const float * src, void * dst, int start, int n, int64_t * hist);
 def ggml_quantize_chunk(
     type: Union[ctypes.c_int, int],
-    src,  # type: ctypes.Array[ctypes.c_float] 
+    src: CFloatArray, 
     dst: ctypes.c_void_p,
     start: Union[ctypes.c_int, int],
     n: Union[ctypes.c_int, int],
-    hist,  # type: ctypes.Array[ctypes.c_int64] 
+    hist: CInt64Array, 
 ) -> int:
     return lib.ggml_quantize_chunk(type, src, dst, start, n, hist)
 
@@ -5619,7 +5631,7 @@ if GGML_USE_CUBLAS:
 
 # void   ggml_cuda_set_tensor_split(const float * tensor_split);
 def ggml_cuda_set_tensor_split(
-    tensor_split,  # type: ctypes.Array[ctypes.c_float] 
+    tensor_split: CFloatArray, 
 ):
     return lib.ggml_cuda_set_tensor_split(tensor_split)
 
