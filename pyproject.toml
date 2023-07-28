@@ -44,7 +44,7 @@ convert = [
     "transformers==4.29.2"
 ]
 onnx = ["onnx==1.14.0"]
-onnx-dev = ["tabulate==0.9.0", "pytest-cov==4.1.0", "pytest-runner==6.0.0"]
+onnx-tests = ["tabulate==0.9.0", "pytest-cov==4.1.0", "pytest-runner==6.0.0", "onnxruntime==1.15.1"]
 
 [project.urls]
 Homepage = "https://github.com/abetlen/ggml-python"
