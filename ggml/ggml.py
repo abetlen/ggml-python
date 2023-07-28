@@ -582,7 +582,7 @@ class ggml_cplan(ctypes.Structure):
 
     Attributes:
         work_size (int): size of work buffer
-        work_data (ctypes.c_void_p): work buffer
+        work_data (ctypes.POINTER(ctypes.c_uint8)): work buffer
         n_threads (int): number of threads to use when computing the graph using [ggml_graph_compute][ggml.ggml_graph_compute]
         n_tasks (ctypes.Array[ctypes.c_int]): `n_tasks` of nodes, 1:1 mapping to cgraph nodes
         abort_callback (abort_callback_t): abort callback
@@ -591,7 +591,7 @@ class ggml_cplan(ctypes.Structure):
 
     _fields_ = [
         ("work_size", ctypes.c_size_t),
-        ("work_data", ctypes.c_void_p),
+        ("work_data", ctypes.POINTER(ctypes.c_uint8)),
         ("n_threads", ctypes.c_int),
         ("n_tasks", ctypes.c_int * GGML_MAX_NODES),
         (
