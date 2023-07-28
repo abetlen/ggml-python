@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "onnx-instructor-dev"
+version = "0.1.0"
+description = ""
+authors = ["Mohammadreza Anvari <mrezanvari@gmail.com>"]
+readme = "README.md"
+packages = [{include = "onnx-instructor-dev"}]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+ipykernel = "^6.24.0"
+optimum = {extras = ["exporters"], version = "^1.9.1"}
+onnxruntime = "^1.15.1"
+onnxt5 = "^0.1.8"
+instructorembedding = "^1.0.1"
+sentence-transformers = "^2.2.2"
+nltk = "^3.8.1"
+jyquickhelper = "^0.4.220"
+networkx = "^3.1"
+graphviz = "^0.20.1"
+matplotlib = "^3.7.2"
+pydot = "^1.4.2"
+pygraphviz = "^1.11"
+humanize = "^4.7.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

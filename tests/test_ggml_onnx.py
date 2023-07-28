@@ -81,3 +81,7 @@ def test_ggml_onnx_runtime_basic():
     ggml_dummy_model = GgmlRuntimeBackend.prepare(model_def)
     ggml_result = ggml_dummy_model.run(input_data)
     assert ggml_result == runtime_result
+
+
+def test_ggml_onnx_runtime_instructor():
+    pass
