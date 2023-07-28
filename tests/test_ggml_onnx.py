@@ -4,6 +4,8 @@ import numpy as np
 import onnx
 from onnx import TensorProto, helper
 from onnxruntime import InferenceSession
+from transformers import AutoTokenizer
+from InstructorEmbedding import INSTRUCTOR
 
 from ggml.contrib.onnx import GgmlRuntimeBackend
 
@@ -84,4 +86,26 @@ def test_ggml_onnx_runtime_basic():
 
 
 def test_ggml_onnx_runtime_instructor():
-    pass
+    instructor_model = INSTRUCTOR("hkunlp/instructor-base")
+
+    onnx_instructor_model = onnx.load("instructor_base_onnx/encoder_model.onnx")
+    ggml_onnx_instructor_model = GgmlRuntimeBackend.prepare(onnx_instructor_model)
+
+    instructor_tokenizer = AutoTokenizer.from_pretrained("t5-large")
+
+    sentence = "This is a sentence"
+    instruction = "Represent the follwing sentence:"
+
+    sentence_tokens = instructor_tokenizer.encode(
+        [instruction, sentence], return_tensors="np"
+    )
+
+    input_data = {
+        "input_ids": sentence_tokens,
+        "attention_mask": [np.ones(len(sentence_tokens))],
+    }
+
+    instructor_output = instructor_model.encode([[instruction, sentence]])
+    ggml_output = ggml_onnx_instructor_model.run(input_data)
+
+    assert instructor_output == ggml_output
