@@ -12,55 +12,21 @@ import ggml.utils
 
 
 class GgmlBackendRep(BackendRep):
-    def __init__(
-        self, graph: GraphProto = None, inputs=None, outputs=None, weights=None
-    ):
+    def __init__(self):
         super(GgmlBackendRep, self).__init__()
-        self._graph = graph
-        self._inputs = inputs or []
-        self._outputs = outputs or []
-        self._weights = weights or {}
 
-    @property
-    def graph(self):
-        return self._graph
-
-    @graph.setter
-    def graph(self, graph):
-        self._graph = graph
-
-    @property
-    def inputs(self):
-        return self._inputs
-
-    @inputs.setter
-    def inputs(self, inputs):
-        self._inputs = inputs
-
-    @property
-    def outputs(self):
-        return self._outputs
-
-    @outputs.setter
-    def outputs(self, outputs):
-        self._outputs = outputs
-
-    @property
-    def weights(self):
-        return self._weights
-
-    @weights.setter
-    def weights(self, weights):
-        self._weights = weights
+    def __del__(self):
+        if hasattr(self, "ggml_context"):
+            ggml.ggml_free(self.ggml_context)
 
     def run(self, inputs: Any, **kwargs: Any) -> Tuple[Any, ...]:
         """Abstract function."""
 
         # check where data is should be on CPU
 
-        model_graph = self._graph
+        model_graph = self.graph
         exit_node = None
-        ggml_tensors = {}
+        ggml_tensors = self.weights
 
         tensor_types = {1: ggml.ggml_new_tensor_1d, 2: ggml.ggml_new_tensor_2d}
         operation_types = {"Mul": ggml.ggml_mul, "Add": ggml.ggml_add}
@@ -86,7 +52,7 @@ class GgmlBackendRep(BackendRep):
                 *node_inputs,
             )
             ggml_tensors[node.output[0]] = layer
-            if node.output[-1] == self._graph.output[-1].name:
+            if node.output[-1] == self.graph.output[-1].name:
                 exit_node = layer
 
         # Build graph
@@ -99,7 +65,9 @@ class GgmlBackendRep(BackendRep):
         # Compute graph
         ggml.ggml_graph_compute_with_ctx(ctx, ctypes.pointer(gf), 1)
 
-        return ggml.ggml_get_f32_1d(exit_node, 0)
+        output = ggml.utils.to_numpy(exit_node)
+
+        return [output]
 
 
 class GgmlRuntimeBackend(Backend):
@@ -149,6 +117,9 @@ class GgmlRuntimeBackend(Backend):
 
     @classmethod
     def _onnx_graph_to_ggml_rep(cls, graph_def: GraphProto, opset, **kwargs):
+        ggml_backend_rep = GgmlBackendRep()
+        ggml_backend_rep.graph = graph_def
+
         weights = {}
 
         n_tensors = len(graph_def.initializer)
@@ -158,6 +129,8 @@ class GgmlRuntimeBackend(Backend):
         )
 
         context = ggml.ggml_init(init_params)
+        ggml_backend_rep.ggml_context = context
+        ggml_backend_rep.ggml_init_params = init_params
         total_nbytes = 0
 
         pairs = []
@@ -166,6 +139,7 @@ class GgmlRuntimeBackend(Backend):
             name = initializer.name
             np_array = onnx.numpy_helper.to_array(initializer)
             tensor = ggml.utils.from_numpy(x=np_array, ctx=context)
+
             ggml.ggml_set_name(tensor=tensor, name=name.encode())
             total_nbytes += ggml.ggml_nbytes(tensor)
             weights[name] = tensor
@@ -182,12 +156,12 @@ class GgmlRuntimeBackend(Backend):
             ggml.utils.to_numpy(tensor)[:] = onnx.numpy_helper.to_array(initializer)
             offset += nbytes
 
-        return GgmlBackendRep(
-            graph_def,
-            inputs=graph_def.input,
-            outputs=graph_def.output,
-            weights=weights,
-        )
+        ggml_backend_rep.ggml_buffer = buffer
+        ggml_backend_rep.weights = weights
+        ggml_backend_rep.inputs = graph_def.input
+        ggml_backend_rep.outputs = graph_def.output
+
+        return ggml_backend_rep
 
     @classmethod
     def run_model(cls, model, inputs, device=None, **kwargs):
