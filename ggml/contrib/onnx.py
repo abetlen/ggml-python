@@ -1,14 +1,233 @@
 import ctypes
+import struct
 from typing import Any, Tuple
 
+import numpy as np
 import onnx
 from onnx import defs
 from onnx.backend.base import Backend, BackendRep
 from onnx.helper import make_opsetid
-from onnx.onnx_ml_pb2 import GraphProto, ModelProto
+from onnx.onnx_ml_pb2 import GraphProto, ModelProto, NodeProto
 
 import ggml
 import ggml.utils
+import torch
+
+
+ggml_operators = {}
+ggml_inputs = {}
+
+onnx_ggml_dtype = {
+    1: ggml.GGML_TYPE_F32,  # torch.float32
+    2: ggml.GGML_FTYPE_UNKNOWN,  # torch.uint8
+    3: ggml.GGML_TYPE_I8,  # torch.int8
+    4: ggml.GGML_FTYPE_UNKNOWN,  # torch.uint16
+    5: ggml.GGML_TYPE_I16,  # torch.int16
+    6: ggml.GGML_TYPE_I32,  # torch.int32
+    7: ggml.GGML_FTYPE_UNKNOWN,  # torch.int64
+}
+
+
+def ggml_operator(operator):
+    def inner(func):
+        ggml_operators[operator] = func
+        return func
+
+    return inner
+
+
+def ggml_input_tensor(tensor_type):
+    def inner(func):
+        ggml_inputs[tensor_type] = func
+        return func
+
+    return inner
+
+
+@ggml_operator("Add")
+def ggml_operator_add(node: NodeProto, tensors_dict, context):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    add_result = ggml.ggml_add(
+        context,
+        *node_inputs,
+    )
+    tensors_dict[node.output[0]] = add_result
+    return add_result
+
+
+@ggml_operator("Shape")
+def ggml_operator_shape(node: NodeProto, tensors_dict, context):
+    # raise NotImplementedError(f'Operator "Shape" not implemented')
+    pass
+
+
+@ggml_operator("Constant")
+def ggml_operator_constant(node: NodeProto, tensors_dict, context):
+    data_type_to_struct_format = {
+        1: "f",  # FLOAT (4 bytes)
+        2: "b",  # INT8 (1 byte)
+        3: "h",  # INT16 (2 bytes)
+        4: "i",  # INT32 (4 bytes)
+        5: "q",  # INT64 (8 bytes)
+        6: "B",  # UINT8 (1 byte)
+        7: "Q",  # UINT64 (8 bytes)
+        10: "e",  # FLOAT16 (half-precision floating-point) (2 bytes)
+        11: "d",  # DOUBLE (8 bytes)
+    }
+
+    node_attributes = node.attribute
+    raw_data = node_attributes[0].t.raw_data
+    data_type = node_attributes[0].t.data_type
+
+    constant_tensor_data = np.array(
+        struct.unpack(
+            f"={len(raw_data)//struct.calcsize(data_type_to_struct_format[data_type][0])}{data_type_to_struct_format[data_type][0]}",
+            raw_data,
+        ),
+        dtype=data_type_to_struct_format[data_type][0],
+    )
+
+    tensors_dict[node.output[0]] = constant_tensor_data
+    return constant_tensor_data
+
+
+# ------ Operators ------
+
+
+@ggml_operator("Mul")
+def ggml_operator_mul(node: NodeProto, tensors_dict, context):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    mul_result = ggml.ggml_mul(
+        context,
+        *node_inputs,
+    )
+    tensors_dict[node.output[0]] = mul_result
+    return mul_result
+
+
+@ggml_operator("ConstantOfShape")
+def ggml_operator_constant_of_shape(node: NodeProto, tensors_dict, context):
+    raise NotImplementedError(f'Operator "ConstantOfShape" not implemented')
+
+
+@ggml_operator("Softmax")
+def ggml_operator_softmax(node: NodeProto, tensors_dict, context):
+    raise NotImplementedError(f'Operator "Softmax" not implemented')
+
+
+@ggml_operator("Gather")
+def ggml_operator_gather(node: NodeProto, tensors_dict, context):
+    raise NotImplementedError(f'Operator "Gather" not implemented')
+
+
+@ggml_operator("Relu")
+def ggml_operator_relu(node: NodeProto, tensors_dict, context):
+    raise NotImplementedError(f'Operator "Relu" not implemented')
+
+
+@ggml_operator("MatMul")
+def ggml_operator_mat_mul(node: NodeProto, tensors_dict, context):
+    raise NotImplementedError(f'Operator "MatMul" not implemented')
+
+
+@ggml_operator("Abs")
+def ggml_operator_abs(node: NodeProto, tensors_dict, context):
+    raise NotImplementedError(f'Operator "Abs" not implemented')
+
+
+@ggml_operator("Unsqueeze")
+def ggml_operator_unsqueeze(node: NodeProto, tensors_dict, context):
+    raise NotImplementedError(f'Operator "Unsqueeze" not implemented')
+
+
+@ggml_operator("Sqrt")
+def ggml_operator_sqrt(node: NodeProto, tensors_dict, context):
+    raise NotImplementedError(f'Operator "Sqrt" not implemented')
+
+
+@ggml_operator("ReduceMean")
+def ggml_operator_reduce_mean(node: NodeProto, tensors_dict, context):
+    raise NotImplementedError(f'Operator "ReduceMean" not implemented')
+
+
+@ggml_operator("Less")
+def ggml_operator_less(node: NodeProto, tensors_dict, context):
+    raise NotImplementedError(f'Operator "Less" not implemented')
+
+
+@ggml_operator("Where")
+def ggml_operator_where(node: NodeProto, tensors_dict, context):
+    raise NotImplementedError(f'Operator "Where" not implemented')
+
+
+@ggml_operator("Concat")
+def ggml_operator_concat(node: NodeProto, tensors_dict, context):
+    raise NotImplementedError(f'Operator "Concat" not implemented')
+
+
+@ggml_operator("Div")
+def ggml_operator_div(node: NodeProto, tensors_dict, context):
+    raise NotImplementedError(f'Operator "Div" not implemented')
+
+
+@ggml_operator("Range")
+def ggml_operator_range(node: NodeProto, tensors_dict, context):
+    raise NotImplementedError(f'Operator "Range" not implemented')
+
+
+@ggml_operator("Sub")
+def ggml_operator_sub(node: NodeProto, tensors_dict, context):
+    raise NotImplementedError(f'Operator "Sub" not implemented')
+
+
+@ggml_operator("Pow")
+def ggml_operator_pow(node: NodeProto, tensors_dict, context):
+    raise NotImplementedError(f'Operator "Pow" not implemented')
+
+
+@ggml_operator("Cast")
+def ggml_operator_cast(node: NodeProto, tensors_dict, context):
+    raise NotImplementedError(f'Operator "Cast" not implemented')
+
+
+@ggml_operator("Reshape")
+def ggml_operator_reshape(node: NodeProto, tensors_dict, context):
+    raise NotImplementedError(f'Operator "Reshape" not implemented')
+
+
+@ggml_operator("Transpose")
+def ggml_operator_transpose(node: NodeProto, tensors_dict, context):
+    raise NotImplementedError(f'Operator "Transpose" not implemented')
+
+
+@ggml_operator("Log")
+def ggml_operator_log(node: NodeProto, tensors_dict, context):
+    raise NotImplementedError(f'Operator "Log" not implemented')
+
+
+@ggml_operator("Greater")
+def ggml_operator_greater(node: NodeProto, tensors_dict, context):
+    raise NotImplementedError(f'Operator "Greater" not implemented')
+
+
+@ggml_operator("Min")
+def ggml_operator_min(node: NodeProto, tensors_dict, context):
+    raise NotImplementedError(f'Operator "Min" not implemented')
+
+
+## ------- Inputs --------
+@ggml_input_tensor("1")
+def ggml_input_1d(node: NodeProto, tensors_dict, context):
+    ggml_type = node.type.tensor_type.elem_type
+
+    inp = ggml.ggml_new_tensor_1d(
+        context,
+        onnx_ggml_dtype[ggml_type],
+        1,
+    )
+    tensors_dict[node.name] = inp
 
 
 class GgmlBackendRep(BackendRep):
@@ -28,32 +247,28 @@ class GgmlBackendRep(BackendRep):
         exit_node = None
         ggml_tensors = self.weights
 
+        # handle types same as operators
         tensor_types = {1: ggml.ggml_new_tensor_1d, 2: ggml.ggml_new_tensor_2d}
-        operation_types = {"Mul": ggml.ggml_mul, "Add": ggml.ggml_add}
 
         # Define context
         params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
-        ctx = ggml.ggml_init(params=params)
+        context = ggml.ggml_init(params=params)
 
         # Create entry inputs
         for model_input in model_graph.input:
-            inp = ggml.ggml_new_tensor_1d(
-                ctx,
-                ggml.GGML_TYPE_F32,
-                1,
-            )
-            ggml_tensors[model_input.name] = inp
+            shape_dim_value = [
+                dim.dim_value
+                for dim in model_input.type.tensor_type.shape.dim
+                if dim.dim_value > 0
+            ][-1]
+            ggml_inputs[str(shape_dim_value)](model_input, ggml_tensors, context)
 
         # Build layers
         for node in model_graph.node:
-            node_inputs = [ggml_tensors[inp] for inp in node.input]
-            layer = operation_types[node.op_type](
-                ctx,
-                *node_inputs,
-            )
-            ggml_tensors[node.output[0]] = layer
+            node_output = ggml_operators[node.op_type](node, ggml_tensors, context)
+
             if node.output[-1] == self.graph.output[-1].name:
-                exit_node = layer
+                exit_node = node_output
 
         # Build graph
         gf = ggml.ggml_build_forward(exit_node)
@@ -63,11 +278,11 @@ class GgmlBackendRep(BackendRep):
             ggml.ggml_set_f32(ggml_tensors[key], value)
 
         # Compute graph
-        ggml.ggml_graph_compute_with_ctx(ctx, ctypes.pointer(gf), 1)
+        ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
 
-        output = ggml.utils.to_numpy(exit_node)
+        graph_output = ggml.utils.to_numpy(exit_node)
 
-        return [output]
+        return [graph_output]
 
 
 class GgmlRuntimeBackend(Backend):
