@@ -15,16 +15,10 @@ import torch
 
 
 ggml_operators = {}
-ggml_inputs = {}
 
-onnx_ggml_dtype = {
-    1: ggml.GGML_TYPE_F32,  # torch.float32
-    2: ggml.GGML_FTYPE_UNKNOWN,  # torch.uint8
-    3: ggml.GGML_TYPE_I8,  # torch.int8
-    4: ggml.GGML_FTYPE_UNKNOWN,  # torch.uint16
-    5: ggml.GGML_TYPE_I16,  # torch.int16
-    6: ggml.GGML_TYPE_I32,  # torch.int32
-    7: ggml.GGML_FTYPE_UNKNOWN,  # torch.int64
+onnx_dtype_map = {
+    elem_type: np_dtype
+    for elem_type, np_dtype in onnx.mapping.TENSOR_TYPE_TO_NP_TYPE.items()
 }
 
 
@@ -36,16 +30,10 @@ def ggml_operator(operator):
     return inner
 
 
-def ggml_input_tensor(tensor_type):
-    def inner(func):
-        ggml_inputs[tensor_type] = func
-        return func
-
-    return inner
-
-
 @ggml_operator("Add")
-def ggml_operator_add(node: NodeProto, tensors_dict, context):
+def ggml_operator_add(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
     add_result = ggml.ggml_add(
@@ -57,13 +45,29 @@ def ggml_operator_add(node: NodeProto, tensors_dict, context):
 
 
 @ggml_operator("Shape")
-def ggml_operator_shape(node: NodeProto, tensors_dict, context):
-    # raise NotImplementedError(f'Operator "Shape" not implemented')
-    pass
+def ggml_operator_shape(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    tensor = ggml.utils.to_numpy(node_inputs[0])
+    start = ggml.utils.to_numpy(node_inputs[1]) if len(node_inputs) > 1 else [None]
+    end = ggml.utils.to_numpy(node_inputs[2]) if len(node_inputs) > 2 else [None]
+
+    start = start[0] if len(start) > 0 else None
+    end = end[0] if len(end) > 0 else None
+
+    shaped_tensor = tensor[start:end]
+    new_tensor = ggml.utils.from_numpy(shaped_tensor, context)
+    tensors_dict[node.name] = new_tensor
+
+    return new_tensor
 
 
 @ggml_operator("Constant")
-def ggml_operator_constant(node: NodeProto, tensors_dict, context):
+def ggml_operator_constant(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+):
     data_type_to_struct_format = {
         1: "f",  # FLOAT (4 bytes)
         2: "b",  # INT8 (1 byte)
@@ -96,7 +100,9 @@ def ggml_operator_constant(node: NodeProto, tensors_dict, context):
 
 
 @ggml_operator("Mul")
-def ggml_operator_mul(node: NodeProto, tensors_dict, context):
+def ggml_operator_mul(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
     mul_result = ggml.ggml_mul(
@@ -108,126 +114,157 @@ def ggml_operator_mul(node: NodeProto, tensors_dict, context):
 
 
 @ggml_operator("ConstantOfShape")
-def ggml_operator_constant_of_shape(node: NodeProto, tensors_dict, context):
+def ggml_operator_constant_of_shape(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+):
     raise NotImplementedError(f'Operator "ConstantOfShape" not implemented')
 
 
 @ggml_operator("Softmax")
-def ggml_operator_softmax(node: NodeProto, tensors_dict, context):
+def ggml_operator_softmax(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+):
     raise NotImplementedError(f'Operator "Softmax" not implemented')
 
 
 @ggml_operator("Gather")
-def ggml_operator_gather(node: NodeProto, tensors_dict, context):
+def ggml_operator_gather(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+):
     raise NotImplementedError(f'Operator "Gather" not implemented')
 
 
 @ggml_operator("Relu")
-def ggml_operator_relu(node: NodeProto, tensors_dict, context):
+def ggml_operator_relu(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+):
     raise NotImplementedError(f'Operator "Relu" not implemented')
 
 
 @ggml_operator("MatMul")
-def ggml_operator_mat_mul(node: NodeProto, tensors_dict, context):
+def ggml_operator_mat_mul(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+):
     raise NotImplementedError(f'Operator "MatMul" not implemented')
 
 
 @ggml_operator("Abs")
-def ggml_operator_abs(node: NodeProto, tensors_dict, context):
+def ggml_operator_abs(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+):
     raise NotImplementedError(f'Operator "Abs" not implemented')
 
 
 @ggml_operator("Unsqueeze")
-def ggml_operator_unsqueeze(node: NodeProto, tensors_dict, context):
+def ggml_operator_unsqueeze(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+):
     raise NotImplementedError(f'Operator "Unsqueeze" not implemented')
 
 
 @ggml_operator("Sqrt")
-def ggml_operator_sqrt(node: NodeProto, tensors_dict, context):
+def ggml_operator_sqrt(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+):
     raise NotImplementedError(f'Operator "Sqrt" not implemented')
 
 
 @ggml_operator("ReduceMean")
-def ggml_operator_reduce_mean(node: NodeProto, tensors_dict, context):
+def ggml_operator_reduce_mean(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+):
     raise NotImplementedError(f'Operator "ReduceMean" not implemented')
 
 
 @ggml_operator("Less")
-def ggml_operator_less(node: NodeProto, tensors_dict, context):
+def ggml_operator_less(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+):
     raise NotImplementedError(f'Operator "Less" not implemented')
 
 
 @ggml_operator("Where")
-def ggml_operator_where(node: NodeProto, tensors_dict, context):
+def ggml_operator_where(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+):
     raise NotImplementedError(f'Operator "Where" not implemented')
 
 
 @ggml_operator("Concat")
-def ggml_operator_concat(node: NodeProto, tensors_dict, context):
+def ggml_operator_concat(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+):
     raise NotImplementedError(f'Operator "Concat" not implemented')
 
 
 @ggml_operator("Div")
-def ggml_operator_div(node: NodeProto, tensors_dict, context):
+def ggml_operator_div(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+):
     raise NotImplementedError(f'Operator "Div" not implemented')
 
 
 @ggml_operator("Range")
-def ggml_operator_range(node: NodeProto, tensors_dict, context):
+def ggml_operator_range(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+):
     raise NotImplementedError(f'Operator "Range" not implemented')
 
 
 @ggml_operator("Sub")
-def ggml_operator_sub(node: NodeProto, tensors_dict, context):
+def ggml_operator_sub(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+):
     raise NotImplementedError(f'Operator "Sub" not implemented')
 
 
 @ggml_operator("Pow")
-def ggml_operator_pow(node: NodeProto, tensors_dict, context):
+def ggml_operator_pow(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+):
     raise NotImplementedError(f'Operator "Pow" not implemented')
 
 
 @ggml_operator("Cast")
-def ggml_operator_cast(node: NodeProto, tensors_dict, context):
+def ggml_operator_cast(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+):
     raise NotImplementedError(f'Operator "Cast" not implemented')
 
 
 @ggml_operator("Reshape")
-def ggml_operator_reshape(node: NodeProto, tensors_dict, context):
+def ggml_operator_reshape(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+):
     raise NotImplementedError(f'Operator "Reshape" not implemented')
 
 
 @ggml_operator("Transpose")
-def ggml_operator_transpose(node: NodeProto, tensors_dict, context):
+def ggml_operator_transpose(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+):
     raise NotImplementedError(f'Operator "Transpose" not implemented')
 
 
 @ggml_operator("Log")
-def ggml_operator_log(node: NodeProto, tensors_dict, context):
+def ggml_operator_log(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+):
     raise NotImplementedError(f'Operator "Log" not implemented')
 
 
 @ggml_operator("Greater")
-def ggml_operator_greater(node: NodeProto, tensors_dict, context):
+def ggml_operator_greater(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+):
     raise NotImplementedError(f'Operator "Greater" not implemented')
 
 
 @ggml_operator("Min")
-def ggml_operator_min(node: NodeProto, tensors_dict, context):
+def ggml_operator_min(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+):
     raise NotImplementedError(f'Operator "Min" not implemented')
-
-
-## ------- Inputs --------
-@ggml_input_tensor("1")
-def ggml_input_1d(node: NodeProto, tensors_dict, context):
-    ggml_type = node.type.tensor_type.elem_type
-
-    inp = ggml.ggml_new_tensor_1d(
-        context,
-        onnx_ggml_dtype[ggml_type],
-        1,
-    )
-    tensors_dict[node.name] = inp
 
 
 class GgmlBackendRep(BackendRep):
@@ -247,21 +284,52 @@ class GgmlBackendRep(BackendRep):
         exit_node = None
         ggml_tensors = self.weights
 
-        # handle types same as operators
-        tensor_types = {1: ggml.ggml_new_tensor_1d, 2: ggml.ggml_new_tensor_2d}
-
         # Define context
         params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
         context = ggml.ggml_init(params=params)
 
         # Create entry inputs
         for model_input in model_graph.input:
-            shape_dim_value = [
-                dim.dim_value
-                for dim in model_input.type.tensor_type.shape.dim
-                if dim.dim_value > 0
-            ][-1]
-            ggml_inputs[str(shape_dim_value)](model_input, ggml_tensors, context)
+            input_name = model_input.name
+            input_data = np.array(inputs[input_name])
+
+            # Check if the input includes expected values
+            if input_name not in inputs:
+                raise KeyError(f'"{input_name}" must be included in the inputs.')
+
+            # Check for rank of input
+            expected_rank = len(list(model_input.type.tensor_type.shape.dim))
+            actual_rank = input_data.ndim
+
+            if expected_rank != actual_rank:
+                raise ValueError(
+                    f"INVALID_ARGUMENT : Invalid rank for input: {input_name} Got: {actual_rank} Expected: {expected_rank} Please fix either the inputs or the model."
+                )
+
+            # Check for input types + allow for type casting
+            expected_dtype = onnx_dtype_map[model_input.type.tensor_type.elem_type]
+
+            try:
+                input_data.astype(expected_dtype)
+            except:
+                raise ValueError(
+                    f'INVALID_ARGUMENT : Unexpected input data type for "{input_name}". Actual: {input_data.dtype}, expected: {expected_dtype}'
+                )
+
+            # Create the input tensors with the correct type/shape
+            ggml_type = ggml.utils.NUMPY_DTYPE_TO_GGML_TYPE.get(
+                input_data.dtype.type,
+                ggml.utils.GGML_TYPE.I32,  # TODO: Add i64 but for now, use i32 if looking for i64 or f64
+            )
+            shape = tuple(reversed(input_data.shape))
+            tensor = ggml.ggml_new_tensor(
+                context,
+                ggml_type.value,
+                len(shape),
+                (ctypes.c_int64 * len(shape))(*shape),
+            )
+
+            ggml_tensors[input_name] = tensor
 
         # Build layers
         for node in model_graph.node:
