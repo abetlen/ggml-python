@@ -5027,7 +5027,7 @@ lib.ggml_graph_plan.restype = ggml_cplan
 def ggml_graph_compute(
     cgraph: ggml_cgraph_p,
     cplan: ggml_cplan_p,
-):
+) -> int:
     """Compute the graph.
 
     Parameters:
