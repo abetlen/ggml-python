@@ -104,7 +104,7 @@ def test_ggml_onnx_runtime_instructor():
 
     input_data = {
         "input_ids": sentence_tokens,
-        "attention_mask": [np.ones(len(sentence_tokens))],
+        "attention_mask": [np.ones(sentence_tokens.shape[1])],
     }
 
     instructor_output = instructor_model.encode([[instruction, sentence]])
