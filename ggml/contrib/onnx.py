@@ -30,6 +30,9 @@ def ggml_operator(operator):
     return inner
 
 
+# ------ Operators ------
+
+
 @ggml_operator("Add")
 def ggml_operator_add(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
@@ -57,6 +60,8 @@ def ggml_operator_shape(
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
+    print(node)
+
     if len(node_inputs) == 0 or len(node_inputs) > 3:
         raise ValueError(
             f'Error for node "{node.name}": Operation "Shape" requires at least 1 and maximum of 3 inputs. Actual number of inputs: {len(node_inputs)}'
@@ -71,13 +76,7 @@ def ggml_operator_shape(
     start = start[0] if len(start) > 0 else None
     end = end[0] if len(end) > 0 else None
 
-    og_dtype = tensor.dtype
-
     shaped_tensor = tensor[start:end]
-
-    # clamp the rank to two
-    shaped_tensor = np.array([shaped_tensor], dtype=og_dtype)
-    shaped_tensor = np.reshape(shaped_tensor, [1, -1])
 
     new_tensor = ggml.utils.from_numpy(shaped_tensor, context)
     tensors_dict[output_name] = new_tensor
@@ -89,39 +88,38 @@ def ggml_operator_shape(
 def ggml_operator_constant(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
 ):
+    print(node)
     data_type_to_struct_format = {
-        1: "f",  # FLOAT (4 bytes)
-        2: "b",  # INT8 (1 byte)
-        3: "h",  # INT16 (2 bytes)
-        4: "i",  # INT32 (4 bytes)
-        5: "q",  # INT64 (8 bytes)
-        6: "B",  # UINT8 (1 byte)
-        7: "Q",  # UINT64 (8 bytes)
-        10: "e",  # FLOAT16 (half-precision floating-point) (2 bytes)
-        11: "d",  # DOUBLE (8 bytes)
+        1: ("f", np.float32),  # FLOAT (4 bytes)
+        2: ("b", np.int8),  # INT8 (1 byte)
+        3: ("h", np.int16),  # INT16 (2 bytes)
+        4: ("i", np.int32),  # INT32 (4 bytes)
+        5: ("q", np.int32),  # INT64 (8 bytes) must be np.int64 but 32 for now
+        6: ("B", np.int8),  # UINT8 (1 byte)
+        7: ("Q", np.int32),  # UINT64 (8 bytes) must be np.int64 but 32 for now
+        10: ("e", np.float16),  # FLOAT16 (half-precision floating-point) (2 bytes)
+        11: ("d", np.int32),  # DOUBLE (8 bytes) must be np.int64 but 32 for now
     }
 
     node_attributes = node.attribute
     raw_data = node_attributes[0].t.raw_data
     data_type = node_attributes[0].t.data_type
     output_name = node.output[0]
+    constant_type = data_type_to_struct_format[data_type]
+
+    dtype = constant_type[1]
 
     constant_tensor_data = np.array(
         struct.unpack(
-            f"={len(raw_data)//struct.calcsize(data_type_to_struct_format[data_type][0])}{data_type_to_struct_format[data_type][0]}",
+            f"={len(raw_data)//struct.calcsize(constant_type[0])}{constant_type[0]}",
             raw_data,
         ),
-        dtype=data_type_to_struct_format[data_type][0],
+        dtype=dtype,
     )
 
-    # clamp the rank to two
-    constant_tensor_data = np.reshape(constant_tensor_data, [1, -1])
-
-    tensors_dict[output_name] = constant_tensor_data
+    new_tensor = ggml.utils.from_numpy(constant_tensor_data, context)
+    tensors_dict[output_name] = new_tensor
     return constant_tensor_data
-
-
-# ------ Operators ------
 
 
 @ggml_operator("Mul")
@@ -143,7 +141,6 @@ def ggml_operator_mul(
     )
 
     tensors_dict[output_name] = mul_result
-
     return mul_result
 
 
@@ -165,32 +162,35 @@ def ggml_operator_softmax(
 def ggml_operator_gather(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
 ):
-    ## For now only handles axis = 0 TODO: add axis=1 case
     node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    print("Gather attribs:")
+    print(node.attribute)
 
     if len(node_inputs) != 2:
         raise ValueError(
-            f'Error for node "{node.name}": Operation "Gather" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+            f'Error for node "{node.name}": Operation "Gather" requires exactly two inputs and one axis. Actual number of inputs: {len(node_inputs)}'
         )
 
-    input_array = (
-        ggml.utils.to_numpy(node_inputs[0])
-        if type(node_inputs[0])
-        != np.ndarray  # better to check if its ggml.ggml_tensor_p but it doesnt work like that TODO: make type(tensor) work with ggml.ggml_tensor_p
-        else node_inputs[0]
-    )
-    index_array = (
-        ggml.utils.to_numpy(node_inputs[1])
-        if type(node_inputs[1]) != np.ndarray
-        else node_inputs[1]
-    )
+    print(node)
+
+    input_array = ggml.utils.to_numpy(node_inputs[0])
+    index_array = ggml.utils.to_numpy(node_inputs[1])
+
+    axis = node.attribute[0].i if len(node.attribute) > 0 else -1
 
     og_dtype = input_array.dtype
-    new_array = np.take(input_array, index_array.astype(og_dtype), axis=-1)
+
+    print(input_array, index_array)
+
+    # create
+    # check test_ggml.py
+
+    new_array = np.take(input_array, index_array, axis=axis)
 
     # clamp the rank to two
-    new_array = np.array([new_array], dtype=og_dtype)
-    new_array = np.reshape(new_array, [1, -1])
+    # new_array = np.array([new_array], dtype=og_dtype)
+    # new_array = np.reshape(new_array, [1, -1])
 
     new_tensor = ggml.utils.from_numpy(new_array, context)
     tensors_dict[node.output[0]] = new_tensor
@@ -225,6 +225,9 @@ def ggml_operator_unsqueeze(
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
+    print("Unsqueeze attribs:")
+    print(node.attribute)
+
     if len(node_inputs) != 2:
         raise ValueError(
             f'Error for node "{node.name}": Operation "Unsqueeze" requires exactly two inputs, data and axes. Actual number of inputs: {len(node_inputs)}'
@@ -245,10 +248,6 @@ def ggml_operator_unsqueeze(
 
     for axis in np.nditer(axes):
         x = np.expand_dims(x, axis=axis)
-
-    # clamp the rank to 3
-    x = np.array([x], dtype=og_dtype)
-    # x = np.reshape(x, (1, 1, -1))
 
     new_tensor = ggml.utils.from_numpy(x, context)
     tensors_dict[node.output[0]] = new_tensor
@@ -288,6 +287,37 @@ def ggml_operator_where(
 def ggml_operator_concat(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
 ):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 2 or len(node.attribute) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Concat" requires exactly two inputs and an axis attribute. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    axis = node.attribute[0].i
+
+    a = (
+        ggml.utils.to_numpy(node_inputs[0])
+        if type(node_inputs[0]) != np.ndarray
+        else node_inputs[0]
+    )
+
+    b = (
+        ggml.utils.to_numpy(node_inputs[1])
+        if type(node_inputs[1]) != np.ndarray
+        else node_inputs[1]
+    )
+
+    print(node)
+    print(a, b, axis)
+
+    # shapes = [tensor.shape for tensor in tensors]
+    # if not all(shape[:axis] == shapes[0][:axis] and shape[axis + 1:] == shapes[0][axis + 1:] for shape in shapes):
+    #     raise ValueError("All tensors must have the same shape along the specified axis.")
+
+    # # Perform concatenation along the specified axis
+    # result = np.concatenate(tensors, axis=axis)
+
     raise NotImplementedError(f'Operator "Concat" not implemented')
 
 
