@@ -87,7 +87,7 @@ def test_ggml_onnx_runtime_basic():
 
 
 def test_ggml_onnx_runtime_instructor():
-    return
+    # return
     instructor_model = INSTRUCTOR("hkunlp/instructor-base")
 
     onnx_instructor_model = onnx.load("instructor_base_onnx/encoder_model.onnx")

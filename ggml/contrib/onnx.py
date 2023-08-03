@@ -36,11 +36,18 @@ def ggml_operator_add(
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
+    if len(node_inputs) != 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Add" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    output_name = node.output[0]
+
     add_result = ggml.ggml_add(
         context,
         *node_inputs,
     )
-    tensors_dict[node.output[0]] = add_result
+    tensors_dict[output_name] = add_result
     return add_result
 
 
@@ -50,6 +57,13 @@ def ggml_operator_shape(
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
+    if len(node_inputs) == 0 or len(node_inputs) > 3:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Shape" requires at least 1 and maximum of 3 inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    output_name = node.output[0]
+
     tensor = ggml.utils.to_numpy(node_inputs[0])
     start = ggml.utils.to_numpy(node_inputs[1]) if len(node_inputs) > 1 else [None]
     end = ggml.utils.to_numpy(node_inputs[2]) if len(node_inputs) > 2 else [None]
@@ -57,9 +71,16 @@ def ggml_operator_shape(
     start = start[0] if len(start) > 0 else None
     end = end[0] if len(end) > 0 else None
 
+    og_dtype = tensor.dtype
+
     shaped_tensor = tensor[start:end]
+
+    # clamp the rank to two
+    shaped_tensor = np.array([shaped_tensor], dtype=og_dtype)
+    shaped_tensor = np.reshape(shaped_tensor, [1, -1])
+
     new_tensor = ggml.utils.from_numpy(shaped_tensor, context)
-    tensors_dict[node.name] = new_tensor
+    tensors_dict[output_name] = new_tensor
 
     return new_tensor
 
@@ -83,6 +104,7 @@ def ggml_operator_constant(
     node_attributes = node.attribute
     raw_data = node_attributes[0].t.raw_data
     data_type = node_attributes[0].t.data_type
+    output_name = node.output[0]
 
     constant_tensor_data = np.array(
         struct.unpack(
@@ -92,7 +114,10 @@ def ggml_operator_constant(
         dtype=data_type_to_struct_format[data_type][0],
     )
 
-    tensors_dict[node.output[0]] = constant_tensor_data
+    # clamp the rank to two
+    constant_tensor_data = np.reshape(constant_tensor_data, [1, -1])
+
+    tensors_dict[output_name] = constant_tensor_data
     return constant_tensor_data
 
 
@@ -105,11 +130,20 @@ def ggml_operator_mul(
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
+    if len(node_inputs) != 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Mul" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    output_name = node.output[0]
+
     mul_result = ggml.ggml_mul(
         context,
         *node_inputs,
     )
-    tensors_dict[node.output[0]] = mul_result
+
+    tensors_dict[output_name] = mul_result
+
     return mul_result
 
 
@@ -131,7 +165,37 @@ def ggml_operator_softmax(
 def ggml_operator_gather(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
 ):
-    raise NotImplementedError(f'Operator "Gather" not implemented')
+    ## For now only handles axis = 0 TODO: add axis=1 case
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Gather" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    input_array = (
+        ggml.utils.to_numpy(node_inputs[0])
+        if type(node_inputs[0])
+        != np.ndarray  # better to check if its ggml.ggml_tensor_p but it doesnt work like that TODO: make type(tensor) work with ggml.ggml_tensor_p
+        else node_inputs[0]
+    )
+    index_array = (
+        ggml.utils.to_numpy(node_inputs[1])
+        if type(node_inputs[1]) != np.ndarray
+        else node_inputs[1]
+    )
+
+    og_dtype = input_array.dtype
+    new_array = np.take(input_array, index_array.astype(og_dtype), axis=-1)
+
+    # clamp the rank to two
+    new_array = np.array([new_array], dtype=og_dtype)
+    new_array = np.reshape(new_array, [1, -1])
+
+    new_tensor = ggml.utils.from_numpy(new_array, context)
+    tensors_dict[node.output[0]] = new_tensor
+
+    return new_tensor
 
 
 @ggml_operator("Relu")
@@ -159,7 +223,37 @@ def ggml_operator_abs(
 def ggml_operator_unsqueeze(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
 ):
-    raise NotImplementedError(f'Operator "Unsqueeze" not implemented')
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Unsqueeze" requires exactly two inputs, data and axes. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    x = (
+        ggml.utils.to_numpy(node_inputs[0])
+        if type(node_inputs[0]) != np.ndarray
+        else node_inputs[0]
+    )
+    axes = (
+        ggml.utils.to_numpy(node_inputs[1])
+        if type(node_inputs[1]) != np.ndarray
+        else node_inputs[1]
+    )
+
+    og_dtype = x.dtype
+
+    for axis in np.nditer(axes):
+        x = np.expand_dims(x, axis=axis)
+
+    # clamp the rank to 3
+    x = np.array([x], dtype=og_dtype)
+    # x = np.reshape(x, (1, 1, -1))
+
+    new_tensor = ggml.utils.from_numpy(x, context)
+    tensors_dict[node.output[0]] = new_tensor
+
+    return new_tensor
 
 
 @ggml_operator("Sqrt")
