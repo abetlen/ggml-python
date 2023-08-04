@@ -105,6 +105,14 @@ lib = load_shared_library(module_name, lib_base_name)
 
 
 #####################################################
+# GGML Utility Types
+#####################################################
+
+CFloatArray: TypeAlias = "ctypes.Array[ctypes.c_float]"
+CInt64Array: TypeAlias = "ctypes.Array[ctypes.c_int64]"
+
+
+#####################################################
 # GGML API
 # source: ggml.h
 #####################################################
@@ -144,6 +152,8 @@ GGML_EXIT_ABORTED = 1
 # typedef uint16_t ggml_fp16_t;
 ggml_fp16_t = ctypes.c_uint16
 
+CFP16Array: TypeAlias = "ctypes.Array[ggml_fp16_t]"
+
 
 # GGML_API float       ggml_fp16_to_fp32(ggml_fp16_t x);
 def ggml_fp16_to_fp32(x: ggml_fp16_t) -> float:
@@ -165,8 +175,8 @@ lib.ggml_fp32_to_fp16.restype = ggml_fp16_t
 
 # GGML_API void ggml_fp16_to_fp32_row(const ggml_fp16_t * x, float * y, size_t n);
 def ggml_fp16_to_fp32_row(
-    x,  # type: ctypes.Array[ggml_fp16_t]
-    y,  # type: ctypes.Array[ctypes.c_float]
+    x: CFP16Array,
+    y: CFloatArray,
     n: Union[ctypes.c_int, int],
 ) -> None:
     return lib.ggml_fp16_to_fp32_row(x, y, n)
@@ -182,8 +192,8 @@ lib.ggml_fp16_to_fp32_row.restype = None
 
 # GGML_API void ggml_fp32_to_fp16_row(const float * x, ggml_fp16_t * y, size_t n);
 def ggml_fp32_to_fp16_row(
-    x,  # type: ctypes.Array[ctypes.c_float]
-    y,  # type: ctypes.Array[ggml_fp16_t]
+    x: CFloatArray,
+    y: CFP16Array,
     n: Union[ctypes.c_int, int],
 ) -> None:
     return lib.ggml_fp32_to_fp16_row(x, y, n)
@@ -352,6 +362,10 @@ GGML_FTYPE_MOSTLY_Q6_K = 14
 #     GGML_OP_MAP_UNARY,
 #     GGML_OP_MAP_BINARY,
 
+#     GGML_OP_MAP_CUSTOM1_F32,
+#     GGML_OP_MAP_CUSTOM2_F32,
+#     GGML_OP_MAP_CUSTOM3_F32,
+
 #     GGML_OP_MAP_CUSTOM1,
 #     GGML_OP_MAP_CUSTOM2,
 #     GGML_OP_MAP_CUSTOM3,
@@ -415,12 +429,15 @@ GGML_OP_WIN_UNPART = 50
 GGML_OP_UNARY = 51
 GGML_OP_MAP_UNARY = 52
 GGML_OP_MAP_BINARY = 53
-GGML_OP_MAP_CUSTOM1 = 54
-GGML_OP_MAP_CUSTOM2 = 55
-GGML_OP_MAP_CUSTOM3 = 56
-GGML_OP_CROSS_ENTROPY_LOSS = 57
-GGML_OP_CROSS_ENTROPY_LOSS_BACK = 58
-GGML_OP_COUNT = 59
+GGML_OP_MAP_CUSTOM1_F32 = 54
+GGML_OP_MAP_CUSTOM2_F32 = 55
+GGML_OP_MAP_CUSTOM3_F32 = 56
+GGML_OP_MAP_CUSTOM1 = 57
+GGML_OP_MAP_CUSTOM2 = 58
+GGML_OP_MAP_CUSTOM3 = 59
+GGML_OP_CROSS_ENTROPY_LOSS = 60
+GGML_OP_CROSS_ENTROPY_LOSS_BACK = 61
+GGML_OP_COUNT = 62
 
 # enum ggml_unary_op {
 #     GGML_UNARY_OP_ABS,
@@ -539,7 +556,10 @@ ggml_tensor._fields_ = [
     ("ne", ctypes.c_int64 * GGML_MAX_DIMS),
     ("nb", ctypes.c_size_t * GGML_MAX_DIMS),
     ("op", ctypes.c_int),
-    ("op_params", ctypes.c_int32 * (GGML_MAX_OP_PARAMS // ctypes.sizeof(ctypes.c_uint32))),
+    (
+        "op_params",
+        ctypes.c_int32 * (GGML_MAX_OP_PARAMS // ctypes.sizeof(ctypes.c_uint32)),
+    ),
     ("is_param", ctypes.c_bool),
     ("grad", ctypes.POINTER(ggml_tensor)),
     ("src", ctypes.POINTER(ggml_tensor) * GGML_MAX_SRC),
@@ -573,6 +593,7 @@ abort_callback_t = ctypes.CFUNCTYPE(ctypes.c_bool, ctypes.c_void_p)
 #     // the `n_tasks` of nodes, 1:1 mapping to cgraph nodes
 #     int n_tasks[GGML_MAX_NODES];
 
+
 #     // abort ggml_graph_compute when true
 #     bool (*abort_callback)(void * data);
 #     void * abort_callback_data;
@@ -582,7 +603,7 @@ class ggml_cplan(ctypes.Structure):
 
     Attributes:
         work_size (int): size of work buffer
-        work_data (ctypes.c_void_p): work buffer
+        work_data (ctypes.POINTER(ctypes.c_uint8)): work buffer
         n_threads (int): number of threads to use when computing the graph using [ggml_graph_compute][ggml.ggml_graph_compute]
         n_tasks (ctypes.Array[ctypes.c_int]): `n_tasks` of nodes, 1:1 mapping to cgraph nodes
         abort_callback (abort_callback_t): abort callback
@@ -591,7 +612,7 @@ class ggml_cplan(ctypes.Structure):
 
     _fields_ = [
         ("work_size", ctypes.c_size_t),
-        ("work_data", ctypes.c_void_p),
+        ("work_data", ctypes.POINTER(ctypes.c_uint8)),
         ("n_threads", ctypes.c_int),
         ("n_tasks", ctypes.c_int * GGML_MAX_NODES),
         (
@@ -600,6 +621,7 @@ class ggml_cplan(ctypes.Structure):
         ),
         ("abort_callback_data", ctypes.c_void_p),
     ]
+
 
 GGML_CPLAN_SIZE = ctypes.sizeof(ggml_cplan)
 
@@ -626,6 +648,7 @@ GGML_GRAPH_HASHTABLE_SIZE = 8273
 
 #     void * visited_hash_table[GGML_GRAPH_HASHTABLE_SIZE];
 
+
 #     // performance
 #     int     perf_runs;
 #     int64_t perf_cycles;
@@ -633,7 +656,7 @@ GGML_GRAPH_HASHTABLE_SIZE = 8273
 # };
 class ggml_cgraph(ctypes.Structure):
     """ggml computation graph
-    
+
     Attributes:
         n_nodes (int): number of nodes
         n_leafs (int): number of leafs
@@ -656,6 +679,7 @@ class ggml_cgraph(ctypes.Structure):
         ("perf_cycles", ctypes.c_int64),
         ("perf_time_us", ctypes.c_int64),
     ]
+
 
 ggml_cgraph_p: TypeAlias = "ctypes._Pointer[ggml_cgraph]"  # type: ignore
 """ctypes pointer to a [ggml_cgraph][ggml.ggml_cgraph]
@@ -688,7 +712,7 @@ class ggml_init_params(ctypes.Structure):
 
     **NOTE**: Reference counting does not cross into ggml, if you allocate a memory buffer
     in python using ctypes Arrays or a numpy array, you must keep a reference to it until
-    you free the ggml context otherwise you will encounter a segmentation fault. 
+    you free the ggml context otherwise you will encounter a segmentation fault.
 
     Attributes:
         mem_size (int): size of memory pool in bytes
@@ -736,7 +760,9 @@ class ggml_compute_params(ctypes.Structure):
         ("wdata", ctypes.c_void_p),
     ]
 
+
 # // misc
+
 
 # GGML_API void    ggml_time_init(void); // call this once at the beginning of the program
 def ggml_time_init():
@@ -782,22 +808,27 @@ def ggml_cycles_per_ms() -> int:
 lib.ggml_cycles_per_ms.argtypes = []
 lib.ggml_cycles_per_ms.restype = ctypes.c_int64
 
+
 # GGML_API void    ggml_numa_init(void); // call once for better performance on NUMA systems
 def ggml_numa_init():
     return lib.ggml_numa_init()
 
+
 lib.ggml_numa_init.argtypes = []
 lib.ggml_numa_init.restype = None
+
 
 # GGML_API bool    ggml_is_numa(void); // true if init detected that system has >1 NUMA node
 def ggml_is_numa() -> bool:
     return lib.ggml_is_numa()
 
+
 lib.ggml_is_numa.argtypes = []
 lib.ggml_is_numa.restype = ctypes.c_bool
 
+
 # GGML_API void    ggml_print_object (const struct ggml_object * obj);
-def ggml_print_object(obj: ggml_object_p):  
+def ggml_print_object(obj: ggml_object_p):
     return lib.ggml_print_object(obj)
 
 
@@ -816,13 +847,13 @@ lib.ggml_print_objects.restype = None
 
 # GGML_API int64_t ggml_nelements   (const struct ggml_tensor * tensor);
 def ggml_nelements(
-    tensor: ggml_tensor_p,  
+    tensor: ggml_tensor_p,
 ) -> int:
     """Get the number of elements in a tensor
-    
+
     Parameters:
         tensor: tensor
-    
+
     Returns:
         number of elements"""
     return lib.ggml_nelements(tensor)
@@ -834,13 +865,13 @@ lib.ggml_nelements.restype = ctypes.c_int64
 
 # GGML_API int64_t ggml_nrows       (const struct ggml_tensor * tensor);
 def ggml_nrows(
-    tensor: ggml_tensor_p,  
+    tensor: ggml_tensor_p,
 ) -> int:
     """Get the number of rows in a tensor
 
     Parameters:
         tensor: tensor
-    
+
     Returns:
         number of rows"""
     return lib.ggml_nrows(tensor)
@@ -852,13 +883,13 @@ lib.ggml_nrows.restype = ctypes.c_int64
 
 # GGML_API size_t  ggml_nbytes      (const struct ggml_tensor * tensor);
 def ggml_nbytes(
-    tensor: ggml_tensor_p,  
+    tensor: ggml_tensor_p,
 ) -> int:
     """Get the number of bytes required to store tensor data
 
     Parameters:
         tensor: tensor
-    
+
     Returns:
         number of bytes"""
     return lib.ggml_nbytes(tensor)
@@ -870,7 +901,7 @@ lib.ggml_nbytes.restype = ctypes.c_size_t
 
 # GGML_API size_t  ggml_nbytes_split(const struct ggml_tensor * tensor, int nrows_split);
 def ggml_nbytes_split(
-    tensor: ggml_tensor_p,  
+    tensor: ggml_tensor_p,
     nrows_split: Union[ctypes.c_int, int],
 ) -> int:
     return lib.ggml_nbytes_split(tensor, nrows_split)
@@ -924,17 +955,20 @@ def ggml_op_name(op: Union[ctypes.c_int, int]) -> bytes:
 lib.ggml_op_name.argtypes = [ctypes.c_int]
 lib.ggml_op_name.restype = ctypes.c_char_p
 
+
 # GGML_API const char * ggml_op_symbol(enum ggml_op   op);
 def ggml_op_symbol(op: Union[ctypes.c_int, int]) -> bytes:
     return lib.ggml_op_symbol(op)
 
+
 lib.ggml_op_symbol.argtypes = [ctypes.c_int]
 lib.ggml_op_symbol.restype = ctypes.c_char_p
 
+
 # GGML_API size_t  ggml_element_size(const struct ggml_tensor * tensor);
 def ggml_element_size(
-    tensor: ggml_tensor_p,  
-) -> int:  
+    tensor: ggml_tensor_p,
+) -> int:
     return lib.ggml_element_size(tensor)
 
 
@@ -963,13 +997,13 @@ lib.ggml_ftype_to_ggml_type.restype = ctypes.c_int
 
 # GGML_API bool ggml_is_transposed(const struct ggml_tensor * tensor);
 def ggml_is_transposed(
-    tensor: ggml_tensor_p,  
+    tensor: ggml_tensor_p,
 ) -> bool:
     """Check if a tensor is transposed
-    
+
     Parameters:
         tensor: tensor
-    
+
     Returns:
         True if tensor is transposed else False"""
     return lib.ggml_is_transposed(tensor)
@@ -981,7 +1015,7 @@ lib.ggml_is_transposed.restype = ctypes.c_bool
 
 # GGML_API bool ggml_is_contiguous(const struct ggml_tensor * tensor);
 def ggml_is_contiguous(
-    tensor: ggml_tensor_p,  
+    tensor: ggml_tensor_p,
 ) -> bool:
     """Check if a tensor is contiguous
 
@@ -999,7 +1033,7 @@ lib.ggml_is_contiguous.restype = ctypes.c_bool
 
 # GGML_API bool ggml_is_permuted  (const struct ggml_tensor * tensor);
 def ggml_is_permuted(
-    tensor: ggml_tensor_p,  
+    tensor: ggml_tensor_p,
 ) -> bool:
     """Check if a tensor is permuted
 
@@ -1015,11 +1049,34 @@ lib.ggml_is_permuted.argtypes = [ctypes.POINTER(ggml_tensor)]
 lib.ggml_is_permuted.restype = ctypes.c_bool
 
 
+# GGML_API bool ggml_are_same_shape(const struct ggml_tensor * t0, const struct ggml_tensor * t1);
+def ggml_are_same_shape(
+    t0: ggml_tensor_p,
+    t1: ggml_tensor_p,
+) -> bool:
+    """Check if two tensors have the same shape
+
+    Parameters:
+        t0: tensor 0
+        t1: tensor 1
+
+    Returns:
+        True if tensors have the same shape else False"""
+    return lib.ggml_are_same_shape(t0, t1)
+
+
+lib.ggml_are_same_shape.argtypes = [
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+]
+lib.ggml_are_same_shape.restype = ctypes.c_bool
+
+
 # // use this to compute the memory overhead of a tensor
 # GGML_API size_t ggml_tensor_overhead(void);
 def ggml_tensor_overhead() -> int:
     """Overhead required for a tensor struct in bytes
-    
+
     Returns:
         size of tensor struct in bytes"""
     return lib.ggml_tensor_overhead()
@@ -1054,7 +1111,7 @@ lib.ggml_init.restype = ggml_context_p
 # GGML_API void                  ggml_free(struct ggml_context * ctx);
 def ggml_free(ctx: ggml_context_p):
     """Free the ggml context.
-    
+
     Parameters:
         ctx: ggml context"""
     return lib.ggml_free(ctx)
@@ -1067,10 +1124,10 @@ lib.ggml_free.restype = None
 # GGML_API size_t  ggml_used_mem(const struct ggml_context * ctx);
 def ggml_used_mem(ctx: ggml_context_p) -> int:
     """Return the amount of memory used by the ggml context in bytes.
-    
+
     Parameters:
         ctx: ggml context
-    
+
     Returns:
         amount of memory used in bytes"""
     return lib.ggml_used_mem(ctx)
@@ -1089,13 +1146,16 @@ def ggml_set_scratch(ctx: ggml_context_p, scratch: ggml_scratch) -> int:
 lib.ggml_set_scratch.argtypes = [ggml_context_p, ggml_scratch]
 lib.ggml_set_scratch.restype = ctypes.c_size_t
 
+
 # GGML_API bool    ggml_get_no_alloc(struct ggml_context * ctx);
 def ggml_get_no_alloc(ctx: ggml_context_p) -> bool:
     """Return the no_alloc flag for the ggml context."""
     return lib.ggml_get_no_alloc(ctx)
 
+
 lib.ggml_get_no_alloc.argtypes = [ggml_context_p]
 lib.ggml_get_no_alloc.restype = ctypes.c_bool
+
 
 # GGML_API void    ggml_set_no_alloc(struct ggml_context * ctx, bool no_alloc);
 def ggml_set_no_alloc(ctx: ggml_context_p, no_alloc: Union[ctypes.c_bool, bool]):
@@ -1146,16 +1206,16 @@ def ggml_new_tensor(
     ctx: ggml_context_p,
     type: Union[ctypes.c_int, int],
     n_dims: Union[ctypes.c_int, int],
-    ne,  # type: ctypes.Array[ctypes.c_int64] # type: ignore
-) -> ggml_tensor_p:  
+    ne: CInt64Array,
+) -> ggml_tensor_p:
     """Create a new tensor with the given type, number of dimensions, and number of elements in each dimension.
-    
+
     Parameters:
         ctx: ggml context
         type: ggml type
         n_dims: number of dimensions
         ne (ctypes.Array[ctypes.c_int64]): number of elements in each dimension (array of length n_dims)
-    
+
     Returns:
         Pointer to ggml_tensor"""
     return lib.ggml_new_tensor(ctx, type, n_dims, ne)
@@ -1178,12 +1238,12 @@ def ggml_new_tensor_1d(
     ctx: ggml_context_p, type: Union[ctypes.c_int, int], ne0: Union[ctypes.c_int64, int]
 ) -> ggml_tensor_p:
     """Create a new 1-dimensional tensor with the given type and number of elements.
-    
+
     Parameters:
         ctx: ggml context
         type: ggml type
         ne0: number of elements in dimension 0
-        
+
     Returns:
         Pointer to ggml_tensor"""
     return lib.ggml_new_tensor_1d(ctx, type, ne0)
@@ -1205,13 +1265,13 @@ def ggml_new_tensor_2d(
     ne1: Union[ctypes.c_int64, int],
 ) -> ggml_tensor_p:
     """Create a new 2-dimensional tensor with the given type and number of elements in each dimension.
-    
+
     Parameters:
         ctx: ggml context
         type: ggml type
         ne0: number of elements in dimension 0
         ne1: number of elements in dimension 1
-        
+
     Returns:
         Pointer to ggml_tensor"""
     return lib.ggml_new_tensor_2d(ctx, type, ne0, ne1)
@@ -1240,14 +1300,14 @@ def ggml_new_tensor_3d(
     ne2: Union[ctypes.c_int64, int],
 ) -> ggml_tensor_p:
     """Create a new 3-dimensional tensor with the given type and number of elements in each dimension.
-    
+
     Parameters:
         ctx: ggml context
         type: ggml type
         ne0: number of elements in dimension 0
         ne1: number of elements in dimension 1
         ne2: number of elements in dimension 2
-        
+
     Returns:
         Pointer to ggml_tensor"""
     return lib.ggml_new_tensor_3d(ctx, type, ne0, ne1, ne2)
@@ -1286,7 +1346,7 @@ def ggml_new_tensor_4d(
         ne0: number of elements in dimension 0
         ne1: number of elements in dimension 1
         ne2: number of elements in dimension 2
-    
+
     Returns:
         Pointer to ggml_tensor"""
     return lib.ggml_new_tensor_4d(ctx, type, ne0, ne1, ne2, ne3)
@@ -1308,7 +1368,7 @@ def ggml_new_i32(
     ctx: ggml_context_p, value: Union[ctypes.c_int32, int]
 ) -> ggml_tensor_p:
     """Create a 1 element tensor with the given integer value.
-    
+
     Parameters:
         ctx: ggml context
         value: integer value
@@ -1343,11 +1403,9 @@ lib.ggml_new_f32.restype = ctypes.POINTER(ggml_tensor)
 
 
 # GGML_API struct ggml_tensor * ggml_dup_tensor (struct ggml_context * ctx, const struct ggml_tensor * src);
-def ggml_dup_tensor(
-    ctx: ggml_context_p, src: ggml_tensor_p  
-) -> ggml_tensor_p:
+def ggml_dup_tensor(ctx: ggml_context_p, src: ggml_tensor_p) -> ggml_tensor_p:
     """Create a new tensor with the same type and dimensions as the source tensor.
-    
+
     Parameters:
         ctx: ggml context
         src: source tensor
@@ -1362,9 +1420,7 @@ lib.ggml_dup_tensor.restype = ctypes.POINTER(ggml_tensor)
 
 
 # GGML_API struct ggml_tensor * ggml_view_tensor(struct ggml_context * ctx, const struct ggml_tensor * src);
-def ggml_view_tensor(
-    ctx: ggml_context_p, src: ggml_tensor_p  
-) -> ggml_tensor_p:
+def ggml_view_tensor(ctx: ggml_context_p, src: ggml_tensor_p) -> ggml_tensor_p:
     """Create a new tensor with the same type, dimensions and data as the source tensor.
 
     Parameters:
@@ -1381,11 +1437,9 @@ lib.ggml_view_tensor.restype = ctypes.POINTER(ggml_tensor)
 
 
 # GGML_API struct ggml_tensor * ggml_get_tensor(struct ggml_context * ctx, const char * name);
-def ggml_get_tensor(
-    ctx: ggml_context_p, name: bytes
-) -> ggml_tensor_p:
+def ggml_get_tensor(ctx: ggml_context_p, name: bytes) -> ggml_tensor_p:
     """Get a tensor from the ggml context by name.
-    
+
     Parameters:
         ctx: ggml context
         name: name of tensor
@@ -1401,10 +1455,10 @@ lib.ggml_get_tensor.restype = ctypes.POINTER(ggml_tensor)
 
 # GGML_API struct ggml_tensor * ggml_set_zero(struct ggml_tensor * tensor);
 def ggml_set_zero(
-    tensor: ggml_tensor_p,  
+    tensor: ggml_tensor_p,
 ) -> ggml_tensor_p:
     """Zero all elements in a tensor.
-    
+
     Parameters:
         tensor: tensor
 
@@ -1419,11 +1473,11 @@ lib.ggml_set_zero.restype = ctypes.POINTER(ggml_tensor)
 
 # GGML_API struct ggml_tensor * ggml_set_i32 (struct ggml_tensor * tensor, int32_t value);
 def ggml_set_i32(
-    tensor: ggml_tensor_p,  
+    tensor: ggml_tensor_p,
     value: Union[ctypes.c_int32, int],
 ) -> ggml_tensor_p:
     """Set all elements in a tensor to the given integer value.
-    
+
     Parameters:
         tensor: tensor
         value: integer value
@@ -1439,11 +1493,11 @@ lib.ggml_set_i32.restype = ctypes.POINTER(ggml_tensor)
 
 # GGML_API struct ggml_tensor * ggml_set_f32 (struct ggml_tensor * tensor, float value);
 def ggml_set_f32(
-    tensor: ggml_tensor_p,  
+    tensor: ggml_tensor_p,
     value: Union[ctypes.c_float, float],
 ) -> ggml_tensor_p:
     """Set all elements in a tensor to the given float value.
-    
+
     Parameters:
         tensor: tensor
         value: float value
@@ -1459,11 +1513,11 @@ lib.ggml_set_f32.restype = ctypes.POINTER(ggml_tensor)
 
 # GGML_API int32_t ggml_get_i32_1d(const struct ggml_tensor * tensor, int i);
 def ggml_get_i32_1d(
-    tensor: ggml_tensor_p,  
+    tensor: ggml_tensor_p,
     i: Union[ctypes.c_int, int],
 ) -> int:
     """Get the integer value of the i-th element in a 1-dimensional tensor.
-    
+
     Parameters:
         tensor: tensor
         i: index of element
@@ -1479,7 +1533,7 @@ lib.ggml_get_i32_1d.restype = ctypes.c_int32
 
 # GGML_API void    ggml_set_i32_1d(const struct ggml_tensor * tensor, int i, int32_t value);
 def ggml_set_i32_1d(
-    tensor: ggml_tensor_p,  
+    tensor: ggml_tensor_p,
     i: Union[ctypes.c_int, int],
     value: Union[ctypes.c_int32, int],
 ):
@@ -1502,11 +1556,11 @@ lib.ggml_set_i32_1d.restype = None
 
 # GGML_API float   ggml_get_f32_1d(const struct ggml_tensor * tensor, int i);
 def ggml_get_f32_1d(
-    tensor: ggml_tensor_p,  
+    tensor: ggml_tensor_p,
     i: Union[ctypes.c_int, int],
 ) -> float:
     """Get the float value of the i-th element in a 1-dimensional tensor.
-    
+
     Parameters:
         tensor: tensor
 
@@ -1521,7 +1575,7 @@ lib.ggml_get_f32_1d.restype = ctypes.c_float
 
 # GGML_API void    ggml_set_f32_1d(const struct ggml_tensor * tensor, int i, float value);
 def ggml_set_f32_1d(
-    tensor: ggml_tensor_p,  
+    tensor: ggml_tensor_p,
     i: Union[ctypes.c_int, int],
     value: Union[ctypes.c_float, float],
 ):
@@ -1544,10 +1598,10 @@ lib.ggml_set_f32_1d.restype = None
 
 # GGML_API void *  ggml_get_data    (const struct ggml_tensor * tensor);
 def ggml_get_data(
-    tensor: ggml_tensor_p,  
+    tensor: ggml_tensor_p,
 ) -> Optional[ctypes.c_void_p]:
     """Get the data pointer of a tensor.
-    
+
     Parameters:
         tensor: tensor
 
@@ -1562,27 +1616,29 @@ lib.ggml_get_data.restype = ctypes.c_void_p
 
 # GGML_API float * ggml_get_data_f32(const struct ggml_tensor * tensor);
 def ggml_get_data_f32(
-    tensor: ggml_tensor_p,  
-):  # type: (...) -> Optional[ctypes.Array[ctypes.c_float]] # type: ignore
+    tensor: ggml_tensor_p,
+) -> Optional[CFloatArray]:
     """Get the data pointer of a tensor as a float array.
-    
+
     Parameters:
         tensor: tensor
 
     Returns:
-        (Optional[ctypes.Array[ctypes.c_float]]): array of float to data, or None if tensor has no data"""
+        (Optional[ctypes.Array[ctypes.c_float]]): array of float to data, or None if tensor has no data
+    """
     return lib.ggml_get_data_f32(tensor)
 
 
 lib.ggml_get_data_f32.argtypes = [ctypes.POINTER(ggml_tensor)]
 lib.ggml_get_data_f32.restype = ctypes.POINTER(ctypes.c_float)
 
+
 # GGML_API enum ggml_unary_op ggml_get_unary_op(const struct ggml_tensor * tensor);
 def ggml_get_unary_op(
     tensor: ggml_tensor_p,
 ) -> int:
     """Get the unary operation of a tensor.
-    
+
     Parameters:
         tensor: tensor
 
@@ -1590,12 +1646,14 @@ def ggml_get_unary_op(
         unary operation"""
     return lib.ggml_get_unary_op(tensor)
 
+
 lib.ggml_get_unary_op.argtypes = [ctypes.POINTER(ggml_tensor)]
 lib.ggml_get_unary_op.restype = ctypes.c_int
 
+
 # GGML_API const char *         ggml_get_name(const struct ggml_tensor * tensor);
 def ggml_get_name(
-    tensor: ggml_tensor_p,  
+    tensor: ggml_tensor_p,
 ) -> bytes:
     """Get the name of a tensor.
 
@@ -1613,7 +1671,7 @@ lib.ggml_get_name.restype = ctypes.c_char_p
 
 # GGML_API struct ggml_tensor * ggml_set_name(struct ggml_tensor * tensor, const char * name);
 def ggml_set_name(
-    tensor: ggml_tensor_p,  
+    tensor: ggml_tensor_p,
     name: bytes,
 ) -> ggml_tensor_p:
     """Set the name of a tensor.
@@ -1648,6 +1706,7 @@ def ggml_format_name(
         Pointer to ggml_tensor"""
     return lib.ggml_format_name(tensor, fmt, *args)
 
+
 lib.ggml_format_name.argtypes = [ctypes.POINTER(ggml_tensor), ctypes.c_char_p]
 lib.ggml_format_name.restype = ctypes.POINTER(ggml_tensor)
 
@@ -1655,29 +1714,29 @@ lib.ggml_format_name.restype = ctypes.POINTER(ggml_tensor)
 # // operations on tensors with backpropagation
 # //
 
+
 # GGML_API struct ggml_tensor * ggml_dup(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
-def ggml_dup(
-    ctx: ggml_context_p, a: ggml_tensor_p  
-) -> ggml_tensor_p:  
+def ggml_dup(ctx: ggml_context_p, a: ggml_tensor_p) -> ggml_tensor_p:
     return lib.ggml_dup(ctx, a)
 
 
 lib.ggml_dup.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
 lib.ggml_dup.restype = ctypes.POINTER(ggml_tensor)
 
+
 # // in-place, returns view(a)
 # GGML_API struct ggml_tensor * ggml_dup_inplace(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
-def ggml_dup_inplace(
-    ctx: ggml_context_p, a: ggml_tensor_p
-) -> ggml_tensor_p:
+def ggml_dup_inplace(ctx: ggml_context_p, a: ggml_tensor_p) -> ggml_tensor_p:
     return lib.ggml_dup_inplace(ctx, a)
+
 
 lib.ggml_dup_inplace.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
 lib.ggml_dup_inplace.restype = ctypes.POINTER(ggml_tensor)
+
 
 # GGML_API struct ggml_tensor * ggml_add(
 #         struct ggml_context * ctx,
@@ -1685,16 +1744,16 @@ lib.ggml_dup_inplace.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * b);
 def ggml_add(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
-) -> ggml_tensor_p:  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+) -> ggml_tensor_p:
     """Add two tensors together and return the result.
-    
+
     Parameters:
         ctx: ggml context
         a: first tensor
         b: second tensor
-        
+
     Returns:
         Pointer to ggml_tensor"""
     return lib.ggml_add(ctx, a, b)
@@ -1714,11 +1773,11 @@ lib.ggml_add.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * b);
 def ggml_add_inplace(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
-) -> ggml_tensor_p:  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+) -> ggml_tensor_p:
     """Add two tensors together and store the result in the first tensor.
-    
+
     Parameters:
         ctx: ggml context
         a: first tensor
@@ -1743,9 +1802,9 @@ lib.ggml_add_inplace.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * b);
 def ggml_add1(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
-) -> ggml_tensor_p:  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+) -> ggml_tensor_p:
     return lib.ggml_add1(ctx, a, b)
 
 
@@ -1763,9 +1822,9 @@ lib.ggml_add1.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * b);
 def ggml_add1_inplace(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
-) -> ggml_tensor_p:  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+) -> ggml_tensor_p:
     return lib.ggml_add1_inplace(ctx, a, b)
 
 
@@ -1787,13 +1846,13 @@ lib.ggml_add1_inplace.restype = ctypes.POINTER(ggml_tensor)
 #         size_t                offset);
 def ggml_acc(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
     nb1: Union[ctypes.c_size_t, int],
     nb2: Union[ctypes.c_size_t, int],
     nb3: Union[ctypes.c_size_t, int],
     offset: Union[ctypes.c_size_t, int],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
     return lib.ggml_acc(ctx, a, b, nb1, nb2, nb3, offset)
 
 
@@ -1819,13 +1878,13 @@ lib.ggml_acc.restype = ctypes.POINTER(ggml_tensor)
 #         size_t                offset);
 def ggml_acc_inplace(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
     nb1: Union[ctypes.c_size_t, int],
     nb2: Union[ctypes.c_size_t, int],
     nb3: Union[ctypes.c_size_t, int],
     offset: Union[ctypes.c_size_t, int],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
     return lib.ggml_acc_inplace(ctx, a, b, nb1, nb2, nb3, offset)
 
 
@@ -1847,11 +1906,11 @@ lib.ggml_acc_inplace.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * b);
 def ggml_sub(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
-) -> ggml_tensor_p:  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+) -> ggml_tensor_p:
     """Subtract two tensors and return the result.
-    
+
     Parameters:
         ctx: ggml context
         a: first tensor
@@ -1876,11 +1935,11 @@ lib.ggml_sub.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * b);
 def ggml_sub_inplace(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
-) -> ggml_tensor_p:  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+) -> ggml_tensor_p:
     """Subtract two tensors and store the result in the first tensor.
-    
+
     Parameters:
         ctx: ggml context
         a: first tensor
@@ -1905,11 +1964,11 @@ lib.ggml_sub_inplace.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * b);
 def ggml_mul(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
-) -> ggml_tensor_p:  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+) -> ggml_tensor_p:
     """Element-wise multiply two tensors and return the result.
-    
+
     Parameters:
         ctx: ggml context
         a: first tensor
@@ -1934,16 +1993,16 @@ lib.ggml_mul.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * b);
 def ggml_mul_inplace(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
-) -> ggml_tensor_p:  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+) -> ggml_tensor_p:
     """Element-wise multiply two tensors and store the result in the first tensor.
-    
+
     Parameters:
         ctx: ggml context
         a: first tensor
         b: second tensor
-        
+
     Returns:
         Pointer to ggml_tensor"""
     return lib.ggml_mul_inplace(ctx, a, b)
@@ -1963,11 +2022,11 @@ lib.ggml_mul_inplace.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * b);
 def ggml_div(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
-) -> ggml_tensor_p:  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+) -> ggml_tensor_p:
     """Element-wise divide two tensors and return the result.
-    
+
     Parameters:
         ctx: ggml context
         a: first tensor
@@ -1992,8 +2051,8 @@ lib.ggml_div.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * b);
 def ggml_div_inplace(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
 ) -> ggml_tensor_p:
     """Element-wise divide two tensors and store the result in the first tensor.
 
@@ -2020,10 +2079,10 @@ lib.ggml_div_inplace.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * a);
 def ggml_sqr(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
+    a: ggml_tensor_p,
 ) -> ggml_tensor_p:
     """Square all elements in a tensor and return the result.
-    
+
     Parameters:
         ctx: ggml context
         a: tensor
@@ -2042,10 +2101,10 @@ lib.ggml_sqr.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * a);
 def ggml_sqr_inplace(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-) -> ggml_tensor_p:  
+    a: ggml_tensor_p,
+) -> ggml_tensor_p:
     """Square all elements in a tensor and store the result in the first tensor.
-    
+
     Parameters:
         ctx: ggml context
         a: tensor
@@ -2064,7 +2123,7 @@ lib.ggml_sqr_inplace.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * a);
 def ggml_sqrt(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
+    a: ggml_tensor_p,
 ) -> ggml_tensor_p:
     """Square root all elements in a tensor and return the result.
 
@@ -2086,10 +2145,10 @@ lib.ggml_sqrt.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * a);
 def ggml_sqrt_inplace(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
+    a: ggml_tensor_p,
 ) -> ggml_tensor_p:
     """Square root all elements in a tensor and store the result in the first tensor.
-    
+
     Parameters:
         ctx: ggml context
 
@@ -2105,15 +2164,13 @@ lib.ggml_sqrt_inplace.restype = ctypes.POINTER(ggml_tensor)
 # GGML_API struct ggml_tensor * ggml_log(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
-def ggml_log(
-    ctx: ggml_context_p, a: ggml_tensor_p  
-) -> ggml_tensor_p:  
+def ggml_log(ctx: ggml_context_p, a: ggml_tensor_p) -> ggml_tensor_p:
     """Take the natural logarithm of all elements in a tensor and return the result.
-    
+
     Parameters:
         ctx: ggml context
         a: tensor
-    
+
     Returns:
         Pointer to ggml_tensor"""
     return lib.ggml_log(ctx, a)
@@ -2128,10 +2185,10 @@ lib.ggml_log.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * a);
 def ggml_log_inplace(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-) -> ggml_tensor_p:  
+    a: ggml_tensor_p,
+) -> ggml_tensor_p:
     """Take the natural logarithm of all elements in a tensor and store the result in the first tensor.
-    
+
     Parameters:
         ctx: ggml context
         a: tensor
@@ -2149,9 +2206,7 @@ lib.ggml_log_inplace.restype = ctypes.POINTER(ggml_tensor)
 # GGML_API struct ggml_tensor * ggml_sum(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
-def ggml_sum(
-    ctx: ggml_context_p, a: ggml_tensor_p  
-) -> ggml_tensor_p:
+def ggml_sum(ctx: ggml_context_p, a: ggml_tensor_p) -> ggml_tensor_p:
     """Sum all elements in a tensor and return the result.
 
     Parameters:
@@ -2171,13 +2226,11 @@ lib.ggml_sum.restype = ctypes.POINTER(ggml_tensor)
 # GGML_API struct ggml_tensor * ggml_sum_rows(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
-def ggml_sum_rows(
-    ctx: ggml_context_p, a: ggml_tensor_p  
-) -> ggml_tensor_p:  
+def ggml_sum_rows(ctx: ggml_context_p, a: ggml_tensor_p) -> ggml_tensor_p:
     """Sum all elements in a tensor along the first axis and return the result.
-    
+
     sums along rows, with input shape [a,b,c,d] return shape [1,b,c,d]
-    
+
     Parameters:
         ctx: ggml context
         a: tensor
@@ -2195,9 +2248,7 @@ lib.ggml_sum_rows.restype = ctypes.POINTER(ggml_tensor)
 # GGML_API struct ggml_tensor * ggml_mean(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
-def ggml_mean(
-    ctx: ggml_context_p, a: ggml_tensor_p  
-) -> ggml_tensor_p:
+def ggml_mean(ctx: ggml_context_p, a: ggml_tensor_p) -> ggml_tensor_p:
     """Take the mean of all elements in a tensor and return the result.
 
     Parameters:
@@ -2212,13 +2263,12 @@ def ggml_mean(
 lib.ggml_mean.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
 lib.ggml_mean.restype = ctypes.POINTER(ggml_tensor)
 
+
 # // argmax along rows
 # GGML_API struct ggml_tensor * ggml_argmax(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
-def ggml_argmax(
-    ctx: ggml_context_p, a: ggml_tensor_p
-) -> ggml_tensor_p:
+def ggml_argmax(ctx: ggml_context_p, a: ggml_tensor_p) -> ggml_tensor_p:
     """Take the argmax of all elements in a tensor and return the result.
 
     argmax along rows
@@ -2226,13 +2276,15 @@ def ggml_argmax(
     Parameters:
         ctx: ggml context
         a: tensor
-    
+
     Returns:
         Pointer to ggml_tensor"""
     return lib.ggml_argmax(ctx, a)
 
+
 lib.ggml_argmax.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
 lib.ggml_argmax.restype = ctypes.POINTER(ggml_tensor)
+
 
 # // if a is the same shape as b, and a is not parameter, return a
 # // otherwise, return a new tensor: repeat(a) to fit in b
@@ -2242,8 +2294,8 @@ lib.ggml_argmax.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * b);
 def ggml_repeat(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
 ) -> ggml_tensor_p:
     """Repeat a tensor to fit the shape of another tensor.
 
@@ -2273,9 +2325,9 @@ lib.ggml_repeat.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * b);
 def ggml_repeat_back(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
-) -> ggml_tensor_p:  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+) -> ggml_tensor_p:
     return lib.ggml_repeat_back(ctx, a, b)
 
 
@@ -2290,11 +2342,9 @@ lib.ggml_repeat_back.restype = ctypes.POINTER(ggml_tensor)
 # GGML_API struct ggml_tensor * ggml_abs(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
-def ggml_abs(
-    ctx: ggml_context_p, a: ggml_tensor_p  
-) -> ggml_tensor_p:  
+def ggml_abs(ctx: ggml_context_p, a: ggml_tensor_p) -> ggml_tensor_p:
     """Take the absolute value of all elements in a tensor and return the result.
-    
+
     Parameters:
         ctx: ggml context
         a: tensor
@@ -2313,14 +2363,14 @@ lib.ggml_abs.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * a);
 def ggml_abs_inplace(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-) -> ggml_tensor_p:  
+    a: ggml_tensor_p,
+) -> ggml_tensor_p:
     """Take the absolute value of all elements in a tensor and store the result in the first tensor.
-    
+
     Parameters:
         ctx: ggml context
         a: tensor
-        
+
     Returns:
         Pointer to ggml_tensor"""
     return lib.ggml_abs_inplace(ctx, a)
@@ -2333,11 +2383,9 @@ lib.ggml_abs_inplace.restype = ctypes.POINTER(ggml_tensor)
 # GGML_API struct ggml_tensor * ggml_sgn(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
-def ggml_sgn(
-    ctx: ggml_context_p, a: ggml_tensor_p  
-) -> ggml_tensor_p:
+def ggml_sgn(ctx: ggml_context_p, a: ggml_tensor_p) -> ggml_tensor_p:
     """Get the sign of all elements in a tensor and return the result.
-    
+
     Parameters:
         ctx: ggml context
         a: tensor
@@ -2356,7 +2404,7 @@ lib.ggml_sgn.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * a);
 def ggml_sgn_inplace(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
+    a: ggml_tensor_p,
 ) -> ggml_tensor_p:
     """Get the sign of all elements in a tensor and store the result in the first tensor.
 
@@ -2376,9 +2424,7 @@ lib.ggml_sgn_inplace.restype = ctypes.POINTER(ggml_tensor)
 # GGML_API struct ggml_tensor * ggml_neg(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
-def ggml_neg(
-    ctx: ggml_context_p, a: ggml_tensor_p  
-) -> ggml_tensor_p:
+def ggml_neg(ctx: ggml_context_p, a: ggml_tensor_p) -> ggml_tensor_p:
     """Negate all elements in a tensor and return the result.
 
     Parameters:
@@ -2399,7 +2445,7 @@ lib.ggml_neg.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * a);
 def ggml_neg_inplace(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
+    a: ggml_tensor_p,
 ) -> ggml_tensor_p:
     """Negate all elements in a tensor and store the result in the first tensor.
 
@@ -2419,9 +2465,7 @@ lib.ggml_neg_inplace.restype = ctypes.POINTER(ggml_tensor)
 # GGML_API struct ggml_tensor * ggml_step(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
-def ggml_step(
-    ctx: ggml_context_p, a: ggml_tensor_p  
-) -> ggml_tensor_p:
+def ggml_step(ctx: ggml_context_p, a: ggml_tensor_p) -> ggml_tensor_p:
     return lib.ggml_step(ctx, a)
 
 
@@ -2432,11 +2476,9 @@ lib.ggml_step.restype = ctypes.POINTER(ggml_tensor)
 # GGML_API struct ggml_tensor * ggml_tanh(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
-def ggml_tanh(
-    ctx: ggml_context_p, a: ggml_tensor_p
-) -> ggml_tensor_p:
+def ggml_tanh(ctx: ggml_context_p, a: ggml_tensor_p) -> ggml_tensor_p:
     """Apply the tanh activation function to all elements in a tensor and return the result.
-    
+
     Parameters:
         ctx: ggml context
         a: tensor
@@ -2445,8 +2487,10 @@ def ggml_tanh(
         Pointer to ggml_tensor"""
     return lib.ggml_tanh(ctx, a)
 
+
 lib.ggml_tanh.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
 lib.ggml_tanh.restype = ctypes.POINTER(ggml_tensor)
+
 
 # GGML_API struct ggml_tensor * ggml_tanh_inplace(
 #         struct ggml_context * ctx,
@@ -2456,7 +2500,7 @@ def ggml_tanh_inplace(
     a: ggml_tensor_p,
 ) -> ggml_tensor_p:
     """Apply the tanh activation function to all elements in a tensor and store the result in the first tensor.
-    
+
     Parameters:
         ctx: ggml context
         a: tensor
@@ -2465,17 +2509,17 @@ def ggml_tanh_inplace(
         Pointer to ggml_tensor"""
     return lib.ggml_tanh_inplace(ctx, a)
 
+
 lib.ggml_tanh_inplace.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
 lib.ggml_tanh_inplace.restype = ctypes.POINTER(ggml_tensor)
+
 
 # GGML_API struct ggml_tensor * ggml_elu(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
-def ggml_elu(
-    ctx: ggml_context_p, a: ggml_tensor_p
-) -> ggml_tensor_p:
+def ggml_elu(ctx: ggml_context_p, a: ggml_tensor_p) -> ggml_tensor_p:
     """Apply the ELU activation function to all elements in a tensor and return the result.
-    
+
     Parameters:
         ctx: ggml context
         a: tensor
@@ -2484,8 +2528,10 @@ def ggml_elu(
         Pointer to ggml_tensor"""
     return lib.ggml_elu(ctx, a)
 
+
 lib.ggml_elu.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
 lib.ggml_elu.restype = ctypes.POINTER(ggml_tensor)
+
 
 # GGML_API struct ggml_tensor * ggml_elu_inplace(
 #         struct ggml_context * ctx,
@@ -2495,7 +2541,7 @@ def ggml_elu_inplace(
     a: ggml_tensor_p,
 ) -> ggml_tensor_p:
     """Apply the ELU activation function to all elements in a tensor and store the result in the first tensor.
-    
+
     Parameters:
         ctx: ggml context
         a: tensor
@@ -2504,21 +2550,21 @@ def ggml_elu_inplace(
         Pointer to ggml_tensor"""
     return lib.ggml_elu_inplace(ctx, a)
 
+
 lib.ggml_elu_inplace.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
 lib.ggml_elu_inplace.restype = ctypes.POINTER(ggml_tensor)
+
 
 # GGML_API struct ggml_tensor * ggml_relu(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
-def ggml_relu(
-    ctx: ggml_context_p, a: ggml_tensor_p  
-) -> ggml_tensor_p: 
+def ggml_relu(ctx: ggml_context_p, a: ggml_tensor_p) -> ggml_tensor_p:
     """Apply the ReLU activation function to all elements in a tensor and return the result.
-    
+
     Parameters:
         ctx: ggml context
         a: tensor
-        
+
     Returns:
         Pointer to ggml_tensor"""
     return lib.ggml_relu(ctx, a)
@@ -2533,14 +2579,14 @@ lib.ggml_relu.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * a);
 def ggml_relu_inplace(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-) -> ggml_tensor_p:  
+    a: ggml_tensor_p,
+) -> ggml_tensor_p:
     """Apply the ReLU activation function to all elements in a tensor and store the result in the first tensor.
-    
+
     Parameters:
         ctx: ggml context
         a: tensor
-    
+
     Returns:
         Pointer to ggml_tensor"""
     return lib.ggml_relu_inplace(ctx, a)
@@ -2554,11 +2600,9 @@ lib.ggml_relu_inplace.restype = ctypes.POINTER(ggml_tensor)
 # GGML_API struct ggml_tensor * ggml_gelu(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
-def ggml_gelu(
-    ctx: ggml_context_p, a: ggml_tensor_p  
-) -> ggml_tensor_p:
+def ggml_gelu(ctx: ggml_context_p, a: ggml_tensor_p) -> ggml_tensor_p:
     """Apply the Gaussian Error Linear Unit activation function to all elements in a tensor and return the result.
-    
+
     Parameters:
         ctx: ggml context
         a: tensor
@@ -2577,14 +2621,14 @@ lib.ggml_gelu.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * a);
 def ggml_gelu_inplace(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-) -> ggml_tensor_p:  
+    a: ggml_tensor_p,
+) -> ggml_tensor_p:
     """Apply the Gaussian Error Linear Unit activation function to all elements in a tensor and store the result in the first tensor.
-    
+
     Parameters:
         ctx: ggml context
         a: tensor
-    
+
     Returns:
         Pointer to ggml_tensor"""
     return lib.ggml_gelu_inplace(ctx, a)
@@ -2597,11 +2641,9 @@ lib.ggml_gelu_inplace.restype = ctypes.POINTER(ggml_tensor)
 # GGML_API struct ggml_tensor * ggml_gelu_quick(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
-def ggml_gelu_quick(
-    ctx: ggml_context_p, a: ggml_tensor_p  
-) -> ggml_tensor_p:  
+def ggml_gelu_quick(ctx: ggml_context_p, a: ggml_tensor_p) -> ggml_tensor_p:
     """Apply the Gaussian Error Linear Unit activation function to all elements in a tensor and return the result.
-    
+
     Parameters:
         ctx: ggml context
         a: tensor
@@ -2620,10 +2662,10 @@ lib.ggml_gelu_quick.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * a);
 def ggml_gelu_quick_inplace(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-) -> ggml_tensor_p:  
+    a: ggml_tensor_p,
+) -> ggml_tensor_p:
     """Apply the Gaussian Error Linear Unit activation function to all elements in a tensor and store the result in the first tensor.
-    
+
     Parameters:
         ctx: ggml context
         a: tensor
@@ -2640,15 +2682,13 @@ lib.ggml_gelu_quick_inplace.restype = ctypes.POINTER(ggml_tensor)
 # GGML_API struct ggml_tensor * ggml_silu(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
-def ggml_silu(
-    ctx: ggml_context_p, a: ggml_tensor_p  
-) -> ggml_tensor_p:  
+def ggml_silu(ctx: ggml_context_p, a: ggml_tensor_p) -> ggml_tensor_p:
     """Apply the Sigmoid Linear Unit activation function to all elements in a tensor and return the result.
-    
+
     Parameters:
         ctx: ggml context
         a: tensor
-    
+
     Returns:
         Pointer to ggml_tensor"""
     return lib.ggml_silu(ctx, a)
@@ -2663,7 +2703,7 @@ lib.ggml_silu.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * a);
 def ggml_silu_inplace(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
+    a: ggml_tensor_p,
 ) -> ggml_tensor_p:
     """Apply the Sigmoid Linear Unit activation function to all elements in a tensor and store the result in the first tensor.
 
@@ -2688,9 +2728,9 @@ lib.ggml_silu_inplace.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * b);
 def ggml_silu_back(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
-) -> ggml_tensor_p:  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+) -> ggml_tensor_p:
     return lib.ggml_silu_back(ctx, a, b)
 
 
@@ -2707,15 +2747,13 @@ lib.ggml_silu_back.restype = ctypes.POINTER(ggml_tensor)
 # GGML_API struct ggml_tensor * ggml_norm(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
-def ggml_norm(
-    ctx: ggml_context_p, a: ggml_tensor_p  
-) -> ggml_tensor_p:  
+def ggml_norm(ctx: ggml_context_p, a: ggml_tensor_p) -> ggml_tensor_p:
     """Normalize all elements in a tensor along the first axis and return the result.
-    
+
     normalize along rows.
-    
+
     NOTE: eps is hardcoded to 1e-5 for now
-    
+
     Parameters:
         ctx: ggml context
         a: tensor
@@ -2734,18 +2772,18 @@ lib.ggml_norm.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * a);
 def ggml_norm_inplace(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-) -> ggml_tensor_p:  
+    a: ggml_tensor_p,
+) -> ggml_tensor_p:
     """Normalize all elements in a tensor along the first axis and store the result in the first tensor.
-    
+
     normalize along rows.
-    
+
     NOTE: eps is hardcoded to 1e-5 for now
-    
+
     Parameters:
         ctx: ggml context
         a: tensor
-        
+
     Returns:
         Pointer to ggml_tensor"""
     return lib.ggml_norm_inplace(ctx, a)
@@ -2765,7 +2803,7 @@ def ggml_rms_norm(
     eps: Union[ctypes.c_float, float],
 ) -> ggml_tensor_p:
     """Compute the RMS norm of a tensor and return the result.
-    
+
     Parameters:
         ctx: ggml context
         a: tensor
@@ -2775,12 +2813,14 @@ def ggml_rms_norm(
         Pointer to ggml_tensor"""
     return lib.ggml_rms_norm(ctx, a, eps)
 
+
 lib.ggml_rms_norm.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_tensor),
     ctypes.c_float,
 ]
 lib.ggml_rms_norm.restype = ctypes.POINTER(ggml_tensor)
+
 
 # GGML_API struct ggml_tensor * ggml_rms_norm_inplace(
 #         struct ggml_context * ctx,
@@ -2793,12 +2833,14 @@ def ggml_rms_norm_inplace(
 ) -> ggml_tensor_p:
     return lib.ggml_rms_norm_inplace(ctx, a, eps)
 
+
 lib.ggml_rms_norm_inplace.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_tensor),
     ctypes.c_float,
 ]
 lib.ggml_rms_norm_inplace.restype = ctypes.POINTER(ggml_tensor)
+
 
 # // a - x
 # // b - dy
@@ -2809,9 +2851,9 @@ lib.ggml_rms_norm_inplace.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * b);
 def ggml_rms_norm_back(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
-) -> ggml_tensor_p:  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+) -> ggml_tensor_p:
     return lib.ggml_rms_norm_back(ctx, a, b)
 
 
@@ -2832,15 +2874,15 @@ lib.ggml_rms_norm_back.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * b);
 def ggml_mul_mat(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
 ) -> ggml_tensor_p:
     """Multiply two matrices and return the result.
-    
+
     A: m rows, n columns
     B: p rows, n columns  (i.e. we transpose it internally)
     result is m columns, p rows
-    
+
     Parameters:
         ctx: ggml context
         a: tensor
@@ -2868,8 +2910,8 @@ lib.ggml_mul_mat.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * b);
 def ggml_out_prod(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
 ) -> ggml_tensor_p:
     """Compute the outer product of two matrices and return the result.
 
@@ -2905,16 +2947,16 @@ lib.ggml_out_prod.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * b);
 def ggml_scale(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
-) -> ggml_tensor_p:  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+) -> ggml_tensor_p:
     """Scale a tensor by another tensor and return the result.
-    
+
     Parameters:
         ctx: ggml context
         a: tensor
         b: tensor
-        
+
     Returns:
         Pointer to ggml_tensor"""
     return lib.ggml_scale(ctx, a, b)
@@ -2935,8 +2977,8 @@ lib.ggml_scale.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * b);
 def ggml_scale_inplace(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
 ) -> ggml_tensor_p:
     """Scale a tensor by another tensor and store the result in the first tensor.
 
@@ -2968,13 +3010,13 @@ lib.ggml_scale_inplace.restype = ctypes.POINTER(ggml_tensor)
 #         size_t                offset);
 def ggml_set(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
     nb1: Union[ctypes.c_size_t, int],
     nb2: Union[ctypes.c_size_t, int],
     nb3: Union[ctypes.c_size_t, int],
     offset: Union[ctypes.c_size_t, int],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
     return lib.ggml_set(ctx, a, b, nb1, nb2, nb3, offset)
 
 
@@ -3001,13 +3043,13 @@ lib.ggml_set.restype = ctypes.POINTER(ggml_tensor)
 #         size_t                offset);
 def ggml_set_inplace(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
     nb1: Union[ctypes.c_size_t, int],
     nb2: Union[ctypes.c_size_t, int],
     nb3: Union[ctypes.c_size_t, int],
     offset: Union[ctypes.c_size_t, int],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
     return lib.ggml_set_inplace(ctx, a, b, nb1, nb2, nb3, offset)
 
 
@@ -3030,10 +3072,10 @@ lib.ggml_set_inplace.restype = ctypes.POINTER(ggml_tensor)
 #         size_t                offset);
 def ggml_set_1d(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
     offset: Union[ctypes.c_size_t, int],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
     return lib.ggml_set_1d(ctx, a, b, offset)
 
 
@@ -3053,10 +3095,10 @@ lib.ggml_set_1d.restype = ctypes.POINTER(ggml_tensor)
 #         size_t                offset);
 def ggml_set_1d_inplace(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
     offset: Union[ctypes.c_size_t, int],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
     return lib.ggml_set_1d_inplace(ctx, a, b, offset)
 
 
@@ -3078,11 +3120,11 @@ lib.ggml_set_1d_inplace.restype = ctypes.POINTER(ggml_tensor)
 #         size_t                offset);
 def ggml_set_2d(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
     nb1: Union[ctypes.c_size_t, int],
     offset: Union[ctypes.c_size_t, int],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
     return lib.ggml_set_2d(ctx, a, b, nb1, offset)
 
 
@@ -3105,11 +3147,11 @@ lib.ggml_set_2d.restype = ctypes.POINTER(ggml_tensor)
 #         size_t                offset);
 def ggml_set_2d_inplace(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
     nb1: Union[ctypes.c_size_t, int],
     offset: Union[ctypes.c_size_t, int],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
     return lib.ggml_set_2d_inplace(ctx, a, b, nb1, offset)
 
 
@@ -3130,9 +3172,9 @@ lib.ggml_set_2d_inplace.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * b);
 def ggml_cpy(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
-) -> ggml_tensor_p:  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+) -> ggml_tensor_p:
     return lib.ggml_cpy(ctx, a, b)
 
 
@@ -3142,6 +3184,7 @@ lib.ggml_cpy.argtypes = [
     ctypes.POINTER(ggml_tensor),
 ]
 lib.ggml_cpy.restype = ctypes.POINTER(ggml_tensor)
+
 
 # // a -> b, in-place, return view(b)
 # GGML_API struct ggml_tensor * ggml_cpy_inplace(
@@ -3155,6 +3198,7 @@ def ggml_cpy_inplace(
 ) -> ggml_tensor_p:
     return lib.ggml_cpy_inplace(ctx, a, b)
 
+
 lib.ggml_cpy_inplace.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_tensor),
@@ -3162,15 +3206,14 @@ lib.ggml_cpy_inplace.argtypes = [
 ]
 lib.ggml_cpy_inplace.restype = ctypes.POINTER(ggml_tensor)
 
+
 # // make contiguous
 # GGML_API struct ggml_tensor * ggml_cont(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
-def ggml_cont(
-    ctx: ggml_context_p, a: ggml_tensor_p  
-) -> ggml_tensor_p:
+def ggml_cont(ctx: ggml_context_p, a: ggml_tensor_p) -> ggml_tensor_p:
     """Make a tensor contiguous and return the result.
-    
+
     Parameters:
         ctx: ggml context
         a: tensor
@@ -3182,6 +3225,7 @@ def ggml_cont(
 
 lib.ggml_cont.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
 lib.ggml_cont.restype = ctypes.POINTER(ggml_tensor)
+
 
 # // make contiguous, in-place
 # GGML_API struct ggml_tensor * ggml_cont_inplace(
@@ -3201,8 +3245,10 @@ def ggml_cont_inplace(
         Pointer to ggml_tensor"""
     return lib.ggml_cont_inplace(ctx, a)
 
+
 lib.ggml_cont_inplace.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
 lib.ggml_cont_inplace.restype = ctypes.POINTER(ggml_tensor)
+
 
 # // return view(a), b specifies the new shape
 # // TODO: when we start computing gradient, make a copy instead of view
@@ -3212,8 +3258,8 @@ lib.ggml_cont_inplace.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * b);
 def ggml_reshape(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
 ) -> ggml_tensor_p:
     return lib.ggml_reshape(ctx, a, b)
 
@@ -3234,9 +3280,9 @@ lib.ggml_reshape.restype = ctypes.POINTER(ggml_tensor)
 #         int64_t               ne0);
 def ggml_reshape_1d(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
+    a: ggml_tensor_p,
     ne0: Union[ctypes.c_int64, int],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
     return lib.ggml_reshape_1d(ctx, a, ne0)
 
 
@@ -3255,10 +3301,10 @@ lib.ggml_reshape_1d.restype = ctypes.POINTER(ggml_tensor)
 #         int64_t               ne1);
 def ggml_reshape_2d(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
+    a: ggml_tensor_p,
     ne0: Union[ctypes.c_int64, int],
     ne1: Union[ctypes.c_int64, int],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
     return lib.ggml_reshape_2d(ctx, a, ne0, ne1)
 
 
@@ -3281,11 +3327,11 @@ lib.ggml_reshape_2d.restype = ctypes.POINTER(ggml_tensor)
 #         int64_t               ne2);
 def ggml_reshape_3d(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
+    a: ggml_tensor_p,
     ne0: Union[ctypes.c_int64, int],
     ne1: Union[ctypes.c_int64, int],
     ne2: Union[ctypes.c_int64, int],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
     return lib.ggml_reshape_3d(ctx, a, ne0, ne1, ne2)
 
 
@@ -3308,12 +3354,12 @@ lib.ggml_reshape_3d.restype = ctypes.POINTER(ggml_tensor)
 #         int64_t               ne3);
 def ggml_reshape_4d(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
+    a: ggml_tensor_p,
     ne0: Union[ctypes.c_int64, int],
     ne1: Union[ctypes.c_int64, int],
     ne2: Union[ctypes.c_int64, int],
     ne3: Union[ctypes.c_int64, int],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
     return lib.ggml_reshape_4d(ctx, a, ne0, ne1, ne2, ne3)
 
 
@@ -3336,10 +3382,10 @@ lib.ggml_reshape_4d.restype = ctypes.POINTER(ggml_tensor)
 #         size_t                offset);
 def ggml_view_1d(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
+    a: ggml_tensor_p,
     ne0: Union[ctypes.c_int64, int],
     offset: Union[ctypes.c_size_t, int],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
     return lib.ggml_view_1d(ctx, a, ne0, offset)
 
 
@@ -3361,12 +3407,12 @@ lib.ggml_view_1d.restype = ctypes.POINTER(ggml_tensor)
 #         size_t                offset);
 def ggml_view_2d(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
+    a: ggml_tensor_p,
     ne0: Union[ctypes.c_int64, int],
     ne1: Union[ctypes.c_int64, int],
     nb1: Union[ctypes.c_size_t, int],
     offset: Union[ctypes.c_size_t, int],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
     return lib.ggml_view_2d(ctx, a, ne0, ne1, nb1, offset)
 
 
@@ -3392,14 +3438,14 @@ lib.ggml_view_2d.restype = ctypes.POINTER(ggml_tensor)
 #         size_t                offset);
 def ggml_view_3d(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
+    a: ggml_tensor_p,
     ne0: Union[ctypes.c_int64, int],
     ne1: Union[ctypes.c_int64, int],
     ne2: Union[ctypes.c_int64, int],
     nb1: Union[ctypes.c_size_t, int],
     nb2: Union[ctypes.c_size_t, int],
     offset: Union[ctypes.c_size_t, int],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
     return lib.ggml_view_3d(ctx, a, ne0, ne1, ne2, nb1, nb2, offset)
 
 
@@ -3429,7 +3475,7 @@ lib.ggml_view_3d.restype = ctypes.POINTER(ggml_tensor)
 #         size_t                offset);
 def ggml_view_4d(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
+    a: ggml_tensor_p,
     ne0: Union[ctypes.c_int64, int],
     ne1: Union[ctypes.c_int64, int],
     ne2: Union[ctypes.c_int64, int],
@@ -3438,7 +3484,7 @@ def ggml_view_4d(
     nb2: Union[ctypes.c_size_t, int],
     nb3: Union[ctypes.c_size_t, int],
     offset: Union[ctypes.c_size_t, int],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
     return lib.ggml_view_4d(ctx, a, ne0, ne1, ne2, ne3, nb1, nb2, nb3, offset)
 
 
@@ -3466,12 +3512,12 @@ lib.ggml_view_4d.restype = ctypes.POINTER(ggml_tensor)
 #         int                   axis3);
 def ggml_permute(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
+    a: ggml_tensor_p,
     axis0: Union[ctypes.c_int, int],
     axis1: Union[ctypes.c_int, int],
     axis2: Union[ctypes.c_int, int],
     axis3: Union[ctypes.c_int, int],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
     return lib.ggml_permute(ctx, a, axis0, axis1, axis2, axis3)
 
 
@@ -3490,13 +3536,11 @@ lib.ggml_permute.restype = ctypes.POINTER(ggml_tensor)
 # GGML_API struct ggml_tensor * ggml_transpose(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
-def ggml_transpose(
-    ctx: ggml_context_p, a: ggml_tensor_p  
-) -> ggml_tensor_p:
+def ggml_transpose(ctx: ggml_context_p, a: ggml_tensor_p) -> ggml_tensor_p:
     """Transpose *the first two dimensions* of a tensor and return the result.
-    
+
     alias for `ggml_permute(ctx, a, 1, 0, 2, 3)`
-    
+
     Parameters:
         ctx: ggml context
         a: tensor
@@ -3516,8 +3560,8 @@ lib.ggml_transpose.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * b);
 def ggml_get_rows(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
 ) -> ggml_tensor_p:
     return lib.ggml_get_rows(ctx, a, b)
 
@@ -3537,10 +3581,10 @@ lib.ggml_get_rows.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * c);
 def ggml_get_rows_back(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
-    c: ggml_tensor_p,  
-) -> ggml_tensor_p:  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    c: ggml_tensor_p,
+) -> ggml_tensor_p:
     return lib.ggml_get_rows_back(ctx, a, b, c)
 
 
@@ -3556,9 +3600,7 @@ lib.ggml_get_rows_back.restype = ctypes.POINTER(ggml_tensor)
 # GGML_API struct ggml_tensor * ggml_diag(
 #     struct ggml_context     * ctx,
 #     struct ggml_tensor      * a);
-def ggml_diag(
-    ctx: ggml_context_p, a: ggml_tensor_p  
-) -> ggml_tensor_p:  
+def ggml_diag(ctx: ggml_context_p, a: ggml_tensor_p) -> ggml_tensor_p:
     return lib.ggml_diag(ctx, a)
 
 
@@ -3573,9 +3615,9 @@ lib.ggml_diag.restype = ctypes.POINTER(ggml_tensor)
 #         int                   n_past);
 def ggml_diag_mask_inf(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
+    a: ggml_tensor_p,
     n_past: Union[ctypes.c_int, int],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
     return lib.ggml_diag_mask_inf(ctx, a, n_past)
 
 
@@ -3594,9 +3636,9 @@ lib.ggml_diag_mask_inf.restype = ctypes.POINTER(ggml_tensor)
 #         int                   n_past);
 def ggml_diag_mask_inf_inplace(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
+    a: ggml_tensor_p,
     n_past: Union[ctypes.c_int, int],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
     return lib.ggml_diag_mask_inf_inplace(ctx, a, n_past)
 
 
@@ -3615,9 +3657,9 @@ lib.ggml_diag_mask_inf_inplace.restype = ctypes.POINTER(ggml_tensor)
 #         int                   n_past);
 def ggml_diag_mask_zero(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
+    a: ggml_tensor_p,
     n_past: Union[ctypes.c_int, int],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
     return lib.ggml_diag_mask_zero(ctx, a, n_past)
 
 
@@ -3636,9 +3678,9 @@ lib.ggml_diag_mask_zero.restype = ctypes.POINTER(ggml_tensor)
 #         int                   n_past);
 def ggml_diag_mask_zero_inplace(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
+    a: ggml_tensor_p,
     n_past: Union[ctypes.c_int, int],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
     return lib.ggml_diag_mask_zero_inplace(ctx, a, n_past)
 
 
@@ -3653,9 +3695,7 @@ lib.ggml_diag_mask_zero_inplace.restype = ctypes.POINTER(ggml_tensor)
 # GGML_API struct ggml_tensor * ggml_soft_max(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
-def ggml_soft_max(
-    ctx: ggml_context_p, a: ggml_tensor_p  
-) -> ggml_tensor_p:  
+def ggml_soft_max(ctx: ggml_context_p, a: ggml_tensor_p) -> ggml_tensor_p:
     return lib.ggml_soft_max(ctx, a)
 
 
@@ -3667,9 +3707,7 @@ lib.ggml_soft_max.restype = ctypes.POINTER(ggml_tensor)
 # GGML_API struct ggml_tensor * ggml_soft_max_inplace(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
-def ggml_soft_max_inplace(
-    ctx: ggml_context_p, a: ggml_tensor_p  
-) -> ggml_tensor_p:  
+def ggml_soft_max_inplace(ctx: ggml_context_p, a: ggml_tensor_p) -> ggml_tensor_p:
     return lib.ggml_soft_max_inplace(ctx, a)
 
 
@@ -3683,9 +3721,9 @@ lib.ggml_soft_max_inplace.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * b);
 def ggml_soft_max_back(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
-) -> ggml_tensor_p:  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+) -> ggml_tensor_p:
     return lib.ggml_soft_max_back(ctx, a, b)
 
 
@@ -3704,9 +3742,9 @@ lib.ggml_soft_max_back.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * b);
 def ggml_soft_max_back_inplace(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
-) -> ggml_tensor_p:  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+) -> ggml_tensor_p:
     return lib.ggml_soft_max_back_inplace(ctx, a, b)
 
 
@@ -3732,12 +3770,12 @@ lib.ggml_soft_max_back_inplace.restype = ctypes.POINTER(ggml_tensor)
 #         int                   n_ctx);
 def ggml_rope(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
+    a: ggml_tensor_p,
     n_past: Union[ctypes.c_int, int],
     n_dims: Union[ctypes.c_int, int],
     mode: Union[ctypes.c_int, int],
     n_ctx: Union[ctypes.c_int, int],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
     return lib.ggml_rope(ctx, a, n_past, n_dims, mode, n_ctx)
 
 
@@ -3762,12 +3800,12 @@ lib.ggml_rope.restype = ctypes.POINTER(ggml_tensor)
 #         int                   n_ctx);
 def ggml_rope_inplace(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
+    a: ggml_tensor_p,
     n_past: Union[ctypes.c_int, int],
     n_dims: Union[ctypes.c_int, int],
     mode: Union[ctypes.c_int, int],
     n_ctx: Union[ctypes.c_int, int],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
     return lib.ggml_rope_inplace(ctx, a, n_past, n_dims, mode, n_ctx)
 
 
@@ -3802,7 +3840,10 @@ def ggml_rope_custom_inplace(
     freq_base: Union[ctypes.c_float, float],
     freq_scale: Union[ctypes.c_float, float],
 ) -> ggml_tensor_p:
-    return lib.ggml_rope_custom_inplace(ctx, a, n_past, n_dims, mode, n_ctx, freq_base, freq_scale)
+    return lib.ggml_rope_custom_inplace(
+        ctx, a, n_past, n_dims, mode, n_ctx, freq_base, freq_scale
+    )
+
 
 lib.ggml_rope_custom_inplace.argtypes = [
     ggml_context_p,
@@ -3836,6 +3877,7 @@ def ggml_rope_back(
 ) -> ggml_tensor_p:
     return lib.ggml_rope_back(ctx, a, n_past, n_dims, mode, n_ctx)
 
+
 lib.ggml_rope_back.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_tensor),
@@ -3845,6 +3887,7 @@ lib.ggml_rope_back.argtypes = [
     ctypes.c_int,
 ]
 lib.ggml_rope_back.restype = ctypes.POINTER(ggml_tensor)
+
 
 # // alibi position embedding
 # // in-place, returns view(a)
@@ -3856,11 +3899,11 @@ lib.ggml_rope_back.restype = ctypes.POINTER(ggml_tensor)
 #         float                 bias_max);
 def ggml_alibi(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
+    a: ggml_tensor_p,
     n_past: Union[ctypes.c_int, int],
     n_head: Union[ctypes.c_int, int],
     bias_max: Union[ctypes.c_float, float],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
     return lib.ggml_alibi(ctx, a, n_past, n_head, bias_max)
 
 
@@ -3883,7 +3926,7 @@ lib.ggml_alibi.restype = ctypes.POINTER(ggml_tensor)
 #         float                 max);
 def ggml_clamp(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
+    a: ggml_tensor_p,
     min: Union[ctypes.c_float, float],
     max: Union[ctypes.c_float, float],
 ) -> ggml_tensor_p:
@@ -3897,6 +3940,7 @@ lib.ggml_clamp.argtypes = [
     ctypes.c_float,
 ]
 lib.ggml_clamp.restype = ctypes.POINTER(ggml_tensor)
+
 
 # GGML_API struct ggml_tensor * ggml_conv_1d(
 #         struct ggml_context * ctx,
@@ -3914,7 +3958,7 @@ def ggml_conv_1d(
     d0: Union[ctypes.c_int, int],
 ) -> ggml_tensor_p:
     """Convolution 1D
-    
+
     Parameters:
         a: input tensor
         b: filter tensor
@@ -3926,6 +3970,7 @@ def ggml_conv_1d(
         output tensor"""
     return lib.ggml_conv_1d(ctx, a, b, s0, p0, d0)
 
+
 lib.ggml_conv_1d.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_tensor),
@@ -3935,6 +3980,7 @@ lib.ggml_conv_1d.argtypes = [
     ctypes.c_int,
 ]
 lib.ggml_conv_1d.restype = ctypes.POINTER(ggml_tensor)
+
 
 # GGML_API struct ggml_tensor * ggml_conv_2d(
 #         struct ggml_context * ctx,
@@ -3958,7 +4004,7 @@ def ggml_conv_2d(
     d1: Union[ctypes.c_int, int],
 ) -> ggml_tensor_p:
     """Convolution 2D
-    
+
     Parameters:
         a: input tensor
         b: filter tensor
@@ -3968,10 +4014,11 @@ def ggml_conv_2d(
         p1: padding
         d0: dilation
         d1: dilation
-        
+
     Returns:
         output tensor"""
     return lib.ggml_conv_2d(ctx, a, b, s0, s1, p0, p1, d0, d1)
+
 
 lib.ggml_conv_2d.argtypes = [
     ggml_context_p,
@@ -4003,16 +4050,17 @@ def ggml_conv_1d_ph(
     d: Union[ctypes.c_int, int],
 ) -> ggml_tensor_p:
     """Convolution 1D with padding = half
-    
+
     Parameters:
         a: input tensor
         b: filter tensor
         s: stride
         d: dilation
-        
+
     Returns:
         output tensor"""
     return lib.ggml_conv_1d_ph(ctx, a, b, s, d)
+
 
 lib.ggml_conv_1d_ph.argtypes = [
     ggml_context_p,
@@ -4032,6 +4080,7 @@ GGML_OP_POOL_MAX = 0
 GGML_OP_POOL_AVG = 1
 GGML_OP_POOL_COUNT = 2
 
+
 # GGML_API struct ggml_tensor* ggml_pool_1d(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a,
@@ -4048,17 +4097,18 @@ def ggml_pool_1d(
     p0: Union[ctypes.c_int, int],
 ) -> ggml_tensor_p:
     """1D Pooling
-    
+
     Parameters:
         a: input tensor
         op: pooling operation
         k0: kernel size
         s0: stride
         p0: padding
-        
+
     Returns:
         output tensor"""
     return lib.ggml_pool_1d(ctx, a, op, k0, s0, p0)
+
 
 lib.ggml_pool_1d.argtypes = [
     ggml_context_p,
@@ -4069,6 +4119,7 @@ lib.ggml_pool_1d.argtypes = [
     ctypes.c_int,
 ]
 lib.ggml_pool_1d.restype = ctypes.POINTER(ggml_tensor)
+
 
 # GGML_API struct ggml_tensor* ggml_pool_2d(
 #         struct ggml_context * ctx,
@@ -4092,7 +4143,7 @@ def ggml_pool_2d(
     p1: Union[ctypes.c_int, int],
 ) -> ggml_tensor_p:
     """2D Pooling
-    
+
     Parameters:
         a: input tensor
         op: pooling operation
@@ -4102,10 +4153,11 @@ def ggml_pool_2d(
         s1: stride
         p0: padding
         p1: padding
-        
+
     Returns:
         output tensor"""
     return lib.ggml_pool_2d(ctx, a, op, k0, k1, s0, s1, p0, p1)
+
 
 lib.ggml_pool_2d.argtypes = [
     ggml_context_p,
@@ -4119,6 +4171,7 @@ lib.ggml_pool_2d.argtypes = [
 ]
 lib.ggml_pool_2d.restype = ctypes.POINTER(ggml_tensor)
 
+
 # GGML_API struct ggml_tensor * ggml_flash_attn(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * q,
@@ -4127,11 +4180,11 @@ lib.ggml_pool_2d.restype = ctypes.POINTER(ggml_tensor)
 #         bool                  masked);
 def ggml_flash_attn(
     ctx: ggml_context_p,
-    q: ggml_tensor_p,  
-    k: ggml_tensor_p,  
-    v: ggml_tensor_p,  
+    q: ggml_tensor_p,
+    k: ggml_tensor_p,
+    v: ggml_tensor_p,
     masked: Union[ctypes.c_bool, bool],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
     return lib.ggml_flash_attn(ctx, q, k, v, masked)
 
 
@@ -4154,12 +4207,12 @@ lib.ggml_flash_attn.restype = ctypes.POINTER(ggml_tensor)
 #         bool                  masked);
 def ggml_flash_attn_back(
     ctx: ggml_context_p,
-    q: ggml_tensor_p,  
-    k: ggml_tensor_p,  
-    v: ggml_tensor_p,  
-    d: ggml_tensor_p,  
+    q: ggml_tensor_p,
+    k: ggml_tensor_p,
+    v: ggml_tensor_p,
+    d: ggml_tensor_p,
     masked: Union[ctypes.c_bool, bool],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
     return lib.ggml_flash_attn_back(ctx, q, k, v, d, masked)
 
 
@@ -4183,12 +4236,12 @@ lib.ggml_flash_attn_back.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor  * c1);
 def ggml_flash_ff(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b0: ggml_tensor_p,  
-    b1: ggml_tensor_p,  
-    c0: ggml_tensor_p,  
-    c1: ggml_tensor_p,  
-) -> ggml_tensor_p:  
+    a: ggml_tensor_p,
+    b0: ggml_tensor_p,
+    b1: ggml_tensor_p,
+    c0: ggml_tensor_p,
+    c1: ggml_tensor_p,
+) -> ggml_tensor_p:
     return lib.ggml_flash_ff(ctx, a, b0, b1, c0, c1)
 
 
@@ -4215,9 +4268,9 @@ lib.ggml_flash_ff.restype = ctypes.POINTER(ggml_tensor)
 #         int                   w);
 def ggml_win_part(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
+    a: ggml_tensor_p,
     w: Union[ctypes.c_int, int],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
     return lib.ggml_win_part(ctx, a, w)
 
 
@@ -4239,11 +4292,11 @@ lib.ggml_win_part.restype = ctypes.POINTER(ggml_tensor)
 #         int                   w);
 def ggml_win_unpart(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
+    a: ggml_tensor_p,
     w0: Union[ctypes.c_int, int],
     h0: Union[ctypes.c_int, int],
     w: Union[ctypes.c_int, int],
-) -> ggml_tensor_p:  
+) -> ggml_tensor_p:
     return lib.ggml_win_unpart(ctx, a, w0, h0, w)
 
 
@@ -4256,7 +4309,47 @@ lib.ggml_win_unpart.argtypes = [
 ]
 lib.ggml_win_unpart.restype = ctypes.POINTER(ggml_tensor)
 
-# // custom operators
+
+# GGML_API struct ggml_tensor * ggml_unary(
+#         struct ggml_context * ctx,
+#             struct ggml_tensor * a,
+#             enum ggml_unary_op op);
+def ggml_unary(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    op: Union[ctypes.c_int, int],
+) -> ggml_tensor_p:
+    return lib.ggml_unary(ctx, a, op)
+
+
+lib.ggml_unary.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.c_int,
+]
+lib.ggml_unary.restype = ctypes.POINTER(ggml_tensor)
+
+
+# GGML_API struct ggml_tensor * ggml_unary_inplace(
+#     struct ggml_context * ctx,
+#     struct ggml_tensor  * a,
+#     enum ggml_unary_op op);
+def ggml_unary_inplace(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    op: Union[ctypes.c_int, int],
+) -> ggml_tensor_p:
+    return lib.ggml_unary_inplace(ctx, a, op)
+
+
+lib.ggml_unary_inplace.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.c_int,
+]
+lib.ggml_unary_inplace.restype = ctypes.POINTER(ggml_tensor)
+
+# // custom operators (DEPRECATED)
 
 # typedef void (*ggml_unary_op_f32_t)(const int, float *, const float *);
 ggml_unary_op_f32_t = ctypes.CFUNCTYPE(
@@ -4296,42 +4389,6 @@ ggml_custom3_op_f32_t = ctypes.CFUNCTYPE(
     ctypes.POINTER(ggml_tensor),
 )
 """Ternary operator function type"""
-
-# GGML_API struct ggml_tensor * ggml_unary(
-#         struct ggml_context * ctx,
-#             struct ggml_tensor * a,
-#             enum ggml_unary_op op);
-def ggml_unary(
-    ctx: ggml_context_p,
-    a: ggml_tensor_p,
-    op: Union[ctypes.c_int, int],
-) -> ggml_tensor_p:
-    return lib.ggml_unary(ctx, a, op)
-
-lib.ggml_unary.argtypes = [
-    ggml_context_p,
-    ctypes.POINTER(ggml_tensor),
-    ctypes.c_int,
-]
-lib.ggml_unary.restype = ctypes.POINTER(ggml_tensor)
-
-# GGML_API struct ggml_tensor * ggml_unary_inplace(
-#     struct ggml_context * ctx,
-#     struct ggml_tensor  * a,
-#     enum ggml_unary_op op);
-def ggml_unary_inplace(
-    ctx: ggml_context_p,
-    a: ggml_tensor_p,
-    op: Union[ctypes.c_int, int],
-) -> ggml_tensor_p:
-    return lib.ggml_unary_inplace(ctx, a, op)
-
-lib.ggml_unary_inplace.argtypes = [
-    ggml_context_p,
-    ctypes.POINTER(ggml_tensor),
-    ctypes.c_int,
-]
-lib.ggml_unary_inplace.restype = ctypes.POINTER(ggml_tensor)
 
 # GGML_API struct ggml_tensor * ggml_map_unary_f32(
 #         struct ggml_context        * ctx,
@@ -4609,6 +4666,221 @@ lib.ggml_map_custom3_inplace_f32.argtypes = [
 ]
 lib.ggml_map_custom3_inplace_f32.restype = ctypes.POINTER(ggml_tensor)
 
+# // custom operators v2
+
+# typedef void (*ggml_custom1_op_t)(struct ggml_tensor * dst , const struct ggml_tensor * a, int ith, int nth, void * userdata);
+ggml_custom1_op_t = ctypes.CFUNCTYPE(
+    None,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_void_p,
+)
+"""Custom unary operator on a tensor."""
+
+# typedef void (*ggml_custom2_op_t)(struct ggml_tensor * dst , const struct ggml_tensor * a, const struct ggml_tensor * b, int ith, int nth, void * userdata);
+ggml_custom2_op_t = ctypes.CFUNCTYPE(
+    None,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_void_p,
+)
+"""Custom binary operator on two tensors."""
+
+# typedef void (*ggml_custom3_op_t)(struct ggml_tensor * dst , const struct ggml_tensor * a, const struct ggml_tensor * b, const struct ggml_tensor * c, int ith, int nth, void * userdata);
+ggml_custom3_op_t = ctypes.CFUNCTYPE(
+    None,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_void_p,
+)
+"""Custom ternary operator on three tensors."""
+
+# #define GGML_N_TASKS_MAX -1
+GGML_N_TASKS_MAX = -1
+
+
+# GGML_API struct ggml_tensor * ggml_map_custom1(
+#         struct ggml_context   * ctx,
+#         struct ggml_tensor    * a,
+#         ggml_custom1_op_t       fun,
+#         int                     n_tasks,
+#         void                  * userdata);
+def ggml_map_custom1(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    fun: "ctypes._FuncPointer", # type: ignore
+    n_tasks: Union[ctypes.c_int, int],
+    userdata: Optional[ctypes.c_void_p],
+) -> ggml_tensor_p:
+    return lib.ggml_map_custom1(ctx, a, fun, n_tasks, userdata)
+
+
+lib.ggml_map_custom1.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ggml_custom1_op_t,
+    ctypes.c_int,
+    ctypes.c_void_p,
+]
+lib.ggml_map_custom1.restype = ctypes.POINTER(ggml_tensor)
+
+
+# GGML_API struct ggml_tensor * ggml_map_custom1_inplace(
+#         struct ggml_context   * ctx,
+#         struct ggml_tensor    * a,
+#         ggml_custom1_op_t       fun,
+#         int                     n_tasks,
+#         void                  * userdata);
+def ggml_map_custom1_inplace(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    fun: "ctypes._FuncPointer", # type: ignore
+    n_tasks: Union[ctypes.c_int, int],
+    userdata: Optional[ctypes.c_void_p],
+) -> ggml_tensor_p:
+    return lib.ggml_map_custom1_inplace(ctx, a, fun, n_tasks, userdata)
+
+
+lib.ggml_map_custom1_inplace.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ggml_custom1_op_t,
+    ctypes.c_int,
+    ctypes.c_void_p,
+]
+lib.ggml_map_custom1_inplace.restype = ctypes.POINTER(ggml_tensor)
+
+
+# GGML_API struct ggml_tensor * ggml_map_custom2(
+#         struct ggml_context   * ctx,
+#         struct ggml_tensor    * a,
+#         struct ggml_tensor    * b,
+#         ggml_custom2_op_t       fun,
+#         int                     n_tasks,
+#         void                  * userdata);
+def ggml_map_custom2(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    fun: "ctypes._FuncPointer", # type: ignore
+    n_tasks: Union[ctypes.c_int, int],
+    userdata: Optional[ctypes.c_void_p],
+) -> ggml_tensor_p:
+    return lib.ggml_map_custom2(ctx, a, b, fun, n_tasks, userdata)
+
+
+lib.ggml_map_custom2.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+    ggml_custom2_op_t,
+    ctypes.c_int,
+    ctypes.c_void_p,
+]
+lib.ggml_map_custom2.restype = ctypes.POINTER(ggml_tensor)
+
+
+# GGML_API struct ggml_tensor * ggml_map_custom2_inplace(
+#         struct ggml_context   * ctx,
+#         struct ggml_tensor    * a,
+#         struct ggml_tensor    * b,
+#         ggml_custom2_op_t       fun,
+#         int                     n_tasks,
+#         void                  * userdata);
+def ggml_map_custom2_inplace(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    fun: "ctypes._FuncPointer", # type: ignore
+    n_tasks: Union[ctypes.c_int, int],
+    userdata: Optional[ctypes.c_void_p],
+) -> ggml_tensor_p:
+    return lib.ggml_map_custom2_inplace(ctx, a, b, fun, n_tasks, userdata)
+
+
+lib.ggml_map_custom2_inplace.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+    ggml_custom2_op_t,
+    ctypes.c_int,
+    ctypes.c_void_p,
+]
+lib.ggml_map_custom2_inplace.restype = ctypes.POINTER(ggml_tensor)
+
+
+# GGML_API struct ggml_tensor * ggml_map_custom3(
+#         struct ggml_context   * ctx,
+#         struct ggml_tensor    * a,
+#         struct ggml_tensor    * b,
+#         struct ggml_tensor    * c,
+#         ggml_custom3_op_t       fun,
+#         int                     n_tasks,
+#         void                  * userdata);
+def ggml_map_custom3(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    c: ggml_tensor_p,
+    fun: "ctypes._FuncPointer", # type: ignore
+    n_tasks: Union[ctypes.c_int, int],
+    userdata: Optional[ctypes.c_void_p],
+) -> ggml_tensor_p:
+    return lib.ggml_map_custom3(ctx, a, b, c, fun, n_tasks, userdata)
+
+
+lib.ggml_map_custom3.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+    ggml_custom3_op_t,
+    ctypes.c_int,
+    ctypes.c_void_p,
+]
+lib.ggml_map_custom3.restype = ctypes.POINTER(ggml_tensor)
+
+
+# GGML_API struct ggml_tensor * ggml_map_custom3_inplace(
+#         struct ggml_context   * ctx,
+#         struct ggml_tensor    * a,
+#         struct ggml_tensor    * b,
+#         struct ggml_tensor    * c,
+#         ggml_custom3_op_t       fun,
+#         int                     n_tasks,
+#         void                  * userdata);
+def ggml_map_custom3_inplace(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    c: ggml_tensor_p,
+    fun: "ctypes._FuncPointer", # type: ignore
+    n_tasks: Union[ctypes.c_int, int],
+    userdata: Optional[ctypes.c_void_p],
+) -> ggml_tensor_p:
+    return lib.ggml_map_custom3_inplace(ctx, a, b, c, fun, n_tasks, userdata)
+
+
+lib.ggml_map_custom3_inplace.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+    ggml_custom3_op_t,
+    ctypes.c_int,
+    ctypes.c_void_p,
+]
+lib.ggml_map_custom3_inplace.restype = ctypes.POINTER(ggml_tensor)
+
 # // loss function
 
 
@@ -4618,9 +4890,9 @@ lib.ggml_map_custom3_inplace_f32.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor          * b);
 def ggml_cross_entropy_loss(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
-) -> ggml_tensor_p:  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+) -> ggml_tensor_p:
     return lib.ggml_cross_entropy_loss(ctx, a, b)
 
 
@@ -4639,10 +4911,10 @@ lib.ggml_cross_entropy_loss.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor          * c);
 def ggml_cross_entropy_loss_back(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
-    c: ggml_tensor_p,  
-) -> ggml_tensor_p:  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    c: ggml_tensor_p,
+) -> ggml_tensor_p:
     return lib.ggml_cross_entropy_loss_back(ctx, a, b, c)
 
 
@@ -4658,12 +4930,11 @@ lib.ggml_cross_entropy_loss_back.restype = ctypes.POINTER(ggml_tensor)
 # // automatic differentiation
 # //
 
+
 # GGML_API void ggml_set_param(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * tensor);
-def ggml_set_param(
-    ctx: ggml_context_p, tensor: ggml_tensor_p  
-):
+def ggml_set_param(ctx: ggml_context_p, tensor: ggml_tensor_p):
     return lib.ggml_set_param(ctx, tensor)
 
 
@@ -4673,8 +4944,8 @@ lib.ggml_set_param.restype = None
 
 # GGML_API void ggml_build_forward_expand(struct ggml_cgraph * cgraph, struct ggml_tensor * tensor);
 def ggml_build_forward_expand(
-    cgraph: ggml_cgraph_p,  
-    tensor: ggml_tensor_p,  
+    cgraph: ggml_cgraph_p,
+    tensor: ggml_tensor_p,
 ):
     """Add a tensor to the forward computation graph. This is used to
     compute and save the value of the tensor.
@@ -4694,10 +4965,10 @@ lib.ggml_build_forward_expand.restype = None
 
 # GGML_API struct ggml_cgraph ggml_build_forward (struct ggml_tensor * tensor);
 def ggml_build_forward(
-    tensor: ggml_tensor_p,  
+    tensor: ggml_tensor_p,
 ) -> ggml_cgraph:
     """Build the forward computation graph.
-    
+
     Parameters:
         tensor: The tensor.
 
@@ -4713,7 +4984,7 @@ lib.ggml_build_forward.restype = ggml_cgraph
 # GGML_API struct ggml_cgraph ggml_build_backward(struct ggml_context * ctx, struct ggml_cgraph * gf, bool keep);
 def ggml_build_backward(
     ctx: ggml_context_p,
-    gf: ggml_cgraph_p,  
+    gf: ggml_cgraph_p,
     keep: Union[ctypes.c_bool, bool],
 ) -> ggml_cgraph:
     return lib.ggml_build_backward(ctx, gf, keep)
@@ -4735,7 +5006,7 @@ def ggml_graph_plan(
     n_threads: Union[ctypes.c_int, int] = GGML_DEFAULT_N_THREADS,
 ) -> ggml_cplan:
     """Plan the computation graph.
-    
+
     Parameters:
         cgraph: The graph.
         n_threads: The number of threads to use.
@@ -4744,23 +5015,26 @@ def ggml_graph_plan(
         The plan."""
     return lib.ggml_graph_plan(cgraph, n_threads)
 
+
 lib.ggml_graph_plan.argtypes = [
     ctypes.POINTER(ggml_cgraph),
     ctypes.c_int,
 ]
 lib.ggml_graph_plan.restype = ggml_cplan
 
+
 # GGML_API               int ggml_graph_compute(struct ggml_cgraph * cgraph, struct ggml_cplan * cplan);
 def ggml_graph_compute(
     cgraph: ggml_cgraph_p,
     cplan: ggml_cplan_p,
-):
+) -> int:
     """Compute the graph.
-    
+
     Parameters:
         cgraph: The graph.
         cplan: The plan."""
     return lib.ggml_graph_compute(cgraph, cplan)
+
 
 lib.ggml_graph_compute.argtypes = [
     ctypes.POINTER(ggml_cgraph),
@@ -4768,15 +5042,17 @@ lib.ggml_graph_compute.argtypes = [
 ]
 lib.ggml_graph_compute.restype = ctypes.c_int
 
+
 # GGML_API              void ggml_graph_reset  (struct ggml_cgraph * cgraph);
 def ggml_graph_reset(
     cgraph: ggml_cgraph_p,
 ):
     """Reset the graph.
-    
+
     Parameters:
         cgraph: The graph."""
     return lib.ggml_graph_reset(cgraph)
+
 
 # // same as ggml_graph_compute() but the work data is allocated as a part of the context
 # // note: the drawback of this API is that you must have ensured that the context has enough memory for the work data
@@ -4787,12 +5063,13 @@ def ggml_graph_compute_with_ctx(
     n_threads: Union[ctypes.c_int, int],
 ):
     """Compute the graph with a context.
-    
+
     Parameters:
         ctx: The context.
         cgraph: The graph.
         n_threads: The number of threads to use."""
     return lib.ggml_graph_compute_with_ctx(ctx, cgraph, n_threads)
+
 
 lib.ggml_graph_compute_with_ctx.argtypes = [
     ggml_context_p,
@@ -4801,13 +5078,14 @@ lib.ggml_graph_compute_with_ctx.argtypes = [
 ]
 lib.ggml_graph_compute_with_ctx.restype = None
 
+
 # GGML_API struct ggml_tensor * ggml_graph_get_tensor(struct ggml_cgraph * cgraph, const char * name);
 def ggml_graph_get_tensor(
-    cgraph: ggml_cgraph_p,  
+    cgraph: ggml_cgraph_p,
     name: bytes,
 ) -> ggml_tensor_p:
     """Get a tensor from the graph by name.
-    
+
     Parameters:
         cgraph: The graph.
         name: The name of the tensor.
@@ -4826,7 +5104,7 @@ lib.ggml_graph_get_tensor.restype = ctypes.POINTER(ggml_tensor)
 
 # GGML_API void               ggml_graph_export(const struct ggml_cgraph * cgraph, const char * fname);
 def ggml_graph_export(
-    cgraph: ggml_cgraph_p,  
+    cgraph: ggml_cgraph_p,
     fname: bytes,
 ):
     return lib.ggml_graph_export(cgraph, fname)
@@ -4842,8 +5120,8 @@ lib.ggml_graph_export.restype = None
 # GGML_API struct ggml_cgraph ggml_graph_import(const char * fname, struct ggml_context ** ctx_data, struct ggml_context ** ctx_eval);
 def ggml_graph_import(
     fname: bytes,
-    ctx_data: "ctypes._Pointer[ggml_context_p]", # type: ignore
-    ctx_eval: "ctypes._Pointer[ggml_context_p]", # type: ignore
+    ctx_data: "ctypes._Pointer[ggml_context_p]",  # type: ignore
+    ctx_eval: "ctypes._Pointer[ggml_context_p]",  # type: ignore
 ) -> ggml_cgraph:
     return lib.ggml_graph_import(fname, ctx_data, ctx_eval)
 
@@ -4859,7 +5137,7 @@ lib.ggml_graph_import.restype = ggml_cgraph
 # // print info and performance information for the graph
 # GGML_API void ggml_graph_print(const struct ggml_cgraph * cgraph);
 def ggml_graph_print(
-    cgraph: ggml_cgraph_p,  
+    cgraph: ggml_cgraph_p,
 ):
     return lib.ggml_graph_print(cgraph)
 
@@ -4871,8 +5149,8 @@ lib.ggml_graph_print.restype = None
 # // dump the graph into a file using the dot format
 # GGML_API void ggml_graph_dump_dot(const struct ggml_cgraph * gb, const struct ggml_cgraph * gf, const char * filename);
 def ggml_graph_dump_dot(
-    gb: ggml_cgraph_p,  
-    gf: ggml_cgraph_p,  
+    gb: ggml_cgraph_p,
+    gf: ggml_cgraph_p,
     filename: bytes,
 ):
     return lib.ggml_graph_dump_dot(gb, gf, filename)
@@ -5132,6 +5410,9 @@ class ggml_opt_context(ctypes.Structure):
     ]
 
 
+ggml_opt_context_p = ctypes.POINTER(ggml_opt_context)
+
+
 # GGML_API struct ggml_opt_params ggml_opt_default_params(enum ggml_opt_type type);
 def ggml_opt_default_params(type: Union[ctypes.c_int, bool]) -> ggml_opt_params:
     return lib.ggml_opt_default_params(type)
@@ -5212,7 +5493,7 @@ lib.ggml_opt_resume.restype = ctypes.c_int
 #         struct ggml_cgraph * gb);
 def ggml_opt_resume_g(
     ctx: ggml_context_p,
-    opt: "ctypes._Pointer[ggml_opt_context]", # type: ignore
+    opt: "ctypes._Pointer[ggml_opt_context]",  # type: ignore
     f: ggml_tensor_p,
     gf: ggml_cgraph_p,
     gb: ggml_cgraph_p,
@@ -5237,11 +5518,11 @@ lib.ggml_opt_resume_g.restype = ctypes.c_int
 
 # GGML_API size_t ggml_quantize_q4_0(const float * src, void * dst, int n, int k, int64_t * hist);
 def ggml_quantize_q4_0(
-    src,  # type: ctypes.Array[ctypes.c_float] 
+    src: CFloatArray,
     dst: ctypes.c_void_p,
     n: Union[ctypes.c_int, int],
     k: Union[ctypes.c_int, int],
-    hist,  # type: ctypes.Array[ctypes.c_int64] 
+    hist: CInt64Array,
 ) -> int:
     return lib.ggml_quantize_q4_0(src, dst, n, k, hist)
 
@@ -5258,11 +5539,11 @@ lib.ggml_quantize_q4_0.restype = ctypes.c_size_t
 
 # GGML_API size_t ggml_quantize_q4_1(const float * src, void * dst, int n, int k, int64_t * hist);
 def ggml_quantize_q4_1(
-    src,  # type: ctypes.Array[ctypes.c_float] 
+    src: CFloatArray,
     dst: ctypes.c_void_p,
     n: Union[ctypes.c_int, int],
     k: Union[ctypes.c_int, int],
-    hist,  # type: ctypes.Array[ctypes.c_int64] 
+    hist: CInt64Array,
 ) -> int:
     return lib.ggml_quantize_q4_1(src, dst, n, k, hist)
 
@@ -5279,11 +5560,11 @@ lib.ggml_quantize_q4_1.restype = ctypes.c_size_t
 
 # GGML_API size_t ggml_quantize_q5_0(const float * src, void * dst, int n, int k, int64_t * hist);
 def ggml_quantize_q5_0(
-    src,  # type: ctypes.Array[ctypes.c_float] 
+    src: CFloatArray,
     dst: ctypes.c_void_p,
     n: Union[ctypes.c_int, int],
     k: Union[ctypes.c_int, int],
-    hist,  # type: ctypes.Array[ctypes.c_int64] 
+    hist: CInt64Array,
 ) -> int:
     return lib.ggml_quantize_q5_0(src, dst, n, k, hist)
 
@@ -5300,11 +5581,11 @@ lib.ggml_quantize_q5_0.restype = ctypes.c_size_t
 
 # GGML_API size_t ggml_quantize_q5_1(const float * src, void * dst, int n, int k, int64_t * hist);
 def ggml_quantize_q5_1(
-    src,  # type: ctypes.Array[ctypes.c_float] 
+    src: CFloatArray,
     dst: ctypes.c_void_p,
     n: Union[ctypes.c_int, int],
     k: Union[ctypes.c_int, int],
-    hist,  # type: ctypes.Array[ctypes.c_int64] 
+    hist: CInt64Array,
 ) -> int:
     return lib.ggml_quantize_q5_1(src, dst, n, k, hist)
 
@@ -5321,11 +5602,11 @@ lib.ggml_quantize_q5_1.restype = ctypes.c_size_t
 
 # GGML_API size_t ggml_quantize_q8_0(const float * src, void * dst, int n, int k, int64_t * hist);
 def ggml_quantize_q8_0(
-    src,  # type: ctypes.Array[ctypes.c_float] 
+    src: CFloatArray,
     dst: ctypes.c_void_p,
     n: Union[ctypes.c_int, int],
     k: Union[ctypes.c_int, int],
-    hist,  # type: ctypes.Array[ctypes.c_int64] 
+    hist: CInt64Array,
 ) -> int:
     return lib.ggml_quantize_q8_0(src, dst, n, k, hist)
 
@@ -5343,11 +5624,11 @@ lib.ggml_quantize_q8_0.restype = ctypes.c_size_t
 # GGML_API size_t ggml_quantize_chunk(enum ggml_type type, const float * src, void * dst, int start, int n, int64_t * hist);
 def ggml_quantize_chunk(
     type: Union[ctypes.c_int, int],
-    src,  # type: ctypes.Array[ctypes.c_float] 
+    src: CFloatArray,
     dst: ctypes.c_void_p,
     start: Union[ctypes.c_int, int],
     n: Union[ctypes.c_int, int],
-    hist,  # type: ctypes.Array[ctypes.c_int64] 
+    hist: CInt64Array,
 ) -> int:
     return lib.ggml_quantize_chunk(type, src, dst, start, n, hist)
 
@@ -5561,6 +5842,7 @@ class ggml_type_traits_t(ctypes.Structure):
 def ggml_internal_get_type_traits(i: Union[ctypes.c_int, int]) -> ggml_type_traits_t:
     return lib.ggml_internal_get_type_traits(i)
 
+
 lib.ggml_internal_get_type_traits.argtypes = [ctypes.c_int]
 lib.ggml_internal_get_type_traits.restype = ggml_type_traits_t
 
@@ -5604,7 +5886,7 @@ if GGML_USE_CUBLAS:
 # void   ggml_cuda_transform_tensor(void * data, struct ggml_tensor * tensor);
 def ggml_cuda_transform_tensor(
     data: ctypes.c_void_p,
-    tensor: ggml_tensor_p,  
+    tensor: ggml_tensor_p,
 ):
     return lib.ggml_cuda_transform_tensor(data, tensor)
 
@@ -5619,7 +5901,7 @@ if GGML_USE_CUBLAS:
 
 # void   ggml_cuda_set_tensor_split(const float * tensor_split);
 def ggml_cuda_set_tensor_split(
-    tensor_split,  # type: ctypes.Array[ctypes.c_float] 
+    tensor_split: CFloatArray,
 ):
     return lib.ggml_cuda_set_tensor_split(tensor_split)
 
@@ -5645,7 +5927,7 @@ if GGML_USE_CUBLAS:
 
 # void   ggml_cuda_assign_buffers(struct ggml_tensor * tensor);
 def ggml_cuda_assign_buffers(
-    tensor: ggml_tensor_p,  
+    tensor: ggml_tensor_p,
 ):
     return lib.ggml_cuda_assign_buffers(tensor)
 
@@ -5659,7 +5941,7 @@ if GGML_USE_CUBLAS:
 
 # void   ggml_cuda_assign_buffers_no_scratch(struct ggml_tensor * tensor);
 def ggml_cuda_assign_buffers_no_scratch(
-    tensor: ggml_tensor_p,  
+    tensor: ggml_tensor_p,
 ):
     return lib.ggml_cuda_assign_buffers_no_scratch(tensor)
 
@@ -5774,7 +6056,7 @@ if GGML_USE_METAL:
 # void ggml_metal_get_tensor(struct ggml_metal_context * ctx, struct ggml_tensor * t);
 def ggml_metal_get_tensor(
     ctx: ggml_metal_context_p,
-    t: ggml_tensor_p,  
+    t: ggml_tensor_p,
 ):
     return lib.ggml_metal_get_tensor(ctx, t)
 
@@ -5792,7 +6074,7 @@ if GGML_USE_METAL:
 # void ggml_metal_graph_compute(struct ggml_metal_context * ctx, struct ggml_cgraph * gf);
 def ggml_metal_graph_compute(
     ctx: ggml_metal_context_p,
-    gf: ggml_cgraph_p,  
+    gf: ggml_cgraph_p,
 ):
     return lib.ggml_metal_graph_compute(ctx, gf)
 
@@ -5831,7 +6113,7 @@ if GGML_USE_CLBLAST:
 # void ggml_cl_transform_tensor(void * data, struct ggml_tensor * tensor);
 def ggml_cl_transform_tensor(
     data: ctypes.c_void_p,
-    tensor: ggml_tensor_p,  
+    tensor: ggml_tensor_p,
 ):
     return lib.ggml_cl_transform_tensor(data, tensor)
 

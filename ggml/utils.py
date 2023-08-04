@@ -4,7 +4,8 @@ import enum
 import ctypes
 import contextlib
 
-from typing import Any, Callable, Tuple
+from typing import Any, Callable, Optional, Sequence, Tuple
+from typing_extensions import TypeAlias
 
 from ggml import ggml
 
@@ -131,3 +132,22 @@ def copy_to_cpu(
     tmp = ggml.ggml_dup_tensor(ctx, tensor)
     to_numpy(tmp)[:] = 0
     return ggml.ggml_add_inplace(ctx, tmp, tensor)
+
+
+def quantize_0(
+    data_f32: ggml.CFloatArray,
+    nelements: int,
+    ne0: int,
+    hist: Optional[ggml.CInt64Array] = None,
+    work: Optional[ggml.CFloatArray] = None,
+):
+    work = work or (ctypes.c_float * nelements)()
+    hist = hist or (ctypes.c_int64 * (1 << 4))()
+    cur_size = ggml.ggml_quantize_q4_0(
+        data_f32,
+        ctypes.cast(work, ctypes.c_void_p),
+        nelements,
+        ne0,
+        hist,
+    )
+    return work, hist, cur_size

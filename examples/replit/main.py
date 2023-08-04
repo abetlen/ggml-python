@@ -15,7 +15,17 @@ import argparse
 import multiprocessing
 from collections import deque
 
-from typing import Deque, Iterator, List, Optional, Sequence, Tuple, Dict
+from typing import (
+    Callable,
+    Deque,
+    Iterator,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Dict,
+    Union,
+)
 
 import numpy as np
 import numpy.typing as npt
@@ -24,6 +34,9 @@ import ggml
 
 from ggml.utils import to_numpy, ggml_context_manager
 
+
+class ReplitAbortException(Exception):
+    pass
 
 ## Generic Sampling Functions
 
@@ -288,6 +301,7 @@ class ReplitModel:
         n_threads: int,
         weights_buffer: ContextBuffer,
         ctx: ggml.ggml_context_p,
+        cancel_callback: Optional[Callable[[], bool]] = None,
     ):
         self.d_model = d_model
         self.max_seq_len = max_seq_len
@@ -303,6 +317,7 @@ class ReplitModel:
         self.n_batch = n_batch
         self.n_threads = n_threads
         self.weights_buffer = weights_buffer
+        self.cancel_callback = cancel_callback
 
         n_layer = self.n_layers
         n_embd = self.d_model
@@ -833,7 +848,21 @@ class ReplitModel:
             inpL = ggml.ggml_graph_get_tensor(ctypes.pointer(gf), b"result_output")
             assert inpL is not None
             to_numpy(embd)[:] = np.array(embd_inp, dtype=np.int32)
-            ggml.ggml_graph_compute_with_ctx(ctx0, ctypes.pointer(gf), self.n_threads)
+            gp = ggml.ggml_graph_plan(ctypes.pointer(gf), self.n_threads)
+            work_data = (ctypes.c_uint8 * gp.work_size)()
+            gp.work_data = ctypes.cast(work_data, ctypes.POINTER(ctypes.c_uint8))
+            if self.cancel_callback is not None:
+
+                @ggml.abort_callback_t
+                def abort_callback(data: ctypes.c_void_p) -> Union[ctypes.c_bool, bool]:
+                    assert self.cancel_callback is not None
+                    return self.cancel_callback()
+
+                self._abort_callback = abort_callback  # NOTE: keep reference
+                gp.abort_callback = abort_callback
+            rc = ggml.ggml_graph_compute(ctypes.pointer(gf), ctypes.pointer(gp))
+            if rc != ggml.GGML_EXIT_SUCCESS:
+                raise ReplitAbortException("Execution aborted")
             embd_w = to_numpy(inpL).reshape(
                 -1, n_vocab
             )  # .copy() # NOTE: likely wrong to not copy here
@@ -843,22 +872,30 @@ class ReplitModel:
 
     def eval(self, tokens: Sequence[int]):
         if self.mem_per_token == 0:
-            self._eval_internal([1, 2, 3, 4], n_past=0, n_threads=self.n_threads)
+            try:
+                self._eval_internal([1, 2, 3, 4], n_past=0, n_threads=self.n_threads)
+            except ReplitAbortException as e:
+                self.n_tokens = 0
+                raise e
         n_ctx = self.max_seq_len
         for i in range(0, len(tokens), self.n_batch):
             batch = tokens[i : min(len(tokens), i + self.n_batch)]
             n_past = min(n_ctx - len(batch), self.n_tokens)
-            scores = self._eval_internal(
-                batch,
-                n_past,
-                self.n_threads,
-            )
-            # Save tokens
-            self.input_ids[self.n_tokens : self.n_tokens + len(batch)] = batch
-            # Save logits
-            self.scores[self.n_tokens : self.n_tokens + len(batch), :] = scores
-            # Update token count
-            self.n_tokens += len(batch)
+            try:
+                scores = self._eval_internal(
+                    batch,
+                    n_past,
+                    self.n_threads,
+                )
+                # Save tokens
+                self.input_ids[self.n_tokens : self.n_tokens + len(batch)] = batch
+                # Save logits
+                self.scores[self.n_tokens : self.n_tokens + len(batch), :] = scores
+                # Update token count
+                self.n_tokens += len(batch)
+            except ReplitAbortException as e:
+                self.n_tokens = n_past
+                raise e
         return self.scores[: self.n_tokens, :]
 
     def generate(
@@ -910,6 +947,7 @@ class ReplitModel:
         n_threads: int = 1,
         tokenizer: Optional[Tokenizer] = None,
         verbose: bool = True,
+        cancel_callback: Optional[Callable[[], bool]] = None,
     ) -> ReplitModel:
         with open(model_file, "rb") as fin:
             # Magic Number
@@ -985,6 +1023,8 @@ class ReplitModel:
                 n_batch=n_batch,
                 n_threads=n_threads,
                 weights_buffer=weights_buffer,
+                # misc
+                cancel_callback=cancel_callback,
             )
 
             n_tensors = 0

@@ -582,14 +582,26 @@ let g:copilot_strict_ssl = 0
 outer_lock = Lock()
 inner_lock = Lock()
 
-tokenizer = ReplitSentencepieceTokenizer(settings.sentencepiece_model) if settings.sentencepiece_model else None
+tokenizer = (
+    ReplitSentencepieceTokenizer(settings.sentencepiece_model)
+    if settings.sentencepiece_model
+    else None
+)
+
+
+def cancel_callback():
+    return outer_lock.locked()
+
 
 model = OpenAIify(
     ReplitModel.init_from_file(
-        model_file=settings.model_file, n_gpu_layers=settings.n_gpu_layers, tokenizer=tokenizer
+        model_file=settings.model_file,
+        n_gpu_layers=settings.n_gpu_layers,
+        tokenizer=tokenizer,
+        cancel_callback=cancel_callback,
     ),
     # check if any other requests are pending in the same thread and cancel the stream if so
-    cancel_callback=lambda: outer_lock.locked(),
+    cancel_callback=cancel_callback,
 )
 
 

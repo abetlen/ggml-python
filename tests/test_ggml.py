@@ -1,4 +1,5 @@
 import ctypes
+from typing import Optional
 import ggml
 
 
@@ -30,12 +31,12 @@ def test_ggml_custom_op():
     ctx = ggml.ggml_init(params=params)
     x_in = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
 
-    @ggml.ggml_custom1_op_f32_t
-    def double(tensor_out: ggml.ggml_tensor_p, tensor_in: ggml.ggml_tensor_p):
+    @ggml.ggml_custom1_op_t
+    def double(tensor_out: ggml.ggml_tensor_p, tensor_in: ggml.ggml_tensor_p, ith: int, nth: int, userdata: Optional[ctypes.c_void_p]):
         value = ggml.ggml_get_f32_1d(tensor_in, 0)
         ggml.ggml_set_f32(tensor_out, 2 * value)
 
-    x_out = ggml.ggml_map_custom1_f32(ctx, x_in, double)
+    x_out = ggml.ggml_map_custom1(ctx, x_in, double, 1, None)
     gf = ggml.ggml_build_forward(x_out)
 
     ggml.ggml_set_f32(x_in, 21.0)
