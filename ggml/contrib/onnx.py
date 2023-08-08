@@ -159,12 +159,16 @@ def ggml_operator_constant(
     data_type = tensor.data_type
     np_data_type = tensor_dtype_to_np_dtype(data_type)
 
+    np_data_type_limit = np.dtype(str(np_data_type).replace("64", "32"))
+
     data_tensor = ggml.utils.from_numpy(
-        np.frombuffer(tensor.raw_data, dtype=np_data_type), context
+        np.frombuffer(tensor.raw_data, dtype=np_data_type).astype(np_data_type_limit),
+        context,
     )
 
-    x = np.empty(tensor.dims, dtype=np_data_type)
+    tensor_shape = tensor.dims or (1,)
 
+    x = np.empty(tensor_shape, dtype=np_data_type_limit)
     x_t = ggml.utils.from_numpy(x, context)
 
     new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
