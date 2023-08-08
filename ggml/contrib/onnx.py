@@ -142,10 +142,12 @@ def custom_constant(
 ):
     shape = ggml.utils.to_numpy(tensor_in_1).shape
     constant_data = ggml.utils.to_numpy(tensor_in_2)
-
     new_tenor = constant_data.reshape(shape)
 
-    ggml.utils.to_numpy(tensor_out)[:] = new_tenor
+    if shape == ():
+        ggml.utils.to_numpy(tensor_out)[()] = new_tenor
+    else:
+        ggml.utils.to_numpy(tensor_out)[:] = new_tenor
 
 
 @ggml_operator("Constant")
@@ -166,10 +168,15 @@ def ggml_operator_constant(
         context,
     )
 
-    tensor_shape = tensor.dims or (1,)
+    tensor_shape = tensor.dims or ()
 
     x = np.empty(tensor_shape, dtype=np_data_type_limit)
-    x_t = ggml.utils.from_numpy(x, context)
+    x_t = None
+
+    if tensor_shape == ():
+        x_t = ggml.ggml_new_i32(context, -1)
+    else:
+        x_t = ggml.utils.from_numpy(x, context)
 
     new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
         context,

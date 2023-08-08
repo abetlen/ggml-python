@@ -336,12 +336,14 @@ def test_ggml_onnx_constant_operator():
     constant1 = np.array([1], dtype=np.int32)
     constant2 = np.array([[1]], dtype=np.int32)
     constant3 = np.array([[1, 2], [3, 4], [6, 6]], dtype=np.int32)
+    constant4 = np.array(6, dtype=np.int64)
 
     dtype = onnx.TensorProto.INT32
 
     constant_numpy1 = onnx_constant(constant1, dtype, constant1.shape)
     constant_numpy2 = onnx_constant(constant2, dtype, constant2.shape)
     constant_numpy3 = onnx_constant(constant3, dtype, constant3.shape)
+    constant_numpy4 = onnx_constant(constant4, dtype, constant4.shape)
 
     constant_node1 = onnx.helper.make_node(
         "Constant",
@@ -365,7 +367,15 @@ def test_ggml_onnx_constant_operator():
         value=numpy_helper.from_array(constant3),
     )
 
-    nodes = [constant_node1, constant_node2, constant_node3]
+    constant_node4 = onnx.helper.make_node(
+        "Constant",
+        name="constant_node3",
+        inputs=[],
+        outputs=["constant_output3"],
+        value=numpy_helper.from_array(constant4),
+    )
+
+    nodes = [constant_node1, constant_node2, constant_node3, constant_node4]
     results = []
     refs = []
 
@@ -380,6 +390,7 @@ def test_ggml_onnx_constant_operator():
     assert np.array_equal(results[0], constant_numpy1)
     assert np.array_equal(results[1], constant_numpy2)
     assert np.array_equal(results[2], constant_numpy3)
+    assert results[3] == constant_numpy4
 
     ggml.ggml_free(context)
 
