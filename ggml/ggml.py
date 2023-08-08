@@ -462,14 +462,26 @@ GGML_UNARY_OP_GELU = 7
 GGML_UNARY_OP_GELU_QUICK = 8
 GGML_UNARY_OP_SILU = 9
 
+# enum ggml_object_type {
+#     GGML_OBJECT_TENSOR,
+#     GGML_OBJECT_GRAPH,
+#     GGML_OBJECT_WORK_BUFFER
+# };
+GGML_OBJECT_TENSOR = 0
+GGML_OBJECT_GRAPH = 1
+GGML_OBJECT_WORK_BUFFER = 2
+
+# // ggml object
 # struct ggml_object {
 #     size_t offs;
 #     size_t size;
 
 #     struct ggml_object * next;
 
+#     enum ggml_object_type type;
 
-#     char padding[8];
+
+#     char padding[4];
 # };
 class ggml_object(ctypes.Structure):
     pass
@@ -479,7 +491,8 @@ ggml_object._fields_ = [
     ("offs", ctypes.c_size_t),
     ("size", ctypes.c_size_t),
     ("next", ctypes.POINTER(ggml_object)),
-    ("padding", ctypes.c_char * 8),
+    ("type", ctypes.c_int),
+    ("padding", ctypes.c_char * 4),
 ]
 
 ggml_object_p: TypeAlias = "ctypes._Pointer[ggml_object]"  # type: ignore
@@ -503,7 +516,7 @@ GGML_OBJECT_SIZE = ctypes.sizeof(ggml_object)
 #     enum ggml_op op;
 
 #     // op params - allocated as int32_t for alignment
-#     int32_t op_params[GGML_MAX_OP_PARAMS / sizeof(uint32_t)];
+#     int32_t op_params[GGML_MAX_OP_PARAMS / sizeof(int32_t)];
 
 #     bool is_param;
 
@@ -558,7 +571,7 @@ ggml_tensor._fields_ = [
     ("op", ctypes.c_int),
     (
         "op_params",
-        ctypes.c_int32 * (GGML_MAX_OP_PARAMS // ctypes.sizeof(ctypes.c_uint32)),
+        ctypes.c_int32 * (GGML_MAX_OP_PARAMS // ctypes.sizeof(ctypes.c_int32)),
     ),
     ("is_param", ctypes.c_bool),
     ("grad", ctypes.POINTER(ggml_tensor)),
@@ -686,6 +699,9 @@ ggml_cgraph_p: TypeAlias = "ctypes._Pointer[ggml_cgraph]"  # type: ignore
 
 Can be dereferenced to a [ggml_cgraph][ggml.ggml_cgraph] object using
 the `.contents` attribute."""
+
+# static const size_t GGML_GRAPH_SIZE = sizeof(struct ggml_cgraph);
+GGML_GRAPH_SIZE = ctypes.sizeof(ggml_cgraph)
 
 
 # struct ggml_scratch {
@@ -3820,7 +3836,45 @@ lib.ggml_rope_inplace.argtypes = [
 lib.ggml_rope_inplace.restype = ctypes.POINTER(ggml_tensor)
 
 
-# // custom RoPE, in-place, returns view(a)
+# // custom RoPE
+# GGML_API struct ggml_tensor * ggml_rope_custom(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         int                   n_past,
+#         int                   n_dims,
+#         int                   mode,
+#         int                   n_ctx,
+#         float                 freq_base,
+#         float                 freq_scale);
+def ggml_rope_custom(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    n_past: Union[ctypes.c_int, int],
+    n_dims: Union[ctypes.c_int, int],
+    mode: Union[ctypes.c_int, int],
+    n_ctx: Union[ctypes.c_int, int],
+    freq_base: Union[ctypes.c_float, float],
+    freq_scale: Union[ctypes.c_float, float],
+) -> ggml_tensor_p:
+    return lib.ggml_rope_custom(
+        ctx, a, n_past, n_dims, mode, n_ctx, freq_base, freq_scale
+    )
+
+
+lib.ggml_rope_custom.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_float,
+    ctypes.c_float,
+]
+lib.ggml_rope_custom.restype = ctypes.POINTER(ggml_tensor)
+
+
+# // in-place, returns view(a)
 # GGML_API struct ggml_tensor * ggml_rope_custom_inplace(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a,
@@ -4036,7 +4090,7 @@ lib.ggml_conv_2d.restype = ctypes.POINTER(ggml_tensor)
 
 # // conv_1d with padding = half
 # // alias for ggml_conv_1d(a, b, s, a->ne[0]/2, d)
-# GGML_API struct ggml_tensor* ggml_conv_1d_ph(
+# GGML_API struct ggml_tensor * ggml_conv_1d_ph(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a,
 #         struct ggml_tensor  * b,
@@ -4081,7 +4135,7 @@ GGML_OP_POOL_AVG = 1
 GGML_OP_POOL_COUNT = 2
 
 
-# GGML_API struct ggml_tensor* ggml_pool_1d(
+# GGML_API struct ggml_tensor * ggml_pool_1d(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a,
 #         enum ggml_op_pool     op,
@@ -4121,7 +4175,7 @@ lib.ggml_pool_1d.argtypes = [
 lib.ggml_pool_1d.restype = ctypes.POINTER(ggml_tensor)
 
 
-# GGML_API struct ggml_tensor* ggml_pool_2d(
+# GGML_API struct ggml_tensor * ggml_pool_2d(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a,
 #         enum ggml_op_pool     op,
@@ -4390,15 +4444,14 @@ ggml_custom3_op_f32_t = ctypes.CFUNCTYPE(
 )
 """Ternary operator function type"""
 
+
 # GGML_API struct ggml_tensor * ggml_map_unary_f32(
 #         struct ggml_context        * ctx,
 #         struct ggml_tensor         * a,
 #                ggml_unary_op_f32_t   fun);
 def ggml_map_unary_f32(
-    ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    fun: "ctypes._FuncPointer" # type: ignore
-) -> ggml_tensor_p:  
+    ctx: ggml_context_p, a: ggml_tensor_p, fun: "ctypes._FuncPointer"  # type: ignore
+) -> ggml_tensor_p:
     return lib.ggml_map_unary_f32(ctx, a, fun)
 
 
@@ -4409,16 +4462,16 @@ lib.ggml_map_unary_f32.argtypes = [
 ]
 lib.ggml_map_unary_f32.restype = ctypes.POINTER(ggml_tensor)
 
+
 # GGML_API struct ggml_tensor * ggml_map_unary_inplace_f32(
 #         struct ggml_context        * ctx,
 #         struct ggml_tensor         * a,
 #                 ggml_unary_op_f32_t   fun);
 def ggml_map_unary_inplace_f32(
-    ctx: ggml_context_p,
-    a: ggml_tensor_p,
-    fun: "ctypes._FuncPointer" # type: ignore
+    ctx: ggml_context_p, a: ggml_tensor_p, fun: "ctypes._FuncPointer"  # type: ignore
 ) -> ggml_tensor_p:
     return lib.ggml_map_unary_inplace_f32(ctx, a, fun)
+
 
 lib.ggml_map_unary_inplace_f32.argtypes = [
     ggml_context_p,
@@ -4435,10 +4488,10 @@ lib.ggml_map_unary_inplace_f32.restype = ctypes.POINTER(ggml_tensor)
 #                ggml_binary_op_f32_t   fun);
 def ggml_map_binary_f32(
     ctx: ggml_context_p,
-    a: ggml_tensor_p,  
-    b: ggml_tensor_p,  
-    fun: "ctypes._FuncPointer" # type: ignore
-) -> ggml_tensor_p:  
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    fun: "ctypes._FuncPointer",  # type: ignore
+) -> ggml_tensor_p:
     return lib.ggml_map_binary_f32(ctx, a, b, fun)
 
 
@@ -4450,6 +4503,7 @@ lib.ggml_map_binary_f32.argtypes = [
 ]
 lib.ggml_map_binary_f32.restype = ctypes.POINTER(ggml_tensor)
 
+
 # GGML_API struct ggml_tensor * ggml_map_binary_inplace_f32(
 #         struct ggml_context         * ctx,
 #         struct ggml_tensor          * a,
@@ -4459,9 +4513,10 @@ def ggml_map_binary_inplace_f32(
     ctx: ggml_context_p,
     a: ggml_tensor_p,
     b: ggml_tensor_p,
-    fun: "ctypes._FuncPointer" # type: ignore
+    fun: "ctypes._FuncPointer",  # type: ignore
 ) -> ggml_tensor_p:
     return lib.ggml_map_binary_inplace_f32(ctx, a, b, fun)
+
 
 lib.ggml_map_binary_inplace_f32.argtypes = [
     ggml_context_p,
@@ -4477,9 +4532,7 @@ lib.ggml_map_binary_inplace_f32.restype = ctypes.POINTER(ggml_tensor)
 #         struct ggml_tensor           * a,
 #                 ggml_custom1_op_f32_t   fun);
 def ggml_map_custom1_f32(
-    ctx: ggml_context_p,
-    a: ggml_tensor_p,
-    fun: "ctypes._FuncPointer" # type: ignore
+    ctx: ggml_context_p, a: ggml_tensor_p, fun: "ctypes._FuncPointer"  # type: ignore
 ) -> ggml_tensor_p:
     """Custom unary operator on a tensor.
 
@@ -4496,14 +4549,15 @@ def ggml_map_custom1_f32(
 
         b = ggml.ggml_map_custom1_f32(ctx, a, custom_op)
         ```
-    
+
     Parameters:
         a: input tensor
         fun (ggml.ggml_custom1_op_f32_t): function to apply to each element
-        
+
     Returns:
         output tensor"""
     return lib.ggml_map_custom1_f32(ctx, a, fun)
+
 
 lib.ggml_map_custom1_f32.argtypes = [
     ggml_context_p,
@@ -4512,14 +4566,13 @@ lib.ggml_map_custom1_f32.argtypes = [
 ]
 lib.ggml_map_custom1_f32.restype = ctypes.POINTER(ggml_tensor)
 
+
 # GGML_API struct ggml_tensor * ggml_map_custom1_inplace_f32(
 #         struct ggml_context          * ctx,
 #         struct ggml_tensor           * a,
 #                 ggml_custom1_op_f32_t   fun);
 def ggml_map_custom1_inplace_f32(
-    ctx: ggml_context_p,
-    a: ggml_tensor_p,
-    fun: "ctypes._CFuncPtr" # type: ignore
+    ctx: ggml_context_p, a: ggml_tensor_p, fun: "ctypes._CFuncPtr"  # type: ignore
 ) -> ggml_tensor_p:
     """Custom unary operator on a tensor inplace.
 
@@ -4531,12 +4584,14 @@ def ggml_map_custom1_inplace_f32(
         output tensor"""
     return lib.ggml_map_custom1_inplace_f32(ctx, a, fun)
 
+
 lib.ggml_map_custom1_inplace_f32.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_tensor),
     ggml_custom1_op_f32_t,
 ]
 lib.ggml_map_custom1_inplace_f32.restype = ctypes.POINTER(ggml_tensor)
+
 
 # GGML_API struct ggml_tensor * ggml_map_custom2_f32(
 #         struct ggml_context          * ctx,
@@ -4547,10 +4602,10 @@ def ggml_map_custom2_f32(
     ctx: ggml_context_p,
     a: ggml_tensor_p,
     b: ggml_tensor_p,
-    fun: "ctypes._FuncPointer" # type: ignore
+    fun: "ctypes._FuncPointer",  # type: ignore
 ) -> ggml_tensor_p:
     """Custom binary operator on two tensors.
-    
+
     Parameters:
         a: input tensor
         b: input tensor
@@ -4560,6 +4615,7 @@ def ggml_map_custom2_f32(
         output tensor"""
     return lib.ggml_map_custom2_f32(ctx, a, b, fun)
 
+
 lib.ggml_map_custom2_f32.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_tensor),
@@ -4567,6 +4623,7 @@ lib.ggml_map_custom2_f32.argtypes = [
     ggml_custom2_op_f32_t,
 ]
 lib.ggml_map_custom2_f32.restype = ctypes.POINTER(ggml_tensor)
+
 
 # GGML_API struct ggml_tensor * ggml_map_custom2_inplace_f32(
 #         struct ggml_context          * ctx,
@@ -4577,10 +4634,10 @@ def ggml_map_custom2_inplace_f32(
     ctx: ggml_context_p,
     a: ggml_tensor_p,
     b: ggml_tensor_p,
-    fun: "ctypes._FuncPointer" # type: ignore
+    fun: "ctypes._FuncPointer",  # type: ignore
 ) -> ggml_tensor_p:
     """Custom binary operator on two tensors inplace.
-    
+
     Parameters:
         a: input tensor
         b: input tensor
@@ -4590,6 +4647,7 @@ def ggml_map_custom2_inplace_f32(
         output tensor"""
     return lib.ggml_map_custom2_inplace_f32(ctx, a, b, fun)
 
+
 lib.ggml_map_custom2_inplace_f32.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_tensor),
@@ -4597,6 +4655,7 @@ lib.ggml_map_custom2_inplace_f32.argtypes = [
     ggml_custom2_op_f32_t,
 ]
 lib.ggml_map_custom2_inplace_f32.restype = ctypes.POINTER(ggml_tensor)
+
 
 # GGML_API struct ggml_tensor * ggml_map_custom3_f32(
 #         struct ggml_context          * ctx,
@@ -4609,19 +4668,20 @@ def ggml_map_custom3_f32(
     a: ggml_tensor_p,
     b: ggml_tensor_p,
     c: ggml_tensor_p,
-    fun: "ctypes._FuncPointer" # type: ignore
+    fun: "ctypes._FuncPointer",  # type: ignore
 ) -> ggml_tensor_p:
     """Custom ternary operator on three tensors.
-    
+
     Parameters:
         a: input tensor
         b: input tensor
         c: input tensor
         fun (ggml.ggml_custom3_op_f32_t): function to apply to each element
-        
+
     Returns:
         output tensor"""
     return lib.ggml_map_custom3_f32(ctx, a, b, c, fun)
+
 
 lib.ggml_map_custom3_f32.argtypes = [
     ggml_context_p,
@@ -4631,6 +4691,7 @@ lib.ggml_map_custom3_f32.argtypes = [
     ggml_custom3_op_f32_t,
 ]
 lib.ggml_map_custom3_f32.restype = ctypes.POINTER(ggml_tensor)
+
 
 # GGML_API struct ggml_tensor * ggml_map_custom3_inplace_f32(
 #         struct ggml_context          * ctx,
@@ -4643,7 +4704,7 @@ def ggml_map_custom3_inplace_f32(
     a: ggml_tensor_p,
     b: ggml_tensor_p,
     c: ggml_tensor_p,
-    fun: "ctypes._FuncPointer" # type: ignore
+    fun: "ctypes._FuncPointer",  # type: ignore
 ) -> ggml_tensor_p:
     """Custom ternary operator on three tensors inplace.
 
@@ -4656,6 +4717,7 @@ def ggml_map_custom3_inplace_f32(
     Returns:
         output tensor"""
     return lib.ggml_map_custom3_inplace_f32(ctx, a, b, c, fun)
+
 
 lib.ggml_map_custom3_inplace_f32.argtypes = [
     ggml_context_p,
@@ -4717,7 +4779,7 @@ GGML_N_TASKS_MAX = -1
 def ggml_map_custom1(
     ctx: ggml_context_p,
     a: ggml_tensor_p,
-    fun: "ctypes._FuncPointer", # type: ignore
+    fun: "ctypes._FuncPointer",  # type: ignore
     n_tasks: Union[ctypes.c_int, int],
     userdata: Optional[ctypes.c_void_p],
 ) -> ggml_tensor_p:
@@ -4743,7 +4805,7 @@ lib.ggml_map_custom1.restype = ctypes.POINTER(ggml_tensor)
 def ggml_map_custom1_inplace(
     ctx: ggml_context_p,
     a: ggml_tensor_p,
-    fun: "ctypes._FuncPointer", # type: ignore
+    fun: "ctypes._FuncPointer",  # type: ignore
     n_tasks: Union[ctypes.c_int, int],
     userdata: Optional[ctypes.c_void_p],
 ) -> ggml_tensor_p:
@@ -4771,7 +4833,7 @@ def ggml_map_custom2(
     ctx: ggml_context_p,
     a: ggml_tensor_p,
     b: ggml_tensor_p,
-    fun: "ctypes._FuncPointer", # type: ignore
+    fun: "ctypes._FuncPointer",  # type: ignore
     n_tasks: Union[ctypes.c_int, int],
     userdata: Optional[ctypes.c_void_p],
 ) -> ggml_tensor_p:
@@ -4800,7 +4862,7 @@ def ggml_map_custom2_inplace(
     ctx: ggml_context_p,
     a: ggml_tensor_p,
     b: ggml_tensor_p,
-    fun: "ctypes._FuncPointer", # type: ignore
+    fun: "ctypes._FuncPointer",  # type: ignore
     n_tasks: Union[ctypes.c_int, int],
     userdata: Optional[ctypes.c_void_p],
 ) -> ggml_tensor_p:
@@ -4831,7 +4893,7 @@ def ggml_map_custom3(
     a: ggml_tensor_p,
     b: ggml_tensor_p,
     c: ggml_tensor_p,
-    fun: "ctypes._FuncPointer", # type: ignore
+    fun: "ctypes._FuncPointer",  # type: ignore
     n_tasks: Union[ctypes.c_int, int],
     userdata: Optional[ctypes.c_void_p],
 ) -> ggml_tensor_p:
@@ -4863,7 +4925,7 @@ def ggml_map_custom3_inplace(
     a: ggml_tensor_p,
     b: ggml_tensor_p,
     c: ggml_tensor_p,
-    fun: "ctypes._FuncPointer", # type: ignore
+    fun: "ctypes._FuncPointer",  # type: ignore
     n_tasks: Union[ctypes.c_int, int],
     userdata: Optional[ctypes.c_void_p],
 ) -> ggml_tensor_p:
@@ -4996,6 +5058,58 @@ lib.ggml_build_backward.argtypes = [
     ctypes.c_bool,
 ]
 lib.ggml_build_backward.restype = ggml_cgraph
+
+
+# // graph allocation in a context
+# GGML_API struct ggml_cgraph * ggml_new_graph        (struct ggml_context * ctx);
+def ggml_new_graph(
+    ctx: ggml_context_p,
+) -> ggml_cgraph:
+    """Create a new graph.
+
+    Parameters:
+        ctx: The context.
+
+    Returns:
+        The graph."""
+    return lib.ggml_new_graph(ctx)
+
+
+lib.ggml_new_graph.argtypes = [ggml_context_p]
+lib.ggml_new_graph.restype = ggml_cgraph
+
+
+# GGML_API struct ggml_cgraph * ggml_build_forward_ctx(struct ggml_context * ctx, struct ggml_tensor * tensor);
+def ggml_build_forward_ctx(
+    ctx: ggml_context_p,
+    tensor: ggml_tensor_p,
+) -> ggml_cgraph:
+    """Build the forward computation graph in a context.
+
+    Parameters:
+        ctx: The context.
+        tensor: The tensor.
+
+    Returns:
+        The graph."""
+    return lib.ggml_build_forward_ctx(ctx, tensor)
+
+
+lib.ggml_build_forward_ctx.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+]
+lib.ggml_build_forward_ctx.restype = ggml_cgraph
+
+
+# GGML_API size_t ggml_graph_overhead(void);
+def ggml_graph_overhead() -> int:
+    """Get the overhead of the graph."""
+    return lib.ggml_graph_overhead()
+
+
+lib.ggml_graph_overhead.argtypes = []
+lib.ggml_graph_overhead.restype = ctypes.c_size_t
 
 
 # // ggml_graph_plan() has to be called before ggml_graph_compute()
