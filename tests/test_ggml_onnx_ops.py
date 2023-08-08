@@ -1,3 +1,4 @@
+import ctypes
 import io
 from io import BytesIO
 
@@ -7,8 +8,7 @@ import onnxruntime as ort
 import pytest
 import torch
 import torch.onnx
-
-from onnx import TensorProto, helper
+from onnx import TensorProto, helper, numpy_helper
 from onnxruntime import InferenceSession
 
 import ggml
@@ -17,6 +17,7 @@ from ggml.contrib.onnx import GgmlRuntimeBackend, ggml_operators
 
 
 def test_ggml_onnx_runtime_shape_operator():
+    # return
     tensors_dict = {}
 
     params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
@@ -43,41 +44,54 @@ def test_ggml_onnx_runtime_shape_operator():
     )
     tensors_dict["end3"] = ggml.utils.from_numpy(np.array([6], dtype=np.int32), context)
 
-    shape_node1 = onnx.NodeProto()
-    shape_node1.op_type = "Shape"
-    shape_node1.input.extend(["input_tensor"])
-    shape_node1.output.extend(["output_tensor1"])
+    shape_node1 = onnx.helper.make_node(
+        "Shape",
+        name="Shape1",
+        inputs=["input_tensor"],
+        outputs=["output_tensor1"],
+    )
 
-    shape_node2 = onnx.NodeProto()
-    shape_node2.op_type = "Shape"
-    shape_node2.input.extend(["input_tensor", "start1", "end1"])
-    shape_node2.output.extend(["output_tensor2"])
+    shape_node2 = onnx.helper.make_node(
+        "Shape",
+        name="Shape2",
+        inputs=["input_tensor", "start1", "end1"],
+        outputs=["output_tensor2"],
+    )
 
-    shape_node3 = onnx.NodeProto()
-    shape_node3.op_type = "Shape"
-    shape_node3.input.extend(["input_tensor", "start2", "end2"])
-    shape_node3.output.extend(["output_tensor3"])
+    shape_node3 = onnx.helper.make_node(
+        "Shape",
+        name="Shape3",
+        inputs=["input_tensor", "start2", "end2"],
+        outputs=["output_tensor3"],
+    )
 
-    shape_node4 = onnx.NodeProto()
-    shape_node4.op_type = "Shape"
-    shape_node4.input.extend(["input_tensor", "start3", "end3"])
-    shape_node4.output.extend(["output_tensor4"])
+    shape_node4 = onnx.helper.make_node(
+        "Shape",
+        name="Shape4",
+        inputs=["input_tensor", "start3", "end3"],
+        outputs=["output_tensor4"],
+    )
 
-    result1 = ggml_operators["Shape"](shape_node1, tensors_dict, context)
-    result2 = ggml_operators["Shape"](shape_node2, tensors_dict, context)
-    result3 = ggml_operators["Shape"](shape_node3, tensors_dict, context)
-    result4 = ggml_operators["Shape"](shape_node4, tensors_dict, context)
+    nodes = [shape_node1, shape_node2, shape_node3, shape_node4]
+    results = []
+    refs = []
 
-    assert list(ggml.utils.to_numpy(result1) == test_list)
-    assert list(ggml.utils.to_numpy(result2) == test_list)
-    assert list(ggml.utils.to_numpy(result3) == test_list[:6])
-    assert list(ggml.utils.to_numpy(result4) == test_list[2:6])
+    for shape_node in nodes:
+        output_tensor = ggml_operators["Shape"](shape_node, tensors_dict, context, refs)
+        gf = ggml.ggml_build_forward(output_tensor)
+        ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
+        results.append(ggml.utils.to_numpy(output_tensor))
+
+    assert results[0] == list(input_data1.shape)
+    assert results[1] == list(input_data1.shape)
+    assert results[2] == list(input_data1[:6].shape)
+    assert results[3] == list(input_data1[2:6].shape)
 
     ggml.ggml_free(context)
 
 
 def test_ggml_onnx_runtime_unsqueeze_operator():
-    return
+    # return
 
     def onnx_unsqueeze(x, axes):
         # Create a simple PyTorch model
@@ -117,7 +131,7 @@ def test_ggml_onnx_runtime_unsqueeze_operator():
         # Execute the ONNX model
         output = sess.run(None, input_feed)
 
-        return np.array(output)
+        return output[0]
 
     tensors_dict = {}
 
@@ -158,35 +172,39 @@ def test_ggml_onnx_runtime_unsqueeze_operator():
     unsqueeze_node4.input.extend(["input_tensor", "axes3"])
     unsqueeze_node4.output.extend(["output_tensor4"])
 
+    refs = []
+    nodes = [unsqueeze_node2, unsqueeze_node3, unsqueeze_node4]
+    results = []
+
     with pytest.raises(ValueError) as ex_input_error:
-        ggml_operators["Unsqueeze"](unsqueeze_node1, tensors_dict, context)
-    result2 = ggml_operators["Unsqueeze"](unsqueeze_node2, tensors_dict, context)
-    result3 = ggml_operators["Unsqueeze"](unsqueeze_node3, tensors_dict, context)
-    result4 = ggml_operators["Unsqueeze"](unsqueeze_node4, tensors_dict, context)
+        ggml_operators["Unsqueeze"](unsqueeze_node1, tensors_dict, context, refs)
+
+    for shape_node in nodes:
+        output_tensor = ggml_operators["Unsqueeze"](
+            shape_node, tensors_dict, context, refs
+        )
+
+        gf = ggml.ggml_build_forward(output_tensor)
+
+        ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
+
+        results.append(ggml.utils.to_numpy(output_tensor))
 
     assert (
         str(ex_input_error.value)
         == 'Error for node "Input error Test": Operation "Unsqueeze" requires exactly two inputs, data and axes. Actual number of inputs: 1'
     )
 
-    print(ggml.utils.to_numpy(result2), onnx_unsqueeze(input_data1, test_axes1))
-    print(ggml.utils.to_numpy(result3), onnx_unsqueeze(input_data1, test_axes2))
-    print(ggml.utils.to_numpy(result4), onnx_unsqueeze(input_data1, test_axes3))
-
-    assert np.array_equal(
-        ggml.utils.to_numpy(result2), onnx_unsqueeze(input_data1, test_axes1)
-    )
-    assert np.array_equal(
-        ggml.utils.to_numpy(result3), onnx_unsqueeze(input_data1, test_axes2)
-    )
-    assert np.array_equal(
-        ggml.utils.to_numpy(result4), onnx_unsqueeze(input_data1, test_axes3)
-    )
+    assert np.array_equal(results[0], onnx_unsqueeze(input_data1, test_axes1))
+    assert np.array_equal(results[1], onnx_unsqueeze(input_data1, test_axes2))
+    assert np.array_equal(results[2], onnx_unsqueeze(input_data1, test_axes3))
 
     ggml.ggml_free(context)
 
 
 def test_ggml_onnx_runtime_gather_operator():
+    # return
+
     def onnx_gather(x, indices, axis):
         # Adjust the axis value to handle negative axis
         if axis < 0:
@@ -235,7 +253,7 @@ def test_ggml_onnx_runtime_gather_operator():
         # Execute the ONNX model
         output = sess.run(None, input_feed)
 
-        return np.array(output)
+        return output[0]
 
     tensors_dict = {}
 
@@ -243,30 +261,31 @@ def test_ggml_onnx_runtime_gather_operator():
     context = ggml.ggml_init(params=params)
 
     test_x = [
-        [
-            1046676483,
-            -1102854076,
-            -1089318038,
-            1023432841,
-            1041114519,
-            -1099187814,
-            1040889675,
-            -1088007423,
-            -1096868517,
-            -1131772615,
-            -1103856891,
-            -1097108246,
-            -1098364964,
-            1024061975,
-            -1102637477,
-        ]
+        1046676483,
+        -1102854076,
+        -1089318038,
+        1023432841,
+        1041114519,
+        -1099187814,
+        1040889675,
+        -1088007423,
+        -1096868517,
+        -1131772615,
+        -1103856891,
+        -1097108246,
+        -1098364964,
+        1024061975,
+        -1102637477,
     ]
     test_indices1 = np.array([1], dtype=np.int32)
 
     input_data1 = np.array(test_x, dtype=np.int32)
 
-    tensors_dict["input_tensor"] = ggml.utils.from_numpy(input_data1, context)
-    tensors_dict["indices"] = ggml.utils.from_numpy(test_indices1, context)
+    input_tensor = ggml.utils.from_numpy(input_data1, context)
+    indices_tensor = ggml.utils.from_numpy(test_indices1, context)
+
+    tensors_dict["input_tensor"] = input_tensor
+    tensors_dict["indices"] = indices_tensor
 
     gather_node2 = onnx.helper.make_node(
         "Gather",
@@ -276,18 +295,97 @@ def test_ggml_onnx_runtime_gather_operator():
         axis=0,
     )
 
-    result4 = ggml_operators["Gather"](gather_node2, tensors_dict, context)
+    refs = []
 
-    print(ggml.utils.to_numpy(result4), onnx_gather(input_data1, test_indices1, 0))
+    output_tensor = ggml_operators["Gather"](gather_node2, tensors_dict, context, refs)
+
+    gf = ggml.ggml_build_forward(output_tensor)
+
+    ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
+    output_tensor = ggml.ggml_get_tensor(context, ggml.ggml_get_name(output_tensor))
 
     assert np.array_equal(
-        ggml.utils.to_numpy(result4), onnx_gather(input_data1, test_indices1, 0)
+        ggml.utils.to_numpy(output_tensor), onnx_gather(input_data1, test_indices1, 0)
     )
 
     ggml.ggml_free(context)
 
 
+def test_ggml_onnx_constant_operator():
+    def onnx_constant(value, dtype, shape):
+        tensor = numpy_helper.from_array(value)
+        constant_node = onnx.helper.make_node(
+            "Constant", inputs=[], outputs=["constant_output"], value=tensor
+        )
+        graph = onnx.helper.make_graph(
+            [constant_node],
+            "constant_graph",
+            inputs=[],
+            outputs=[
+                onnx.helper.make_tensor_value_info("constant_output", dtype, shape)
+            ],
+        )
+        model = onnx.helper.make_model(graph)
+
+        return numpy_helper.to_array(model.graph.node[0].attribute[0].t)
+
+    params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
+    context = ggml.ggml_init(params=params)
+    tensors_dict = {}
+
+    constant1 = np.array([1], dtype=np.int32)
+    constant2 = np.array([[1]], dtype=np.int32)
+    constant3 = np.array([[1, 2], [3, 4], [6, 6]], dtype=np.int32)
+
+    dtype = onnx.TensorProto.INT32
+
+    constant_numpy1 = onnx_constant(constant1, dtype, constant1.shape)
+    constant_numpy2 = onnx_constant(constant2, dtype, constant2.shape)
+    constant_numpy3 = onnx_constant(constant3, dtype, constant3.shape)
+
+    constant_node1 = onnx.helper.make_node(
+        "Constant",
+        inputs=[],
+        name="constant_node1",
+        outputs=["constant_output1"],
+        value=numpy_helper.from_array(constant1),
+    )
+    constant_node2 = onnx.helper.make_node(
+        "Constant",
+        name="constant_node2",
+        inputs=[],
+        outputs=["constant_output2"],
+        value=numpy_helper.from_array(constant2),
+    )
+    constant_node3 = onnx.helper.make_node(
+        "Constant",
+        name="constant_node3",
+        inputs=[],
+        outputs=["constant_output3"],
+        value=numpy_helper.from_array(constant3),
+    )
+
+    nodes = [constant_node1, constant_node2, constant_node3]
+    results = []
+    refs = []
+
+    for shape_node in nodes:
+        output_tensor = ggml_operators["Constant"](
+            shape_node, tensors_dict, context, refs
+        )
+        gf = ggml.ggml_build_forward(output_tensor)
+        ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
+        results.append(ggml.utils.to_numpy(output_tensor))
+
+    assert np.array_equal(results[0], constant_numpy1)
+    assert np.array_equal(results[1], constant_numpy2)
+    assert np.array_equal(results[2], constant_numpy3)
+
+    ggml.ggml_free(context)
+
+
 def test_ggml_onnx_runtime_basic():
+    # return
     # The name of the input tensor
     input_name = "X"
 
@@ -359,4 +457,5 @@ def test_ggml_onnx_runtime_basic():
 
     ggml_dummy_model = GgmlRuntimeBackend.prepare(model_def)
     ggml_result = ggml_dummy_model.run(input_data)
+
     assert ggml_result == runtime_result

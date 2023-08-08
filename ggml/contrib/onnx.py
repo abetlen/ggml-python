@@ -1,6 +1,6 @@
 import ctypes
 import struct
-from typing import Any, Tuple
+from typing import Any, Tuple, List
 
 import numpy as np
 import onnx
@@ -8,10 +8,12 @@ from onnx import defs
 from onnx.backend.base import Backend, BackendRep
 from onnx.helper import make_opsetid
 from onnx.onnx_ml_pb2 import GraphProto, ModelProto, NodeProto
+from onnx.helper import tensor_dtype_to_np_dtype
 
 import ggml
 import ggml.utils
 import torch
+from typing import Optional
 
 
 ggml_operators = {}
@@ -35,7 +37,7 @@ def ggml_operator(operator):
 
 @ggml_operator("Add")
 def ggml_operator_add(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
@@ -54,77 +56,132 @@ def ggml_operator_add(
     return add_result
 
 
+class ShapeUserInput(ctypes.Structure):
+    _fields_ = [("start", ctypes.c_int), ("end", ctypes.c_int)]
+
+
+@ggml.ggml_custom2_op_t
+def custom_shape(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    userdata_data_ptr = ctypes.cast(userdata, ctypes.POINTER(ShapeUserInput))
+    userdata_data = userdata_data_ptr.contents
+
+    tensor = ggml.utils.to_numpy(tensor_in_2)
+    start = userdata_data.start
+    end = userdata_data.end
+
+    shaped_tensor = tensor[start:end]
+    tensor_shape = np.array(shaped_tensor.shape, dtype=np.int32)
+
+    ggml.utils.to_numpy(tensor_out)[:] = tensor_shape
+
+
 @ggml_operator("Shape")
 def ggml_operator_shape(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
-
-    print(node)
 
     if len(node_inputs) == 0 or len(node_inputs) > 3:
         raise ValueError(
             f'Error for node "{node.name}": Operation "Shape" requires at least 1 and maximum of 3 inputs. Actual number of inputs: {len(node_inputs)}'
         )
 
-    output_name = node.output[0]
-
     tensor = ggml.utils.to_numpy(node_inputs[0])
-    start = ggml.utils.to_numpy(node_inputs[1]) if len(node_inputs) > 1 else [None]
-    end = ggml.utils.to_numpy(node_inputs[2]) if len(node_inputs) > 2 else [None]
+    start = (
+        ggml.utils.to_numpy(node_inputs[1])
+        if len(node_inputs) > 1
+        else [ctypes.c_int(0)]
+    )
+    end = (
+        ggml.utils.to_numpy(node_inputs[2])
+        if len(node_inputs) > 2
+        else [ctypes.c_int(tensor.shape[-1])]
+    )
 
-    start = start[0] if len(start) > 0 else None
-    end = end[0] if len(end) > 0 else None
+    start = start[0] if len(start) else ctypes.c_int(0)
+    end = end[0] if len(end) else ctypes.c_int(tensor.shape[-1])
 
-    shaped_tensor = tensor[start:end]
+    shape_userdata = ShapeUserInput(start, end)
+    userdata_p = ctypes.cast(ctypes.pointer(shape_userdata), ctypes.c_void_p)
 
-    new_tensor = ggml.utils.from_numpy(shaped_tensor, context)
-    tensors_dict[output_name] = new_tensor
+    output_shape = len(list(tensor.shape))
+
+    x = np.empty(output_shape, dtype=tensor.dtype)
+
+    x_t = ggml.utils.from_numpy(x, context)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+        context,
+        x_t,
+        node_inputs[0],
+        custom_shape,
+        1,
+        userdata_p,
+    )
+
+    refs.append(shape_userdata)
 
     return new_tensor
 
 
+@ggml.ggml_custom2_op_t
+def custom_constant(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    shape = ggml.utils.to_numpy(tensor_in_1).shape
+    constant_data = ggml.utils.to_numpy(tensor_in_2)
+
+    new_tenor = constant_data.reshape(shape)
+
+    ggml.utils.to_numpy(tensor_out)[:] = new_tenor
+
+
 @ggml_operator("Constant")
 def ggml_operator_constant(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
-    print(node)
-    data_type_to_struct_format = {
-        1: ("f", np.float32),  # FLOAT (4 bytes)
-        2: ("b", np.int8),  # INT8 (1 byte)
-        3: ("h", np.int16),  # INT16 (2 bytes)
-        4: ("i", np.int32),  # INT32 (4 bytes)
-        5: ("q", np.int32),  # INT64 (8 bytes) must be np.int64 but 32 for now
-        6: ("B", np.int8),  # UINT8 (1 byte)
-        7: ("Q", np.int32),  # UINT64 (8 bytes) must be np.int64 but 32 for now
-        10: ("e", np.float16),  # FLOAT16 (half-precision floating-point) (2 bytes)
-        11: ("d", np.int32),  # DOUBLE (8 bytes) must be np.int64 but 32 for now
-    }
-
     node_attributes = node.attribute
-    raw_data = node_attributes[0].t.raw_data
-    data_type = node_attributes[0].t.data_type
-    output_name = node.output[0]
-    constant_type = data_type_to_struct_format[data_type]
 
-    dtype = constant_type[1]
+    value_attr = next(attr for attr in node_attributes if attr.name == "value")
+    tensor = value_attr.t
+    data_type = tensor.data_type
+    np_data_type = tensor_dtype_to_np_dtype(data_type)
 
-    constant_tensor_data = np.array(
-        struct.unpack(
-            f"={len(raw_data)//struct.calcsize(constant_type[0])}{constant_type[0]}",
-            raw_data,
-        ),
-        dtype=dtype,
+    data_tensor = ggml.utils.from_numpy(
+        np.frombuffer(tensor.raw_data, dtype=np_data_type), context
     )
 
-    new_tensor = ggml.utils.from_numpy(constant_tensor_data, context)
-    tensors_dict[output_name] = new_tensor
-    return constant_tensor_data
+    x = np.empty(tensor.dims, dtype=np_data_type)
+
+    x_t = ggml.utils.from_numpy(x, context)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+        context,
+        x_t,
+        data_tensor,
+        custom_constant,
+        1,
+        None,
+    )
+
+    return new_tensor
 
 
 @ggml_operator("Mul")
 def ggml_operator_mul(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
@@ -146,247 +203,253 @@ def ggml_operator_mul(
 
 @ggml_operator("ConstantOfShape")
 def ggml_operator_constant_of_shape(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     raise NotImplementedError(f'Operator "ConstantOfShape" not implemented')
 
 
 @ggml_operator("Softmax")
 def ggml_operator_softmax(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     raise NotImplementedError(f'Operator "Softmax" not implemented')
 
 
+@ggml.ggml_custom3_op_t
+def custom_gather(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    tensor_in_3: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    input_array = ggml.utils.to_numpy(tensor_in_2)
+    index_array = ggml.utils.to_numpy(tensor_in_3)
+    axis = ctypes.cast(userdata, ctypes.POINTER(ctypes.c_int)).contents.value
+
+    new_array = np.take(input_array, index_array, axis=axis)
+
+    ggml.utils.to_numpy(tensor_out)[:] = new_array
+
+
 @ggml_operator("Gather")
 def ggml_operator_gather(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
-
-    print("Gather attribs:")
-    print(node.attribute)
 
     if len(node_inputs) != 2:
         raise ValueError(
             f'Error for node "{node.name}": Operation "Gather" requires exactly two inputs and one axis. Actual number of inputs: {len(node_inputs)}'
         )
 
-    print(node)
+    axis = node.attribute[0].i if len(node.attribute) > 0 else -1
+
+    axis_c = ctypes.c_int(axis)
 
     input_array = ggml.utils.to_numpy(node_inputs[0])
     index_array = ggml.utils.to_numpy(node_inputs[1])
 
-    axis = node.attribute[0].i if len(node.attribute) > 0 else -1
+    output_shape = (input_array.ndim - 1) * (1,) + index_array.shape
 
-    og_dtype = input_array.dtype
+    x = np.empty(output_shape, dtype=input_array.dtype)
 
-    print(input_array, index_array)
+    x_t = ggml.utils.from_numpy(x, context)
 
-    # create
-    # check test_ggml.py
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom3_inplace(
+        context,
+        x_t,
+        node_inputs[0],
+        node_inputs[1],
+        custom_gather,
+        1,
+        ctypes.pointer(axis_c),
+    )
 
-    new_array = np.take(input_array, index_array, axis=axis)
-
-    # clamp the rank to two
-    # new_array = np.array([new_array], dtype=og_dtype)
-    # new_array = np.reshape(new_array, [1, -1])
-
-    new_tensor = ggml.utils.from_numpy(new_array, context)
-    tensors_dict[node.output[0]] = new_tensor
+    refs.append(axis_c)
 
     return new_tensor
 
 
 @ggml_operator("Relu")
 def ggml_operator_relu(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     raise NotImplementedError(f'Operator "Relu" not implemented')
 
 
 @ggml_operator("MatMul")
 def ggml_operator_mat_mul(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     raise NotImplementedError(f'Operator "MatMul" not implemented')
 
 
 @ggml_operator("Abs")
 def ggml_operator_abs(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     raise NotImplementedError(f'Operator "Abs" not implemented')
 
 
+@ggml.ggml_custom3_op_t
+def custom_unsqueeze(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    tensor_in_3: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    x = ggml.utils.to_numpy(tensor_in_2)
+    axes = ggml.utils.to_numpy(tensor_in_3)
+
+    for axis in np.nditer(axes):
+        x = np.expand_dims(x, axis=axis)
+
+    ggml.utils.to_numpy(tensor_out)[:] = x
+
+
 @ggml_operator("Unsqueeze")
 def ggml_operator_unsqueeze(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
-
-    print("Unsqueeze attribs:")
-    print(node.attribute)
 
     if len(node_inputs) != 2:
         raise ValueError(
             f'Error for node "{node.name}": Operation "Unsqueeze" requires exactly two inputs, data and axes. Actual number of inputs: {len(node_inputs)}'
         )
 
-    x = (
-        ggml.utils.to_numpy(node_inputs[0])
-        if type(node_inputs[0]) != np.ndarray
-        else node_inputs[0]
-    )
-    axes = (
-        ggml.utils.to_numpy(node_inputs[1])
-        if type(node_inputs[1]) != np.ndarray
-        else node_inputs[1]
-    )
+    x = ggml.utils.to_numpy(node_inputs[0])
+    axes = ggml.utils.to_numpy(node_inputs[1])
 
-    og_dtype = x.dtype
+    output_shape = x.shape
 
     for axis in np.nditer(axes):
-        x = np.expand_dims(x, axis=axis)
+        output_shape = np.insert(output_shape, axis, 1)
 
-    new_tensor = ggml.utils.from_numpy(x, context)
-    tensors_dict[node.output[0]] = new_tensor
+    x = np.empty(output_shape, dtype=x.dtype)
+
+    x_t = ggml.utils.from_numpy(x, context)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom3_inplace(
+        context,
+        x_t,
+        node_inputs[0],
+        node_inputs[1],
+        custom_unsqueeze,
+        1,
+        None,
+    )
 
     return new_tensor
 
 
 @ggml_operator("Sqrt")
 def ggml_operator_sqrt(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     raise NotImplementedError(f'Operator "Sqrt" not implemented')
 
 
 @ggml_operator("ReduceMean")
 def ggml_operator_reduce_mean(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     raise NotImplementedError(f'Operator "ReduceMean" not implemented')
 
 
 @ggml_operator("Less")
 def ggml_operator_less(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     raise NotImplementedError(f'Operator "Less" not implemented')
 
 
 @ggml_operator("Where")
 def ggml_operator_where(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     raise NotImplementedError(f'Operator "Where" not implemented')
 
 
 @ggml_operator("Concat")
 def ggml_operator_concat(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
-    node_inputs = [tensors_dict[inp] for inp in node.input]
-
-    if len(node_inputs) != 2 or len(node.attribute) != 1:
-        raise ValueError(
-            f'Error for node "{node.name}": Operation "Concat" requires exactly two inputs and an axis attribute. Actual number of inputs: {len(node_inputs)}'
-        )
-
-    axis = node.attribute[0].i
-
-    a = (
-        ggml.utils.to_numpy(node_inputs[0])
-        if type(node_inputs[0]) != np.ndarray
-        else node_inputs[0]
-    )
-
-    b = (
-        ggml.utils.to_numpy(node_inputs[1])
-        if type(node_inputs[1]) != np.ndarray
-        else node_inputs[1]
-    )
-
-    print(node)
-    print(a, b, axis)
-
-    # shapes = [tensor.shape for tensor in tensors]
-    # if not all(shape[:axis] == shapes[0][:axis] and shape[axis + 1:] == shapes[0][axis + 1:] for shape in shapes):
-    #     raise ValueError("All tensors must have the same shape along the specified axis.")
-
-    # # Perform concatenation along the specified axis
-    # result = np.concatenate(tensors, axis=axis)
-
     raise NotImplementedError(f'Operator "Concat" not implemented')
 
 
 @ggml_operator("Div")
 def ggml_operator_div(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     raise NotImplementedError(f'Operator "Div" not implemented')
 
 
 @ggml_operator("Range")
 def ggml_operator_range(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     raise NotImplementedError(f'Operator "Range" not implemented')
 
 
 @ggml_operator("Sub")
 def ggml_operator_sub(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     raise NotImplementedError(f'Operator "Sub" not implemented')
 
 
 @ggml_operator("Pow")
 def ggml_operator_pow(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     raise NotImplementedError(f'Operator "Pow" not implemented')
 
 
 @ggml_operator("Cast")
 def ggml_operator_cast(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     raise NotImplementedError(f'Operator "Cast" not implemented')
 
 
 @ggml_operator("Reshape")
 def ggml_operator_reshape(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     raise NotImplementedError(f'Operator "Reshape" not implemented')
 
 
 @ggml_operator("Transpose")
 def ggml_operator_transpose(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     raise NotImplementedError(f'Operator "Transpose" not implemented')
 
 
 @ggml_operator("Log")
 def ggml_operator_log(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     raise NotImplementedError(f'Operator "Log" not implemented')
 
 
 @ggml_operator("Greater")
 def ggml_operator_greater(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     raise NotImplementedError(f'Operator "Greater" not implemented')
 
 
 @ggml_operator("Min")
 def ggml_operator_min(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     raise NotImplementedError(f'Operator "Min" not implemented')
 
@@ -411,6 +474,8 @@ class GgmlBackendRep(BackendRep):
         # Define context
         params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
         context = ggml.ggml_init(params=params)
+
+        refs: List[Any] = []
 
         # Create entry inputs
         for model_input in model_graph.input:
@@ -457,7 +522,12 @@ class GgmlBackendRep(BackendRep):
 
         # Build layers
         for node in model_graph.node:
-            node_output = ggml_operators[node.op_type](node, ggml_tensors, context)
+            node_output = ggml_operators[node.op_type](
+                node,
+                ggml_tensors,
+                context,
+                refs,
+            )
 
             if node.output[-1] == self.graph.output[-1].name:
                 exit_node = node_output
