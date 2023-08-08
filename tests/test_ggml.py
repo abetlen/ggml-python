@@ -104,3 +104,25 @@ def test_ggml_min_alloc():
     output = ggml.ggml_get_f32_1d(f, 0)
     assert output == 16.0
     ggml.ggml_free(ctx)
+
+
+def test_quantize():
+    # import random
+    ne0 = 32
+    ne1 = 1
+    nelements = ne0 * ne1
+    # data = [random.gauss(0, 20) for _ in range(nelements)]
+    data = [float(i) for i in range(nelements)]
+    data_f32 = (ctypes.c_float * len(data))(*data)
+    work = (ctypes.c_float * nelements)(0)
+    hist = (ctypes.c_int64 * (1 << 4))(0)
+    cur_size = ggml.ggml_quantize_q8_0(
+        data_f32,
+        ctypes.cast(work, ctypes.c_void_p),
+        nelements,
+        ne0,
+        hist,
+    )
+    assert cur_size == 34
+
+
