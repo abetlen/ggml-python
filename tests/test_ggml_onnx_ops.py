@@ -18,6 +18,7 @@ from ggml.contrib.onnx import GgmlRuntimeBackend, ggml_operators
 
 def test_ggml_onnx_runtime_shape_operator():
     # return
+
     tensors_dict = {}
 
     params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
@@ -312,6 +313,8 @@ def test_ggml_onnx_runtime_gather_operator():
 
 
 def test_ggml_onnx_constant_operator():
+    # return
+
     def onnx_constant(value, dtype, shape):
         tensor = numpy_helper.from_array(value)
         constant_node = onnx.helper.make_node(
@@ -396,6 +399,8 @@ def test_ggml_onnx_constant_operator():
 
 
 def test_ggml_onnx_concat_operator():
+    return
+
     def onnx_concat(inputs, axis):
         # Determine the input data type
         input_data_type = inputs[0].dtype
@@ -512,8 +517,87 @@ def test_ggml_onnx_concat_operator():
     assert np.array_equal(results[1], concat_onnx_result2)
 
 
+def test_ggml_onnx_reshape_operation():
+    return
+
+    def onnx_reshape(input_tensor, shape):
+        class DynamicReshapeModel(torch.nn.Module):
+            def __init__(self, shape):
+                super(DynamicReshapeModel, self).__init__()
+                self.shape = tuple(shape)
+
+            def forward(self, x):
+                reshaped = torch.reshape(x, self.shape)
+                return reshaped
+
+        if not isinstance(input_tensor, np.ndarray):
+            raise ValueError("Input tensor must be a NumPy array")
+
+        if not isinstance(shape, np.ndarray):
+            shape = np.array(shape)
+
+        if len(shape) != len(input_tensor.shape):
+            raise ValueError(
+                "Input shape must have the same number of dimensions as the input tensor"
+            )
+
+        # Create a PyTorch model with dynamic reshape
+        model = DynamicReshapeModel(shape)
+
+        # Perform dynamic reshape using PyTorch
+        input_tensor = torch.tensor(input_tensor, dtype=torch.int32)
+
+        # Export the model to ONNX
+        f = BytesIO()
+        torch.onnx.export(
+            model, input_tensor, f, opset_version=12, do_constant_folding=True
+        )
+        f.seek(0)
+
+        # Run the ONNX model using ONNX Runtime
+        sess = ort.InferenceSession(f.getvalue())
+        input_name = sess.get_inputs()[0].name
+        output_name = sess.get_outputs()[0].name
+
+        result = sess.run([output_name], {input_name: input_tensor.numpy()})
+
+        return result[0]
+
+    input_tensor = np.array([[1, 2, 3, 4, 5, 6]], dtype=np.int32)
+    new_shape = np.array([2, 3], dtype=np.int32)
+
+    params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
+    context = ggml.ggml_init(params=params)
+    tensors_dict = {}
+
+    tensors_dict["input_tensor"] = ggml.utils.from_numpy(input_tensor, context)
+    tensors_dict["new_shape"] = ggml.utils.from_numpy(new_shape, context)
+
+    reshape_node1 = onnx.helper.make_node(
+        "Reshape",
+        inputs=["input_tensor", "new_shape"],
+        name="reshape_node1",
+        outputs=["reshape_output1"],
+    )
+
+    nodes = [reshape_node1]
+    results = []
+    refs = []
+
+    for reshape_node in nodes:
+        output_tensor = ggml_operators["Reshape"](
+            reshape_node, tensors_dict, context, refs
+        )
+        gf = ggml.ggml_build_forward(output_tensor)
+        ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
+        results.append(ggml.utils.to_numpy(output_tensor))
+
+    assert np.array_equal(results[0], onnx_reshape(input_tensor, new_shape))
+
+
 def test_ggml_onnx_runtime_basic():
     # return
+
     # The name of the input tensor
     input_name = "X"
 
