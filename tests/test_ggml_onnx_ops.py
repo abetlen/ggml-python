@@ -710,6 +710,5 @@ def test_ggml_onnx_runtime_basic():
 
     ggml_dummy_model = GgmlRuntimeBackend.prepare(model_def)
     ggml_result = ggml_dummy_model.run(input_data)
-    print(ggml_result, runtime_result)
 
     assert np.allclose(ggml_result, runtime_result)
