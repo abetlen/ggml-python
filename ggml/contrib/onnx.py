@@ -321,7 +321,21 @@ def ggml_operator_mat_mul(
 def ggml_operator_abs(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
-    raise NotImplementedError(f'Operator "Abs" not implemented')
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Abs" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    output_name = node.output[0]
+
+    abs_result = ggml.ggml_abs(
+        context,
+        *node_inputs,
+    )
+    tensors_dict[output_name] = abs_result
+    return abs_result
 
 
 @ggml.ggml_custom3_op_t
@@ -384,7 +398,21 @@ def ggml_operator_unsqueeze(
 def ggml_operator_sqrt(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
-    raise NotImplementedError(f'Operator "Sqrt" not implemented')
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Sqrt" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    output_name = node.output[0]
+
+    sqrt_result = ggml.ggml_sqrt(
+        context,
+        *node_inputs,
+    )
+    tensors_dict[output_name] = sqrt_result
+    return sqrt_result
 
 
 @ggml_operator("ReduceMean")
@@ -423,7 +451,7 @@ def ggml_operator_div(
 
     if len(node_inputs) != 2:
         raise ValueError(
-            f'Error for node "{node.name}": Operation "Add" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+            f'Error for node "{node.name}": Operation "Div" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
         )
 
     output_name = node.output[0]
@@ -451,7 +479,7 @@ def ggml_operator_sub(
 
     if len(node_inputs) != 2:
         raise ValueError(
-            f'Error for node "{node.name}": Operation "Add" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+            f'Error for node "{node.name}": Operation "Sub" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
         )
 
     output_name = node.output[0]
