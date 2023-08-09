@@ -524,7 +524,21 @@ def ggml_operator_transpose(
 def ggml_operator_log(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
-    raise NotImplementedError(f'Operator "Log" not implemented')
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Log" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    output_name = node.output[0]
+
+    log_result = ggml.ggml_log(
+        context,
+        *node_inputs,
+    )
+    tensors_dict[output_name] = log_result
+    return log_result
 
 
 @ggml_operator("Greater")

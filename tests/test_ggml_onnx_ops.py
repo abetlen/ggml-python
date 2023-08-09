@@ -614,6 +614,7 @@ def test_ggml_onnx_runtime_basic():
     intermediate_name4 = "intermediate4"
     intermediate_name5 = "intermediate5"
     intermediate_name6 = "intermediate6"
+    intermediate_name7 = "intermediate7"
 
     # The name of the output
     output_name = "Y"
@@ -635,8 +636,11 @@ def test_ggml_onnx_runtime_basic():
         "Sqrt", [intermediate_name4], [intermediate_name5], name="node5"
     )  # Sqrt((X * A / B) + C - D)
     node6 = helper.make_node(
-        "Abs", [intermediate_name5], [output_name], name="node6"
-    )  # Abs(Sqrt((X * A / B) + C - D))
+        "Log", [intermediate_name5], [intermediate_name6], name="node6"
+    )  # Log(Sqrt((X * A / B) + C - D))
+    node7 = helper.make_node(
+        "Abs", [intermediate_name6], [output_name], name="node7"
+    )  # Abs(Log(Sqrt((X * A / B) + C - D)))
 
     # Define the tensors (values) in our graph
     X_value_info = helper.make_tensor_value_info(
@@ -648,8 +652,8 @@ def test_ggml_onnx_runtime_basic():
     )
 
     # Set weights A, B, C, and D
-    weights_a = np.array([20.6], dtype=float).astype(np.float32)
-    weights_b = np.array([3.0013], dtype=float).astype(np.float32)
+    weights_a = np.array([50.6], dtype=float).astype(np.float32)
+    weights_b = np.array([0.0013], dtype=float).astype(np.float32)
     weights_c = np.array([8.1], dtype=float).astype(np.float32)
     weights_d = np.array([13.22], dtype=float).astype(np.float32)
 
@@ -688,8 +692,8 @@ def test_ggml_onnx_runtime_basic():
 
     # Create the graph (model).
     graph_def = helper.make_graph(
-        [node1, node2, node3, node4, node5, node6],
-        "complex_expression_model",
+        [node1, node2, node3, node4, node5, node6, node7],
+        "complex_expression_model_with_log",
         [X_value_info],
         [output_value_info],
         [A_init, B_init, C_init, D_init],
@@ -706,5 +710,6 @@ def test_ggml_onnx_runtime_basic():
 
     ggml_dummy_model = GgmlRuntimeBackend.prepare(model_def)
     ggml_result = ggml_dummy_model.run(input_data)
+    print(ggml_result, runtime_result)
 
     assert np.allclose(ggml_result, runtime_result)
