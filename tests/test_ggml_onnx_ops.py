@@ -395,6 +395,123 @@ def test_ggml_onnx_constant_operator():
     ggml.ggml_free(context)
 
 
+def test_ggml_onnx_concat_operator():
+    def onnx_concat(inputs, axis):
+        # Determine the input data type
+        input_data_type = inputs[0].dtype
+
+        # Create ONNX graph
+        graph = onnx.GraphProto()
+
+        input_names = []
+        for i, input_array in enumerate(inputs):
+            input_name = f"input{i}"
+            input_names.append(input_name)
+
+            input_value_info = onnx.helper.make_tensor_value_info(
+                input_name,
+                onnx.TensorProto.FLOAT
+                if input_data_type == np.float32
+                else onnx.TensorProto.INT32,
+                input_array.shape,
+            )
+            graph.input.extend([input_value_info])
+
+        # Create Concat node
+        concat_node = onnx.NodeProto()
+        concat_node.op_type = "Concat"
+        concat_node.name = "concat_node"
+        concat_node.output.extend(["output"])
+        concat_node.attribute.extend([onnx.helper.make_attribute("axis", axis)])
+        concat_node.input.extend(input_names)  # Use input names
+
+        # Create output tensor value info
+        output_value_info = onnx.helper.make_tensor_value_info(
+            "output",
+            onnx.TensorProto.FLOAT
+            if input_data_type == np.float32
+            else onnx.TensorProto.INT32,
+            None,
+        )
+        graph.output.extend([output_value_info])
+
+        # Finalize the graph
+        graph.node.extend([concat_node])
+        model = onnx.helper.make_model(graph)
+
+        # Save the ONNX model to BytesIO object
+        onnx_model_bytes = BytesIO()
+        onnx.save_model(model, onnx_model_bytes)
+
+        # Load the ONNX model from BytesIO
+        onnx_model_bytes.seek(0)
+        sess = ort.InferenceSession(onnx_model_bytes.read())
+
+        # Prepare the input feeds with the input arrays
+        input_feed = {
+            input_name: input_array
+            for input_name, input_array in zip(input_names, inputs)
+        }
+
+        # Execute the ONNX model
+        output = sess.run(["output"], input_feed)
+
+        return output[0]
+
+    params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
+    context = ggml.ggml_init(params=params)
+    tensors_dict = {}
+
+    array1 = np.array([1], dtype=np.int32)
+    array2 = np.array([2, 3, 4, 5], dtype=np.int32)
+    array3 = np.array([6], dtype=np.int32)
+    array4 = np.array([7, 8, 9, 10], dtype=np.int32)
+
+    tensors_dict["array1"] = ggml.utils.from_numpy(array1, context)
+    tensors_dict["array2"] = ggml.utils.from_numpy(array2, context)
+    tensors_dict["array3"] = ggml.utils.from_numpy(array3, context)
+    tensors_dict["array4"] = ggml.utils.from_numpy(array4, context)
+
+    test1 = ["array1", "array2"]
+    inputs1 = [array1, array2]
+    test2 = ["array1", "array2", "array3", "array4"]
+    inputs2 = [array1, array2, array3, array4]
+    axis = 0
+
+    concat_node1 = onnx.helper.make_node(
+        "Concat",
+        inputs=test1,
+        name="concat_node1",
+        outputs=["concat_output1"],
+        axis=axis,
+    )
+    concat_node2 = onnx.helper.make_node(
+        "Concat",
+        inputs=test2,
+        name="concat_node2",
+        outputs=["concat_output2"],
+        axis=axis,
+    )
+
+    concat_onnx_result1 = onnx_concat(inputs1, axis)
+    concat_onnx_result2 = onnx_concat(inputs2, axis)
+
+    nodes = [concat_node1, concat_node2]
+    results = []
+    refs = []
+
+    for concat_node in nodes:
+        output_tensor = ggml_operators["Concat"](
+            concat_node, tensors_dict, context, refs
+        )
+        gf = ggml.ggml_build_forward(output_tensor)
+        ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
+        results.append(ggml.utils.to_numpy(output_tensor))
+
+    assert np.array_equal(results[0], concat_onnx_result1)
+    assert np.array_equal(results[1], concat_onnx_result2)
+
+
 def test_ggml_onnx_runtime_basic():
     # return
     # The name of the input tensor
