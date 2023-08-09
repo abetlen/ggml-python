@@ -419,7 +419,21 @@ def ggml_operator_concat(
 def ggml_operator_div(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
-    raise NotImplementedError(f'Operator "Div" not implemented')
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Add" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    output_name = node.output[0]
+
+    div_result = ggml.ggml_div(
+        context,
+        *node_inputs,
+    )
+    tensors_dict[output_name] = div_result
+    return div_result
 
 
 @ggml_operator("Range")
@@ -433,7 +447,21 @@ def ggml_operator_range(
 def ggml_operator_sub(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
-    raise NotImplementedError(f'Operator "Sub" not implemented')
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Add" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    output_name = node.output[0]
+
+    sub_result = ggml.ggml_sub(
+        context,
+        *node_inputs,
+    )
+    tensors_dict[output_name] = sub_result
+    return sub_result
 
 
 @ggml_operator("Pow")
