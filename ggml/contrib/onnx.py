@@ -4,7 +4,7 @@ from typing import Any, Tuple, List
 
 import numpy as np
 import onnx
-from onnx import defs
+from onnx import defs, helper
 from onnx.backend.base import Backend, BackendRep
 from onnx.helper import make_opsetid
 from onnx.onnx_ml_pb2 import GraphProto, ModelProto, NodeProto
@@ -408,11 +408,106 @@ def ggml_operator_where(
     raise NotImplementedError(f'Operator "Where" not implemented')
 
 
+@ggml.ggml_custom3_op_t
+def custom_concat(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    tensor_in_3: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    a = ggml.utils.to_numpy(tensor_in_2)
+    b = ggml.utils.to_numpy(tensor_in_3)
+    axis = ctypes.cast(userdata, ctypes.POINTER(ctypes.c_int)).contents.value
+
+    x = np.concatenate([a, b], axis=axis)
+    x = np.resize(x, ggml.utils.to_numpy(tensor_out).shape)
+    ggml.utils.to_numpy(tensor_out)[:] = x
+
+
 @ggml_operator("Concat")
 def ggml_operator_concat(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
-    raise NotImplementedError(f'Operator "Concat" not implemented')
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) < 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Concat" requires at least two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    axis = node.attribute[0].i if len(node.attribute) > 0 else 0
+    tensors = [ggml.utils.to_numpy(node_input) for node_input in node_inputs]
+
+    axis_c = ctypes.c_int(axis)
+
+    shapes = [tensor.shape for tensor in tensors]
+    if not all(
+        shape[:axis] == shapes[0][:axis] and shape[axis + 1 :] == shapes[0][axis + 1 :]
+        for shape in shapes
+    ):
+        raise ValueError(
+            "All tensors must have the same shape along the specified axis."
+        )
+
+    total_dim = sum(shape[axis] for shape in shapes)
+    output_shape = list(shapes[0])
+    output_shape[axis] = total_dim
+
+    x = np.empty(output_shape, dtype=tensors[0].dtype)
+    x_t = ggml.utils.from_numpy(x, context)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom3_inplace(
+        context,
+        x_t,
+        node_inputs[0],
+        node_inputs[1],
+        custom_concat,
+        1,
+        ctypes.pointer(axis_c),
+    )
+
+    refs.append(axis_c)
+
+    if len(node_inputs) == 2:
+        return new_tensor
+    else:
+        mid = len(node.input) // 2
+        recursive_node_left = helper.make_node(
+            op_type=node.op_type,
+            inputs=node.input[:mid],
+            outputs=node.output,
+            name=node.name,
+            axis=axis,
+        )
+        recursive_node_right = helper.make_node(
+            op_type=node.op_type,
+            inputs=node.input[mid:],
+            outputs=node.output,
+            name=node.name,
+            axis=axis,
+        )
+
+        new_tensors_dict = tensors_dict.copy()
+
+        new_tensors_dict["left"] = ggml_operator_concat(
+            recursive_node_left, tensors_dict, context, refs
+        )
+        new_tensors_dict["right"] = ggml_operator_concat(
+            recursive_node_right, tensors_dict, context, refs
+        )
+
+        recursive_node = helper.make_node(
+            op_type=node.op_type,
+            inputs=["left", "right"],
+            outputs=node.output,
+            name=node.name,
+            axis=axis,
+        )
+
+        return ggml_operator_concat(recursive_node, new_tensors_dict, context, refs)
 
 
 @ggml_operator("Div")
