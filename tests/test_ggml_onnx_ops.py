@@ -596,28 +596,36 @@ def test_ggml_onnx_reshape_operation():
 
 
 def test_ggml_onnx_runtime_basic():
-    # return
-
     # The name of the input tensor
     input_name = "X"
 
     # The name of the weights tensor
     weight_name_a = "A"
     weight_name_b = "B"
+    weight_name_c = "C"
+    weight_name_d = "D"
+
+    # The name of the intermediate tensors
+    intermediate_name1 = "intermediate1"
+    intermediate_name2 = "intermediate2"
+    intermediate_name3 = "intermediate3"
 
     # The name of the output
     output_name = "Y"
 
     # Create the nodes (operations) in our graph
     node1 = helper.make_node(
-        "Mul", [input_name, input_name], ["X_squared"], name="node1"
-    )  # X^2
+        "Mul", [input_name, weight_name_a], [intermediate_name1], name="node1"
+    )  # X * A
     node2 = helper.make_node(
-        "Mul", ["X_squared", weight_name_a], ["X_squared_times_a"], name="node2"
-    )  # X^2 * A
+        "Div", [intermediate_name1, weight_name_b], [intermediate_name2], name="node2"
+    )  # (X * A) / B
     node3 = helper.make_node(
-        "Add", ["X_squared_times_a", weight_name_b], [output_name], name="node3"
-    )  # X^2 * A + B
+        "Add", [intermediate_name2, weight_name_c], [intermediate_name3], name="node3"
+    )  # (X * A / B) + C
+    node4 = helper.make_node(
+        "Sub", [intermediate_name3, weight_name_d], [output_name], name="node4"
+    )  # (X * A / B) + C - D
 
     # Define the tensors (values) in our graph
     X_value_info = helper.make_tensor_value_info(
@@ -628,9 +636,11 @@ def test_ggml_onnx_runtime_basic():
         output_name, TensorProto.FLOAT, [None, 1]
     )
 
-    # Set A and B as parameters/weights
-    weights_a = np.ones(1, dtype=float).astype(np.float32)
-    weights_b = np.ones(1, dtype=float).astype(np.float32)
+    # Set weights A, B, C, and D
+    weights_a = np.array([5.6], dtype=float).astype(np.float32)
+    weights_b = np.array([3.0013], dtype=float).astype(np.float32)
+    weights_c = np.array([8.1], dtype=float).astype(np.float32)
+    weights_d = np.array([13.22], dtype=float).astype(np.float32)
 
     A_init = helper.make_tensor(
         weight_name_a,
@@ -648,17 +658,33 @@ def test_ggml_onnx_runtime_basic():
         ],
         weights_b,
     )
+    C_init = helper.make_tensor(
+        weight_name_c,
+        TensorProto.FLOAT,
+        [
+            1,
+        ],
+        weights_c,
+    )
+    D_init = helper.make_tensor(
+        weight_name_d,
+        TensorProto.FLOAT,
+        [
+            1,
+        ],
+        weights_d,
+    )
 
     # Create the graph (model).
     graph_def = helper.make_graph(
-        [node1, node2, node3],
-        "simple_expression_model",
+        [node1, node2, node3, node4],
+        "complex_expression_model",
         [X_value_info],
         [output_value_info],
-        [A_init, B_init],
+        [A_init, B_init, C_init, D_init],
     )
 
-    model_def = helper.make_model(graph_def, producer_name="onnx-simple-expression")
+    model_def = helper.make_model(graph_def, producer_name="onnx-complex-expression")
 
     input_data = {"X": np.array([[6.0]], dtype=np.float32)}
 
@@ -670,4 +696,4 @@ def test_ggml_onnx_runtime_basic():
     ggml_dummy_model = GgmlRuntimeBackend.prepare(model_def)
     ggml_result = ggml_dummy_model.run(input_data)
 
-    assert ggml_result == runtime_result
+    assert np.allclose(ggml_result, runtime_result)
