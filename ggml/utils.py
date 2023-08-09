@@ -87,7 +87,10 @@ def from_numpy(x: npt.NDArray[Any], ctx: ggml.ggml_context_p) -> ggml.ggml_tenso
         *tuple(reversed(x.strides))
     )
     if tensor.contents.data is not None:
-        to_numpy(tensor)[:] = x
+        if shape == ():
+            to_numpy(tensor)[()] = x
+        else:
+            to_numpy(tensor)[:] = x
     return tensor
 
 
