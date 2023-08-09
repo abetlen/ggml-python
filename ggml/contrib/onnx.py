@@ -32,6 +32,15 @@ def ggml_operator(operator):
     return inner
 
 
+def map_to_ggml_type(NDArray: np.ndarray):
+    ggml_type = ggml.utils.NUMPY_DTYPE_TO_GGML_TYPE.get(
+        NDArray.dtype.type,
+        ggml.utils.GGML_TYPE.I32,  # TODO: Add i64 but for now, use i32 if looking for i64 or f64
+    )
+
+    return ggml_type
+
+
 # ------ Operators ------
 
 
@@ -163,8 +172,10 @@ def ggml_operator_constant(
 
     np_data_type_limit = np.dtype(str(np_data_type).replace("64", "32"))
 
+    data_value = np.frombuffer(tensor.raw_data, dtype=np_data_type)
+
     data_tensor = ggml.utils.from_numpy(
-        np.frombuffer(tensor.raw_data, dtype=np_data_type).astype(np_data_type_limit),
+        data_value.astype(np_data_type_limit),
         context,
     )
 
@@ -174,7 +185,15 @@ def ggml_operator_constant(
     x_t = None
 
     if tensor_shape == ():
-        x_t = ggml.ggml_new_i32(context, -1)
+        ggml_type = map_to_ggml_type(data_value.astype(np_data_type_limit))
+
+        x_t = ggml.ggml_new_tensor(
+            context,
+            ggml_type.value,
+            len(tensor_shape),
+            (ctypes.c_int64 * len(tensor_shape))(*tensor_shape),
+        )
+
     else:
         x_t = ggml.utils.from_numpy(x, context)
 
@@ -335,16 +354,17 @@ def ggml_operator_unsqueeze(
             f'Error for node "{node.name}": Operation "Unsqueeze" requires exactly two inputs, data and axes. Actual number of inputs: {len(node_inputs)}'
         )
 
-    x = ggml.utils.to_numpy(node_inputs[0])
+    x_input = ggml.utils.to_numpy(node_inputs[0])
     axes = ggml.utils.to_numpy(node_inputs[1])
 
-    output_shape = x.shape
+    output_shape = x_input.shape
 
     for axis in np.nditer(axes):
         output_shape = np.insert(output_shape, axis, 1)
 
-    x = np.empty(output_shape, dtype=x.dtype)
+    output_shape = output_shape.astype(np.int32)
 
+    x = np.empty(output_shape, dtype=x_input.dtype)
     x_t = ggml.utils.from_numpy(x, context)
 
     new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom3_inplace(
@@ -517,10 +537,8 @@ class GgmlBackendRep(BackendRep):
                 )
 
             # Create the input tensors with the correct type/shape
-            ggml_type = ggml.utils.NUMPY_DTYPE_TO_GGML_TYPE.get(
-                input_data.dtype.type,
-                ggml.utils.GGML_TYPE.I32,  # TODO: Add i64 but for now, use i32 if looking for i64 or f64
-            )
+            ggml_type = map_to_ggml_type(input_data)
+
             shape = tuple(reversed(input_data.shape))
             tensor = ggml.ggml_new_tensor(
                 context,
