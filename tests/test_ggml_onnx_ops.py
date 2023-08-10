@@ -581,6 +581,135 @@ def test_ggml_onnx_reshape_operation():
     assert np.array_equal(results[0], onnx_reshape(input_tensor, new_shape))
 
 
+def test_ggml_onnx_softmax_operator():
+    # return
+
+    input_name = "X"
+
+    output_name = "Softmax_Output"
+
+    input_data = {
+        input_name: np.array([[-1.5, 0.001, 3.73, 5.1, 6, 6.0001]], dtype=np.float32)
+    }
+
+    node1 = helper.make_node(
+        "Softmax", [input_name], [output_name], name="softmax_node"
+    )
+
+    X_value_info = helper.make_tensor_value_info(
+        input_name, TensorProto.FLOAT, [None, 6]
+    )
+
+    softmax_value_info = helper.make_tensor_value_info(
+        output_name, TensorProto.FLOAT, [None, 6]
+    )
+
+    graph_def = helper.make_graph(
+        [node1], "softmax_model", [X_value_info], [softmax_value_info]
+    )
+
+    model_def = helper.make_model(graph_def, producer_name="onnx-softmax")
+
+    f = io.BytesIO()
+    onnx.save(model_def, f)
+
+    runtime_result = InferenceSession(f.getvalue()).run(None, input_data)
+
+    ggml_dummy_model = GgmlRuntimeBackend.prepare(model_def)
+
+    ggml_result = ggml_dummy_model.run(input_data)
+
+    assert np.allclose(ggml_result, runtime_result, rtol=0.001)
+
+
+def test_ggml_onnx_reducemean_operator():
+    # return
+
+    def onnx_reducemean(x, axes):
+        class ReduceMeanModel(torch.nn.Module):
+            def forward(self, input):
+                return torch.mean(input, dim=axes.tolist(), keepdim=False)
+
+        model = ReduceMeanModel()
+
+        x_tensor = torch.tensor(x, dtype=torch.float32)
+
+        f = BytesIO()
+        torch.onnx.export(
+            model,
+            x_tensor,
+            f,
+            input_names=["data"],
+            output_names=["output"],
+            verbose=False,
+        )
+
+        onnx_model_bytes = BytesIO(f.getvalue())
+
+        onnx_model_bytes.seek(0)
+        sess = ort.InferenceSession(onnx_model_bytes.read())
+
+        x_list = x.tolist()
+        input_feed = {"data": x_list}
+
+        output = sess.run(None, input_feed)
+
+        return output[0]
+
+    params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
+    context = ggml.ggml_init(params=params)
+    tensors_dict = {}
+    refs = []
+
+    # Define input arrays and axes
+    input_array1 = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.float32)
+    axes1 = np.array([0, 1], dtype=np.int32)
+
+    input_array2 = np.array([[1, 2, 3, 4]], dtype=np.float32)
+    axes2 = np.array([1], dtype=np.int32)
+
+    # Compute ONNX ReduceMean using GGML
+    reducemean_numpy1 = onnx_reducemean(input_array1, axes1)
+    reducemean_numpy2 = onnx_reducemean(input_array2, axes2)
+
+    tensors_dict["input_array1"] = ggml.utils.from_numpy(input_array1, context)
+    tensors_dict["axes1"] = ggml.utils.from_numpy(axes1, context)
+    tensors_dict["input_array2"] = ggml.utils.from_numpy(input_array2, context)
+    tensors_dict["axes2"] = ggml.utils.from_numpy(axes2, context)
+
+    reducemean_node1 = onnx.helper.make_node(
+        "ReduceMean",
+        inputs=["input_array1"],
+        outputs=["reducemean_output1"],
+        axes=axes1,
+        keepdims=0,
+    )
+
+    reducemean_node2 = onnx.helper.make_node(
+        "ReduceMean",
+        inputs=["input_array2"],
+        outputs=["reducemean_output2"],
+        axes=axes2,
+        keepdims=0,
+    )
+
+    nodes = [reducemean_node1, reducemean_node2]
+    results = []
+
+    for reducemean_node in nodes:
+        output_tensor = ggml_operators["ReduceMean"](
+            reducemean_node, tensors_dict, context, refs
+        )
+        gf = ggml.ggml_build_forward(output_tensor)
+        ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
+        results.append(ggml.utils.to_numpy(output_tensor))
+
+    assert np.allclose(results[0], reducemean_numpy1)
+    assert np.allclose(results[1], reducemean_numpy2)
+
+    ggml.ggml_free(context)
+
+
 def test_ggml_onnx_runtime_basic():
     # return
 
@@ -689,44 +818,3 @@ def test_ggml_onnx_runtime_basic():
     ggml_result = ggml_dummy_model.run(input_data)
 
     assert np.allclose(ggml_result, runtime_result)
-
-
-def test_ggml_onnx_softmax_operator():
-    # return
-
-    input_name = "X"
-
-    output_name = "Softmax_Output"
-
-    input_data = {
-        input_name: np.array([[-1.5, 0.001, 3.73, 5.1, 6, 6.0001]], dtype=np.float32)
-    }
-
-    node1 = helper.make_node(
-        "Softmax", [input_name], [output_name], name="softmax_node"
-    )
-
-    X_value_info = helper.make_tensor_value_info(
-        input_name, TensorProto.FLOAT, [None, 6]
-    )
-
-    softmax_value_info = helper.make_tensor_value_info(
-        output_name, TensorProto.FLOAT, [None, 6]
-    )
-
-    graph_def = helper.make_graph(
-        [node1], "softmax_model", [X_value_info], [softmax_value_info]
-    )
-
-    model_def = helper.make_model(graph_def, producer_name="onnx-softmax")
-
-    f = io.BytesIO()
-    onnx.save(model_def, f)
-
-    runtime_result = InferenceSession(f.getvalue()).run(None, input_data)
-
-    ggml_dummy_model = GgmlRuntimeBackend.prepare(model_def)
-
-    ggml_result = ggml_dummy_model.run(input_data)
-
-    assert np.allclose(ggml_result, runtime_result, rtol=0.001)
