@@ -95,7 +95,6 @@ def test_ggml_onnx_runtime_unsqueeze_operator():
     # return
 
     def onnx_unsqueeze(x, axes):
-        # Create a simple PyTorch model
         class UnsqueezeModel(torch.nn.Module):
             def forward(self, input):
                 for axis in axes:
@@ -104,10 +103,8 @@ def test_ggml_onnx_runtime_unsqueeze_operator():
 
         model = UnsqueezeModel()
 
-        # Create a sample input tensor
         x_tensor = torch.tensor(x, dtype=torch.int32)
 
-        # Export the PyTorch model to ONNX
         f = BytesIO()
         torch.onnx.export(
             model,
@@ -118,18 +115,14 @@ def test_ggml_onnx_runtime_unsqueeze_operator():
             verbose=False,
         )
 
-        # Save the ONNX model to BytesIO object
         onnx_model_bytes = BytesIO(f.getvalue())
 
-        # Load the ONNX model from BytesIO
         onnx_model_bytes.seek(0)
         sess = ort.InferenceSession(onnx_model_bytes.read())
 
-        # Convert the input array to ONNX format (numpy to list)
         x_list = x.tolist()
         input_feed = {"data": x_list}
 
-        # Execute the ONNX model
         output = sess.run(None, input_feed)
 
         return output[0]
@@ -207,11 +200,9 @@ def test_ggml_onnx_runtime_gather_operator():
     # return
 
     def onnx_gather(x, indices, axis):
-        # Adjust the axis value to handle negative axis
         if axis < 0:
             axis += len(x.shape)
 
-        # Create ONNX model for Gather operation with specified axis
         node_def = onnx.helper.make_node(
             "Gather", inputs=["data", "indices"], outputs=["output"], axis=axis
         )
@@ -236,22 +227,17 @@ def test_ggml_onnx_runtime_gather_operator():
             graph_def, producer_name="onnx_gather_example"
         )
 
-        # Save the ONNX model to BytesIO object
         onnx_model_bytes = BytesIO()
         onnx.save_model(model_def, onnx_model_bytes)
 
-        # Load the ONNX model from BytesIO
         onnx_model_bytes.seek(0)
         sess = ort.InferenceSession(onnx_model_bytes.read())
 
-        # Convert the input arrays to ONNX format (numpy to list)
         x_list = x.tolist()
         indices_list = indices.tolist()
 
-        # Prepare the input feeds with the two arrays
         input_feed = {"data": x_list, "indices": indices_list}
 
-        # Execute the ONNX model
         output = sess.run(None, input_feed)
 
         return output[0]
@@ -598,28 +584,22 @@ def test_ggml_onnx_reshape_operation():
 def test_ggml_onnx_runtime_basic():
     # return
 
-    # The name of the input tensor
     input_name = "X"
 
-    # The name of the weights tensor
     weight_name_a = "A"
     weight_name_b = "B"
     weight_name_c = "C"
     weight_name_d = "D"
 
-    # The name of the intermediate tensors
     intermediate_name1 = "intermediate1"
     intermediate_name2 = "intermediate2"
     intermediate_name3 = "intermediate3"
     intermediate_name4 = "intermediate4"
     intermediate_name5 = "intermediate5"
     intermediate_name6 = "intermediate6"
-    intermediate_name7 = "intermediate7"
 
-    # The name of the output
     output_name = "Y"
 
-    # Create the nodes (operations) in our graph
     node1 = helper.make_node(
         "Mul", [input_name, weight_name_a], [intermediate_name1], name="node1"
     )  # X * A
@@ -642,7 +622,6 @@ def test_ggml_onnx_runtime_basic():
         "Abs", [intermediate_name6], [output_name], name="node7"
     )  # Abs(Log(Sqrt((X * A / B) + C - D)))
 
-    # Define the tensors (values) in our graph
     X_value_info = helper.make_tensor_value_info(
         input_name, TensorProto.FLOAT, [None, 1]
     )
@@ -651,7 +630,6 @@ def test_ggml_onnx_runtime_basic():
         output_name, TensorProto.FLOAT, [None, 1]
     )
 
-    # Set weights A, B, C, and D
     weights_a = np.array([50.6], dtype=float).astype(np.float32)
     weights_b = np.array([0.0013], dtype=float).astype(np.float32)
     weights_c = np.array([8.1], dtype=float).astype(np.float32)
@@ -690,7 +668,6 @@ def test_ggml_onnx_runtime_basic():
         weights_d,
     )
 
-    # Create the graph (model).
     graph_def = helper.make_graph(
         [node1, node2, node3, node4, node5, node6, node7],
         "complex_expression_model_with_log",
@@ -712,3 +689,44 @@ def test_ggml_onnx_runtime_basic():
     ggml_result = ggml_dummy_model.run(input_data)
 
     assert np.allclose(ggml_result, runtime_result)
+
+
+def test_ggml_onnx_softmax_operator():
+    # return
+
+    input_name = "X"
+
+    output_name = "Softmax_Output"
+
+    input_data = {
+        input_name: np.array([[-1.5, 0.001, 3.73, 5.1, 6, 6.0001]], dtype=np.float32)
+    }
+
+    node1 = helper.make_node(
+        "Softmax", [input_name], [output_name], name="softmax_node"
+    )
+
+    X_value_info = helper.make_tensor_value_info(
+        input_name, TensorProto.FLOAT, [None, 6]
+    )
+
+    softmax_value_info = helper.make_tensor_value_info(
+        output_name, TensorProto.FLOAT, [None, 6]
+    )
+
+    graph_def = helper.make_graph(
+        [node1], "softmax_model", [X_value_info], [softmax_value_info]
+    )
+
+    model_def = helper.make_model(graph_def, producer_name="onnx-softmax")
+
+    f = io.BytesIO()
+    onnx.save(model_def, f)
+
+    runtime_result = InferenceSession(f.getvalue()).run(None, input_data)
+
+    ggml_dummy_model = GgmlRuntimeBackend.prepare(model_def)
+
+    ggml_result = ggml_dummy_model.run(input_data)
+
+    assert np.allclose(ggml_result, runtime_result, rtol=0.001)
