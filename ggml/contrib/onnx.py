@@ -242,7 +242,20 @@ def ggml_operator_constant_of_shape(
 def ggml_operator_softmax(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
-    raise NotImplementedError(f'Operator "Softmax" not implemented')
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Softmax" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    output_name = node.output[0]
+    soft_max_result = ggml.ggml_soft_max(
+        context,
+        *node_inputs,
+    )
+    tensors_dict[output_name] = soft_max_result
+    return soft_max_result
 
 
 @ggml.ggml_custom3_op_t
@@ -636,7 +649,7 @@ class GgmlBackendRep(BackendRep):
 
         # Set user inputs
         for key, value in inputs.items():
-            ggml.ggml_set_f32(ggml_tensors[key], value)
+            ggml.utils.to_numpy(ggml_tensors[key])[:] = value
 
         # Compute graph
         ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
