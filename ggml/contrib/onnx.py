@@ -661,7 +661,7 @@ def ggml_operator_greater(
     a = ggml.utils.to_numpy(node_inputs[0])
     b = ggml.utils.to_numpy(node_inputs[1])
 
-    output_shape = min(a.shape, b.shape)
+    output_shape = np.broadcast(np.empty(a.shape), np.empty(b.shape)).shape
 
     x = np.empty(output_shape, dtype=a.dtype)
     x_t = ggml.utils.from_numpy(x, context)
@@ -711,7 +711,7 @@ def ggml_operator_greater(
     a = ggml.utils.to_numpy(node_inputs[0])
     b = ggml.utils.to_numpy(node_inputs[1])
 
-    output_shape = min(a.shape, b.shape)
+    output_shape = np.broadcast(np.empty(a.shape), np.empty(b.shape)).shape
 
     x = np.empty(output_shape, dtype=a.dtype)
     x_t = ggml.utils.from_numpy(x, context)
