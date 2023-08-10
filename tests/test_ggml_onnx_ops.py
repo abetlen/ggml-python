@@ -388,10 +388,8 @@ def test_ggml_onnx_concat_operator():
     return
 
     def onnx_concat(inputs, axis):
-        # Determine the input data type
         input_data_type = inputs[0].dtype
 
-        # Create ONNX graph
         graph = onnx.GraphProto()
 
         input_names = []
@@ -408,15 +406,13 @@ def test_ggml_onnx_concat_operator():
             )
             graph.input.extend([input_value_info])
 
-        # Create Concat node
         concat_node = onnx.NodeProto()
         concat_node.op_type = "Concat"
         concat_node.name = "concat_node"
         concat_node.output.extend(["output"])
         concat_node.attribute.extend([onnx.helper.make_attribute("axis", axis)])
-        concat_node.input.extend(input_names)  # Use input names
+        concat_node.input.extend(input_names)
 
-        # Create output tensor value info
         output_value_info = onnx.helper.make_tensor_value_info(
             "output",
             onnx.TensorProto.FLOAT
@@ -426,11 +422,9 @@ def test_ggml_onnx_concat_operator():
         )
         graph.output.extend([output_value_info])
 
-        # Finalize the graph
         graph.node.extend([concat_node])
         model = onnx.helper.make_model(graph)
 
-        # Save the ONNX model to BytesIO object
         onnx_model_bytes = BytesIO()
         onnx.save_model(model, onnx_model_bytes)
 
@@ -438,13 +432,11 @@ def test_ggml_onnx_concat_operator():
         onnx_model_bytes.seek(0)
         sess = ort.InferenceSession(onnx_model_bytes.read())
 
-        # Prepare the input feeds with the input arrays
         input_feed = {
             input_name: input_array
             for input_name, input_array in zip(input_names, inputs)
         }
 
-        # Execute the ONNX model
         output = sess.run(["output"], input_feed)
 
         return output[0]
@@ -527,20 +519,16 @@ def test_ggml_onnx_reshape_operation():
                 "Input shape must have the same number of dimensions as the input tensor"
             )
 
-        # Create a PyTorch model with dynamic reshape
         model = DynamicReshapeModel(shape)
 
-        # Perform dynamic reshape using PyTorch
         input_tensor = torch.tensor(input_tensor, dtype=torch.int32)
 
-        # Export the model to ONNX
         f = BytesIO()
         torch.onnx.export(
             model, input_tensor, f, opset_version=12, do_constant_folding=True
         )
         f.seek(0)
 
-        # Run the ONNX model using ONNX Runtime
         sess = ort.InferenceSession(f.getvalue())
         input_name = sess.get_inputs()[0].name
         output_name = sess.get_outputs()[0].name
@@ -661,14 +649,12 @@ def test_ggml_onnx_reducemean_operator():
     tensors_dict = {}
     refs = []
 
-    # Define input arrays and axes
     input_array1 = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.float32)
     axes1 = np.array([0, 1], dtype=np.int32)
 
     input_array2 = np.array([[1, 2, 3, 4]], dtype=np.float32)
     axes2 = np.array([1], dtype=np.int32)
 
-    # Compute ONNX ReduceMean using GGML
     reducemean_numpy1 = onnx_reducemean(input_array1, axes1)
     reducemean_numpy2 = onnx_reducemean(input_array2, axes2)
 
@@ -751,11 +737,9 @@ def test_ggml_onnx_less_operator():
     tensors_dict = {}
     refs = []
 
-    # Define input arrays
     input_array1 = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.float32)
     input_array2 = np.array([[2, 2, 2], [5, 5, 5], [8, 8, 8]], dtype=np.float32)
 
-    # Compute ONNX Less using GGML
     less_numpy = onnx_less(input_array1, input_array2)
 
     tensors_dict["input_array1"] = ggml.utils.from_numpy(input_array1, context)
@@ -822,11 +806,9 @@ def test_ggml_onnx_greater_operator():
     tensors_dict = {}
     refs = []
 
-    # Define input arrays
     input_array1 = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.float32)
     input_array2 = np.array([[2, 2, 2], [5, 5, 5], [8, 8, 8]], dtype=np.float32)
 
-    # Compute ONNX Greater using GGML
     greater_numpy = onnx_greater(input_array1, input_array2)
 
     tensors_dict["input_array1"] = ggml.utils.from_numpy(input_array1, context)
@@ -887,14 +869,11 @@ def test_ggml_onnx_min_operator():
     tensors_dict = {}
     refs = []
 
-    # Define input arrays
     input_array1 = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.float32)
 
-    # Compute ONNX Min using GGML
     min_numpy = onnx_min(input_array1)
 
     tensors_dict["input_array1"] = ggml.utils.from_numpy(input_array1, context)
-    # tensors_dict["input_array2"] = ggml.utils.from_numpy(input_array2, context)
 
     min_node = onnx.helper.make_node(
         "Min",
@@ -951,14 +930,9 @@ def test_ggml_onnx_max_operator():
     tensors_dict = {}
     refs = []
 
-    # Define input arrays
     input_array1 = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.float32)
-
-    # Compute ONNX Min using GGML
     min_numpy = onnx_max(input_array1)
-
     tensors_dict["input_array1"] = ggml.utils.from_numpy(input_array1, context)
-    # tensors_dict["input_array2"] = ggml.utils.from_numpy(input_array2, context)
 
     min_node = onnx.helper.make_node(
         "Min",
@@ -972,6 +946,273 @@ def test_ggml_onnx_max_operator():
     result = ggml.utils.to_numpy(output_tensor)
 
     assert np.allclose(result, min_numpy)
+
+    ggml.ggml_free(context)
+
+
+def test_ggml_onnx_matmul_operator():
+    return
+
+    def onnx_matmul(x1, x2):
+        class MatMulModel(torch.nn.Module):
+            def forward(self, input1, input2):
+                return torch.matmul(input1, input2)
+
+        model = MatMulModel()
+
+        x1_tensor = torch.tensor(x1, dtype=torch.float32)
+        x2_tensor = torch.tensor(x2, dtype=torch.float32)
+
+        f = BytesIO()
+        torch.onnx.export(
+            model,
+            (x1_tensor, x2_tensor),
+            f,
+            input_names=["input1", "input2"],
+            output_names=["output"],
+            verbose=False,
+        )
+
+        onnx_model_bytes = BytesIO(f.getvalue())
+
+        onnx_model_bytes.seek(0)
+        sess = ort.InferenceSession(onnx_model_bytes.read())
+
+        x1_list = x1.tolist()
+        x2_list = x2.tolist()
+        input_feed = {"input1": x1_list, "input2": x2_list}
+
+        output = sess.run(None, input_feed)
+
+        return output[0]
+
+    params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
+    context = ggml.ggml_init(params=params)
+    tensors_dict = {}
+    refs = []
+
+    # Define input arrays
+    input_array1 = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.float32)
+    input_array2 = np.array([[9, 8, 7], [6, 5, 4], [3, 2, 1]], dtype=np.float32)
+
+    # Compute ONNX MatMul using GGML
+    matmul_numpy = onnx_matmul(input_array1, input_array2)
+
+    tensors_dict["input_array1"] = ggml.utils.from_numpy(input_array1, context)
+    tensors_dict["input_array2"] = ggml.utils.from_numpy(input_array2, context)
+
+    matmul_node = onnx.helper.make_node(
+        "MatMul",
+        inputs=["input_array1", "input_array2"],
+        outputs=["matmul_output"],
+    )
+
+    output_tensor = ggml_operators["MatMul"](matmul_node, tensors_dict, context, refs)
+    gf = ggml.ggml_build_forward(output_tensor)
+    ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
+    result = ggml.utils.to_numpy(output_tensor)
+
+    assert np.allclose(result, matmul_numpy)
+
+    ggml.ggml_free(context)
+
+
+def test_ggml_onnx_pow_operator():
+    return
+
+    def onnx_pow(x, y):
+        class PowModel(torch.nn.Module):
+            def forward(self, input1, input2):
+                return torch.pow(input1, input2)
+
+        model = PowModel()
+
+        x_tensor = torch.tensor(x, dtype=torch.float32)
+        y_tensor = torch.tensor(y, dtype=torch.float32)
+
+        f = BytesIO()
+        torch.onnx.export(
+            model,
+            (x_tensor, y_tensor),
+            f,
+            input_names=["input1", "input2"],
+            output_names=["output"],
+            verbose=False,
+        )
+
+        onnx_model_bytes = BytesIO(f.getvalue())
+
+        onnx_model_bytes.seek(0)
+        sess = ort.InferenceSession(onnx_model_bytes.read())
+
+        x_list = x.tolist()
+        y_list = y.tolist()
+        input_feed = {"input1": x_list, "input2": y_list}
+
+        output = sess.run(None, input_feed)
+
+        return output[0]
+
+    params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
+    context = ggml.ggml_init(params=params)
+    tensors_dict = {}
+    refs = []
+
+    input_array1 = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.float32)
+    input_array2 = np.array([[2, 2, 2], [3, 3, 3], [4, 4, 4]], dtype=np.float32)
+
+    pow_numpy = onnx_pow(input_array1, input_array2)
+
+    tensors_dict["input_array1"] = ggml.utils.from_numpy(input_array1, context)
+    tensors_dict["input_array2"] = ggml.utils.from_numpy(input_array2, context)
+
+    pow_node = onnx.helper.make_node(
+        "Pow",
+        inputs=["input_array1", "input_array2"],
+        outputs=["pow_output"],
+    )
+
+    nodes = [pow_node]
+    results = []
+
+    for pow_node in nodes:
+        output_tensor = ggml_operators["Pow"](pow_node, tensors_dict, context, refs)
+        gf = ggml.ggml_build_forward(output_tensor)
+        ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
+        results.append(ggml.utils.to_numpy(output_tensor))
+
+    assert np.allclose(results[0], pow_numpy)
+
+    ggml.ggml_free(context)
+
+
+def test_ggml_onnx_relu_operator():
+    # return
+
+    def onnx_relu(x):
+        class ReluModel(torch.nn.Module):
+            def forward(self, input):
+                return torch.relu(input)
+
+        model = ReluModel()
+
+        x_tensor = torch.tensor(x, dtype=torch.float32)
+
+        f = BytesIO()
+        torch.onnx.export(
+            model,
+            (x_tensor,),
+            f,
+            input_names=["input"],
+            output_names=["output"],
+            verbose=False,
+        )
+
+        onnx_model_bytes = BytesIO(f.getvalue())
+
+        onnx_model_bytes.seek(0)
+        sess = ort.InferenceSession(onnx_model_bytes.read())
+
+        x_list = x.tolist()
+        input_feed = {"input": x_list}
+
+        output = sess.run(None, input_feed)
+
+        return output[0]
+
+    params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
+    context = ggml.ggml_init(params=params)
+    tensors_dict = {}
+    refs = []
+
+    input_array = np.array([[1, -2, 3], [-4, 5, -6], [7, -8, 9]], dtype=np.float32)
+
+    relu_numpy = onnx_relu(input_array)
+
+    tensors_dict["input_array"] = ggml.utils.from_numpy(input_array, context)
+
+    relu_node = onnx.helper.make_node(
+        "Relu",
+        inputs=["input_array"],
+        outputs=["relu_output"],
+    )
+
+    nodes = [relu_node]
+    results = []
+
+    for relu_node in nodes:
+        output_tensor = ggml_operators["Relu"](relu_node, tensors_dict, context, refs)
+        gf = ggml.ggml_build_forward(output_tensor)
+        ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
+        results.append(ggml.utils.to_numpy(output_tensor))
+
+    assert np.allclose(results[0], relu_numpy)
+
+    ggml.ggml_free(context)
+
+
+def test_ggml_onnx_transpose_operator():
+    # return
+
+    def onnx_transpose(x, dim0=1, dim1=0):
+        class TransposeModel(torch.nn.Module):
+            def forward(self, input):
+                return torch.transpose(input, dim0, dim1)
+
+        model = TransposeModel()
+
+        x_tensor = torch.tensor(x, dtype=torch.float32)
+
+        f = BytesIO()
+        torch.onnx.export(
+            model,
+            (x_tensor,),
+            f,
+            input_names=["input"],
+            output_names=["output"],
+            verbose=False,
+        )
+
+        onnx_model_bytes = BytesIO(f.getvalue())
+
+        onnx_model_bytes.seek(0)
+        sess = ort.InferenceSession(onnx_model_bytes.read())
+
+        x_list = x.tolist()
+        input_feed = {"input": x_list}
+
+        output = sess.run(None, input_feed)
+
+        return output[0]
+
+    params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
+    context = ggml.ggml_init(params=params)
+    tensors_dict = {}
+    refs = []
+
+    input_array = np.array([[1, -2, 3], [-4, 5, -6], [7, -8, 9]], dtype=np.float32)
+
+    transpose_numpy = onnx_transpose(input_array, 1, 0)
+
+    tensors_dict["input_array"] = ggml.utils.from_numpy(input_array, context)
+
+    transpose_node = onnx.helper.make_node(
+        "Transpose",
+        inputs=["input_array"],
+        outputs=["transpose_output"],
+        perm=[1, 0],
+    )
+
+    nodes = [transpose_node]
+    results = []
+
+    for node in nodes:
+        output_tensor = ggml_operators["Transpose"](node, tensors_dict, context, refs)
+        gf = ggml.ggml_build_forward(output_tensor)
+        ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
+        results.append(ggml.utils.to_numpy(output_tensor))
+
+    assert np.allclose(results[0], transpose_numpy)
 
     ggml.ggml_free(context)
 
