@@ -619,7 +619,22 @@ def ggml_operator_reshape(
 def ggml_operator_transpose(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
-    raise NotImplementedError(f'Operator "Transpose" not implemented')
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Transpose" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    output_name = node.output[0]
+    perm = next(attr for attr in node.attribute if attr.name == "perm").ints
+    # Add missing axes -> normally is 1, 0, 2, 3
+    perm.extend([i for i in range(4) if i not in perm])
+    perm = perm[:4]
+
+    transpose_result = ggml.ggml_permute(context, node_inputs[0], *perm)
+    tensors_dict[output_name] = transpose_result
+    return transpose_result
 
 
 @ggml_operator("Log")
