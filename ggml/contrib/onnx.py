@@ -32,13 +32,22 @@ def ggml_operator(operator):
     return inner
 
 
-def map_to_ggml_type(NDArray: np.ndarray):
+def map_to_ggml_type(dtype: np.dtype):
     ggml_type = ggml.utils.NUMPY_DTYPE_TO_GGML_TYPE.get(
-        NDArray.dtype.type,
+        dtype.type,
         ggml.utils.GGML_TYPE.I32,  # TODO: Add i64 but for now, use i32 if looking for i64 or f64
     )
 
     return ggml_type
+
+
+def set_tensor_out(tensor, ndarray):
+    output_shape = ggml.utils.to_numpy(tensor).shape
+
+    if output_shape == ():
+        ggml.utils.to_numpy(tensor)[()] = ndarray
+    else:
+        ggml.utils.to_numpy(tensor)[:] = ndarray
 
 
 # ------ Operators ------
@@ -153,10 +162,7 @@ def custom_constant(
     constant_data = ggml.utils.to_numpy(tensor_in_2)
     new_tenor = constant_data.reshape(shape)
 
-    if shape == ():
-        ggml.utils.to_numpy(tensor_out)[()] = new_tenor
-    else:
-        ggml.utils.to_numpy(tensor_out)[:] = new_tenor
+    set_tensor_out(tensor_out, new_tenor)
 
 
 @ggml_operator("Constant")
@@ -185,7 +191,7 @@ def ggml_operator_constant(
     x_t = None
 
     if tensor_shape == ():
-        ggml_type = map_to_ggml_type(data_value.astype(np_data_type_limit))
+        ggml_type = map_to_ggml_type(np_data_type_limit)
 
         x_t = ggml.ggml_new_tensor(
             context,
@@ -458,16 +464,12 @@ def custom_reducemean(
     userdata_data = userdata_data_ptr.contents
 
     tensor = ggml.utils.to_numpy(tensor_in_2)
-    tensor_out_shape = ggml.utils.to_numpy(tensor_out).shape
     axes = [userdata_data.axes[i] for i in range(userdata_data.axes_length)]
     keepdims = userdata_data.keepdims
 
     rmean_result = np.mean(tensor, tuple(axes), keepdims=keepdims)
 
-    if tensor_out_shape == ():
-        ggml.utils.to_numpy(tensor_out)[()] = rmean_result
-    else:
-        ggml.utils.to_numpy(tensor_out)[:] = rmean_result
+    set_tensor_out(tensor_out, rmean_result)
 
 
 @ggml_operator("ReduceMean")
@@ -513,13 +515,6 @@ def ggml_operator_reduce_mean(
     refs.append(rmean_userdata)
 
     return new_tensor
-
-
-@ggml_operator("Less")
-def ggml_operator_less(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
-):
-    raise NotImplementedError(f'Operator "Less" not implemented')
 
 
 @ggml_operator("Where")
@@ -634,18 +629,202 @@ def ggml_operator_log(
     return log_result
 
 
+@ggml.ggml_custom3_op_t
+def custom_greater(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    tensor_in_3: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    a = ggml.utils.to_numpy(tensor_in_2)
+    b = ggml.utils.to_numpy(tensor_in_3)
+
+    x = np.greater(a, b)
+
+    set_tensor_out(tensor_out, x)
+
+
 @ggml_operator("Greater")
 def ggml_operator_greater(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
-    raise NotImplementedError(f'Operator "Greater" not implemented')
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Greater" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    a = ggml.utils.to_numpy(node_inputs[0])
+    b = ggml.utils.to_numpy(node_inputs[1])
+
+    output_shape = min(a.shape, b.shape)
+
+    x = np.empty(output_shape, dtype=a.dtype)
+    x_t = ggml.utils.from_numpy(x, context)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom3_inplace(
+        context,
+        x_t,
+        node_inputs[0],
+        node_inputs[1],
+        custom_greater,
+        1,
+        None,
+    )
+
+    return new_tensor
+
+
+@ggml.ggml_custom3_op_t
+def custom_less(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    tensor_in_3: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    a = ggml.utils.to_numpy(tensor_in_2)
+    b = ggml.utils.to_numpy(tensor_in_3)
+
+    x = np.less(a, b)
+
+    set_tensor_out(tensor_out, x)
+
+
+@ggml_operator("Less")
+def ggml_operator_greater(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Less" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    a = ggml.utils.to_numpy(node_inputs[0])
+    b = ggml.utils.to_numpy(node_inputs[1])
+
+    output_shape = min(a.shape, b.shape)
+
+    x = np.empty(output_shape, dtype=a.dtype)
+    x_t = ggml.utils.from_numpy(x, context)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom3_inplace(
+        context,
+        x_t,
+        node_inputs[0],
+        node_inputs[1],
+        custom_less,
+        1,
+        None,
+    )
+
+    return new_tensor
+
+
+@ggml.ggml_custom2_op_t
+def custom_min(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    a = ggml.utils.to_numpy(tensor_in_2)
+    x = np.min(a)
+    set_tensor_out(tensor_out, np.array(x))
 
 
 @ggml_operator("Min")
-def ggml_operator_min(
+def ggml_operator_greater(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
-    raise NotImplementedError(f'Operator "Min" not implemented')
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Min" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    a = ggml.utils.to_numpy(node_inputs[0])
+
+    output_shape = ()
+    ggml_type = map_to_ggml_type(a.dtype)
+
+    x_t = ggml.ggml_new_tensor(
+        context,
+        ggml_type.value,
+        len(output_shape),
+        (ctypes.c_int64 * len(output_shape))(*output_shape),
+    )
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+        context,
+        x_t,
+        node_inputs[0],
+        custom_min,
+        1,
+        None,
+    )
+
+    return new_tensor
+
+
+@ggml.ggml_custom2_op_t
+def custom_max(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    a = ggml.utils.to_numpy(tensor_in_2)
+    x = np.max(a)
+    set_tensor_out(tensor_out, np.array(x))
+
+
+@ggml_operator("Max")
+def ggml_operator_greater(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Max" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    a = ggml.utils.to_numpy(node_inputs[0])
+
+    output_shape = ()
+    ggml_type = map_to_ggml_type(a.dtype)
+
+    x_t = ggml.ggml_new_tensor(
+        context,
+        ggml_type.value,
+        len(output_shape),
+        (ctypes.c_int64 * len(output_shape))(*output_shape),
+    )
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+        context,
+        x_t,
+        node_inputs[0],
+        custom_max,
+        1,
+        None,
+    )
+
+    return new_tensor
 
 
 class GgmlBackendRep(BackendRep):
@@ -700,7 +879,7 @@ class GgmlBackendRep(BackendRep):
                 )
 
             # Create the input tensors with the correct type/shape
-            ggml_type = map_to_ggml_type(input_data)
+            ggml_type = map_to_ggml_type(input_data.dtype)
 
             shape = tuple(reversed(input_data.shape))
             tensor = ggml.ggml_new_tensor(
