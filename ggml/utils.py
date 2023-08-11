@@ -171,3 +171,85 @@ def quantize_0(
         hist,
     )
     return ctypes.cast(work, ctypes.c_void_p), hist, cur_size
+
+
+def quantize_row(
+    data_f32: ggml.CFloatArray,
+    nelements: int,
+    ttype: GGML_TYPE,
+    work: Optional[ctypes.c_void_p] = None,
+):
+    """Quantize a row of a ggml tensor.
+
+    Parameters:
+        data_f32: float32 array
+        nelements: number of elements in data_f32
+        ttype: ggml type to quantize to
+        work: work buffer
+
+    Returns:
+        output buffer"""
+    type_traits = ggml.ggml_internal_get_type_traits(ttype.value)
+    from_float = type_traits.from_float
+    work = work or ctypes.cast((ctypes.c_float * nelements)(), ctypes.c_void_p)
+    from_float(data_f32, work, nelements)
+    return work
+
+
+def dequantize_row(
+    data_q: ctypes.c_void_p,
+    nelements: int,
+    ttype: GGML_TYPE,
+    work: Optional[ctypes.c_void_p] = None,
+):
+    """Dequantize a row of a ggml tensor.
+
+    Parameters:
+        data_q: quantized data
+        nelements: number of elements in data_q
+        ttype: ggml type to dequantize from
+        work: work buffer
+
+    Returns:
+        output buffer"""
+    type_traits = ggml.ggml_internal_get_type_traits(ttype.value)
+    to_float = type_traits.to_float
+    work = work or ctypes.cast((ctypes.c_float * nelements)(), ctypes.c_void_p)
+    to_float(data_q, work, nelements)
+    return work
+
+
+def get_ndims(tensor: ggml.ggml_tensor_p) -> int:
+    """Get the number of dimensions of a ggml tensor.
+
+    Parameters:
+        tensor: ggml tensor
+
+    Returns:
+        Number of dimensions of tensor
+    """
+    return tensor.contents.n_dims
+
+
+def get_shape(tensor: ggml.ggml_tensor_p) -> Tuple[int, ...]:
+    """Get the shape of a ggml tensor.
+
+    Parameters:
+        tensor: ggml tensor
+
+    Returns:
+        Shape of tensor
+    """
+    return tensor.contents.ne[: tensor.contents.n_dims]
+
+
+def get_strides(tensor: ggml.ggml_tensor_p) -> Tuple[int, ...]:
+    """Get the strides of a ggml tensor.
+
+    Parameters:
+        tensor: ggml tensor
+
+    Returns:
+        Strides of tensor
+    """
+    return tensor.contents.nb[: tensor.contents.n_dims]
