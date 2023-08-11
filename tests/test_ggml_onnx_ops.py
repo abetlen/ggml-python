@@ -384,6 +384,79 @@ def test_ggml_onnx_constant_operator():
     ggml.ggml_free(context)
 
 
+def test_ggml_onnx_constant_of_shape_operator():
+    # return
+
+    def onnx_constant(value, other):
+        shape = list(other.shape)
+        value = numpy_helper.from_array(value)
+        constant_node = onnx.helper.make_node(
+            "ConstantOfShape", inputs=["data"], outputs=["constant_output"], value=value
+        )
+        graph = onnx.helper.make_graph(
+            [constant_node],
+            "constant_graph",
+            inputs=[
+                onnx.helper.make_tensor_value_info(
+                    "data", onnx.TensorProto.INT64, shape
+                )
+            ],
+            outputs=[
+                onnx.helper.make_tensor_value_info(
+                    "constant_output", onnx.TensorProto.FLOAT, shape
+                )
+            ],
+        )
+        model = onnx.helper.make_model(graph)
+
+        onnx_model_bytes = BytesIO()
+        onnx.save_model(model, onnx_model_bytes)
+
+        onnx_model_bytes.seek(0)
+        sess = ort.InferenceSession(onnx_model_bytes.read())
+
+        x_list = other.tolist()
+        input_feed = {"data": x_list}
+
+        output = sess.run(None, input_feed)
+
+        return output[0]
+
+    params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
+    context = ggml.ggml_init(params=params)
+    tensors_dict = {}
+
+    shape1 = np.array([2, 3, 4], dtype=np.int32)
+    value_tensor = np.array([15], dtype=np.float32)
+
+    cof_node1 = onnx.helper.make_node(
+        "ConstantOfShape",
+        inputs=["shape1"],
+        name="cof_node1",
+        outputs=["cof_output"],
+        value=numpy_helper.from_array(value_tensor),
+    )
+
+    tensors_dict["shape1"] = ggml.utils.from_numpy(shape1, context)
+
+    constant_onnx = onnx_constant(value_tensor, shape1)
+
+    nodes = [cof_node1]
+    results = []
+    refs = []
+
+    for shape_node in nodes:
+        output_tensor = ggml_operators["ConstantOfShape"](
+            shape_node, tensors_dict, context, refs
+        )
+        gf = ggml.ggml_build_forward(output_tensor)
+        ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
+        results.append(ggml.utils.to_numpy(output_tensor))
+    assert np.array_equal(results[0], constant_onnx)
+
+    ggml.ggml_free(context)
+
+
 def test_ggml_onnx_concat_operator():
     return
 

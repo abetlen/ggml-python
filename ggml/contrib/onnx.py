@@ -215,6 +215,66 @@ def ggml_operator_constant(
     return new_tensor
 
 
+@ggml.ggml_custom2_op_t
+def custom_constant_of_shape(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    shape = ggml.utils.to_numpy(tensor_out).shape
+    value = ggml.utils.to_numpy(tensor_in_2)
+    new_tenor = np.full(tuple(shape), value)
+
+    set_tensor_out(tensor_out, new_tenor)
+
+
+@ggml_operator("ConstantOfShape")
+def ggml_operator_constant_of_shape(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "ConstantOfShape" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    node_attributes = node.attribute
+
+    value_attr = next(attr for attr in node_attributes if attr.name == "value")
+    tensor = value_attr.t
+    data_type = tensor.data_type
+    np_data_type = tensor_dtype_to_np_dtype(data_type)
+
+    np_data_type_limit = np.dtype(str(np_data_type).replace("64", "32"))
+
+    data_value = np.frombuffer(tensor.raw_data, dtype=np_data_type)
+
+    data_tensor = ggml.utils.from_numpy(
+        data_value.astype(np_data_type_limit),
+        context,
+    )
+
+    shape = ggml.utils.to_numpy(node_inputs[0])
+
+    x = np.empty(shape, dtype=np_data_type_limit)
+    x_t = ggml.utils.from_numpy(x, context)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+        context,
+        x_t,
+        data_tensor,
+        custom_constant_of_shape,
+        1,
+        None,
+    )
+
+    return new_tensor
+
+
 @ggml_operator("Mul")
 def ggml_operator_mul(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
@@ -235,13 +295,6 @@ def ggml_operator_mul(
 
     tensors_dict[output_name] = mul_result
     return mul_result
-
-
-@ggml_operator("ConstantOfShape")
-def ggml_operator_constant_of_shape(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
-):
-    raise NotImplementedError(f'Operator "ConstantOfShape" not implemented')
 
 
 @ggml_operator("Softmax")
