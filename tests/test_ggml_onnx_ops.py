@@ -1155,31 +1155,36 @@ def test_ggml_onnx_transpose_operator():
     # return
 
     def onnx_transpose(x, dim0=1, dim1=0):
-        class TransposeModel(torch.nn.Module):
-            def forward(self, input):
-                return torch.transpose(input, dim0, dim1)
+        transpose_node = onnx.helper.make_node(
+            "Transpose", inputs=["input"], outputs=["output"], perm=[dim0, dim1]
+        )
 
-        model = TransposeModel()
+        graph = onnx.helper.make_graph(
+            [transpose_node],
+            "transpose_graph",
+            inputs=[
+                onnx.helper.make_tensor_value_info(
+                    "input", onnx.TensorProto.FLOAT, list(x.shape)
+                )
+            ],
+            outputs=[
+                onnx.helper.make_tensor_value_info(
+                    "output", onnx.TensorProto.FLOAT, list(x.shape)
+                )
+            ],
+        )
 
-        x_tensor = torch.tensor(x, dtype=torch.float32)
+        model = onnx.helper.make_model(graph)
 
         f = BytesIO()
-        torch.onnx.export(
-            model,
-            (x_tensor,),
-            f,
-            input_names=["input"],
-            output_names=["output"],
-            verbose=False,
-        )
+        onnx.save_model(model, f)
 
         onnx_model_bytes = BytesIO(f.getvalue())
 
         onnx_model_bytes.seek(0)
         sess = ort.InferenceSession(onnx_model_bytes.read())
 
-        x_list = x.tolist()
-        input_feed = {"input": x_list}
+        input_feed = {"input": x}
 
         output = sess.run(None, input_feed)
 
