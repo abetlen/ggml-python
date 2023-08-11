@@ -107,11 +107,9 @@ def test_ggml_min_alloc():
 
 
 def test_quantize():
-    # import random
     ne0 = 32
     ne1 = 1
     nelements = ne0 * ne1
-    # data = [random.gauss(0, 20) for _ in range(nelements)]
     data = [float(i) for i in range(nelements)]
     data_f32 = (ctypes.c_float * len(data))(*data)
     work = (ctypes.c_float * nelements)(0)
@@ -125,4 +123,14 @@ def test_quantize():
     )
     assert cur_size == 34
 
+    type_traits = ggml.ggml_internal_get_type_traits(ggml.GGML_TYPE_Q8_0)
+    work2 = (ctypes.c_float * nelements)(0)
+    type_traits.to_float(
+        ctypes.cast(work, ctypes.c_void_p),
+        ctypes.cast(work2, ctypes.POINTER(ctypes.c_float)),
+        nelements,
+    )
 
+    eps = 0.5
+    for i in range(nelements):
+        assert abs(work2[i] - data[i]) < eps
