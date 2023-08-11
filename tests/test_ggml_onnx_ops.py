@@ -1227,9 +1227,9 @@ def test_ggml_onnx_relu_operator():
 def test_ggml_onnx_transpose_operator():
     # return
 
-    def onnx_transpose(x, dim0=1, dim1=0):
+    def onnx_transpose(x):
         transpose_node = onnx.helper.make_node(
-            "Transpose", inputs=["input"], outputs=["output"], perm=[dim0, dim1]
+            "Transpose", inputs=["input"], outputs=["output"]
         )
 
         graph = onnx.helper.make_graph(
@@ -1268,9 +1268,9 @@ def test_ggml_onnx_transpose_operator():
     tensors_dict = {}
     refs = []
 
-    input_array = np.array([[1, -2, 3], [-4, 5, -6], [7, -8, 9]], dtype=np.float32)
+    input_array = np.random.rand(3, 3, 3, 3).astype(np.float32)
 
-    transpose_numpy = onnx_transpose(input_array, 1, 0)
+    transpose_numpy = onnx_transpose(input_array)
 
     tensors_dict["input_array"] = ggml.utils.from_numpy(input_array, context)
 
@@ -1278,7 +1278,6 @@ def test_ggml_onnx_transpose_operator():
         "Transpose",
         inputs=["input_array"],
         outputs=["transpose_output"],
-        perm=[1, 0],
     )
 
     nodes = [transpose_node]

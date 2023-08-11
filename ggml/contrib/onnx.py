@@ -680,10 +680,14 @@ def ggml_operator_transpose(
         )
 
     output_name = node.output[0]
-    perm = next(attr for attr in node.attribute if attr.name == "perm").ints
-    # Add missing axes -> normally is 1, 0, 2, 3
-    perm.extend([i for i in range(4) if i not in perm])
-    perm = perm[:4]
+    input_shape = ggml.utils.to_numpy(node_inputs[0]).shape
+    perm_map = {1: [1, 0, 2, 3], 2: [1, 0, 2, 3], 3: [2, 1, 0, 3], 4: [3, 2, 1, 0]}
+
+    perm_attr = next((attr for attr in node.attribute if attr.name == "perm"), None)
+    perm = perm_attr.ints if perm_attr else []
+
+    if len(perm) < len(input_shape):
+        perm = perm_map.get(len(input_shape), [1, 0, 2, 3])
 
     transpose_result = ggml.ggml_permute(context, node_inputs[0], *perm)
     tensors_dict[output_name] = transpose_result
