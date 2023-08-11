@@ -4,8 +4,7 @@ import enum
 import ctypes
 import contextlib
 
-from typing import Any, Callable, Optional, Sequence, Tuple
-from typing_extensions import TypeAlias
+from typing import Any, Optional, Tuple
 
 from ggml import ggml
 
