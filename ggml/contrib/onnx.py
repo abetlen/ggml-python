@@ -66,9 +66,13 @@ def ggml_operator_add(
 
     output_name = node.output[0]
 
+    a = node_inputs[0]
+    b = node_inputs[1]
+
     add_result = ggml.ggml_add(
         context,
-        *node_inputs,
+        a,
+        b,
     )
     tensors_dict[output_name] = add_result
     return add_result
@@ -287,10 +291,13 @@ def ggml_operator_mul(
         )
 
     output_name = node.output[0]
+    a = node_inputs[0]
+    b = node_inputs[1]
 
     mul_result = ggml.ggml_mul(
         context,
-        *node_inputs,
+        a,
+        b,
     )
 
     tensors_dict[output_name] = mul_result
@@ -309,9 +316,11 @@ def ggml_operator_softmax(
         )
 
     output_name = node.output[0]
+    a = node_inputs[0]
+
     soft_max_result = ggml.ggml_soft_max(
         context,
-        *node_inputs,
+        a,
     )
     tensors_dict[output_name] = soft_max_result
     return soft_max_result
@@ -387,10 +396,11 @@ def ggml_operator_relu(
         )
 
     output_name = node.output[0]
+    a = node_inputs[0]
 
     relu_result = ggml.ggml_relu(
         context,
-        *node_inputs,
+        a,
     )
     tensors_dict[output_name] = relu_result
     return relu_result
@@ -415,10 +425,11 @@ def ggml_operator_abs(
         )
 
     output_name = node.output[0]
+    a = node_inputs[0]
 
     abs_result = ggml.ggml_abs(
         context,
-        *node_inputs,
+        a,
     )
     tensors_dict[output_name] = abs_result
     return abs_result
@@ -492,10 +503,11 @@ def ggml_operator_sqrt(
         )
 
     output_name = node.output[0]
+    a = node_inputs[0]
 
     sqrt_result = ggml.ggml_sqrt(
         context,
-        *node_inputs,
+        a,
     )
     tensors_dict[output_name] = sqrt_result
     return sqrt_result
@@ -610,10 +622,13 @@ def ggml_operator_div(
         )
 
     output_name = node.output[0]
+    a = node_inputs[0]
+    b = node_inputs[1]
 
     div_result = ggml.ggml_div(
         context,
-        *node_inputs,
+        a,
+        b,
     )
     tensors_dict[output_name] = div_result
     return div_result
@@ -638,10 +653,13 @@ def ggml_operator_sub(
         )
 
     output_name = node.output[0]
+    a = node_inputs[0]
+    b = node_inputs[1]
 
     sub_result = ggml.ggml_sub(
         context,
-        *node_inputs,
+        a,
+        b,
     )
     tensors_dict[output_name] = sub_result
     return sub_result
@@ -681,15 +699,18 @@ def ggml_operator_transpose(
 
     output_name = node.output[0]
     input_shape = ggml.utils.to_numpy(node_inputs[0]).shape
-    perm_map = {1: [1, 0, 2, 3], 2: [1, 0, 2, 3], 3: [2, 1, 0, 3], 4: [3, 2, 1, 0]}
+    perm_map = {1: [0, 1, 2, 3], 2: [1, 0, 2, 3], 3: [2, 1, 0, 3], 4: [3, 2, 1, 0]}
 
     perm_attr = next((attr for attr in node.attribute if attr.name == "perm"), None)
-    perm = perm_attr.ints if perm_attr else []
 
-    if len(perm) < len(input_shape):
+    if perm_attr is None:
         perm = perm_map.get(len(input_shape), [1, 0, 2, 3])
+    else:
+        perm = list(perm_attr.ints)
+        perm += [0, 1, 2, 3][len(perm) :]
 
-    transpose_result = ggml.ggml_permute(context, node_inputs[0], *perm)
+    ax0, ax1, ax2, ax3 = perm  # TODO: do this for all node_inputs
+    transpose_result = ggml.ggml_permute(context, node_inputs[0], ax0, ax1, ax2, ax3)
     tensors_dict[output_name] = transpose_result
     return transpose_result
 
@@ -706,10 +727,11 @@ def ggml_operator_log(
         )
 
     output_name = node.output[0]
+    a = node_inputs[0]
 
     log_result = ggml.ggml_log(
         context,
-        *node_inputs,
+        a,
     )
     tensors_dict[output_name] = log_result
     return log_result
