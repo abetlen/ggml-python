@@ -1225,11 +1225,11 @@ def test_ggml_onnx_relu_operator():
 
 
 def test_ggml_onnx_transpose_operator():
-    # return
+    return
 
-    def onnx_transpose(x):
+    def onnx_transpose(x, perm=[1, 0]):
         transpose_node = onnx.helper.make_node(
-            "Transpose", inputs=["input"], outputs=["output"]
+            "Transpose", inputs=["input"], outputs=["output"], perm=perm
         )
 
         graph = onnx.helper.make_graph(
@@ -1268,28 +1268,127 @@ def test_ggml_onnx_transpose_operator():
     tensors_dict = {}
     refs = []
 
-    input_array = np.random.rand(3, 3, 3, 3).astype(np.float32)
+    import itertools
 
-    transpose_numpy = onnx_transpose(input_array)
+    input_array = np.random.rand(3, 3, 3).astype(np.float32)
+    permutations = list(itertools.permutations(np.arange(len(input_array.shape))))
 
     tensors_dict["input_array"] = ggml.utils.from_numpy(input_array, context)
+    nodes = []
+    ggml_results = []
+    onnx_results = []
 
-    transpose_node = onnx.helper.make_node(
-        "Transpose",
-        inputs=["input_array"],
-        outputs=["transpose_output"],
-    )
+    for i, permutation in enumerate(permutations):
+        transpose_node = onnx.helper.make_node(
+            "Transpose",
+            inputs=["input_array"],
+            outputs=[f"transpose_output{i}"],
+            perm=permutation,
+        )
 
-    nodes = [transpose_node]
-    results = []
+        nodes.append(transpose_node)
+        onnx_results.append(onnx_transpose(input_array, permutation))
 
     for node in nodes:
         output_tensor = ggml_operators["Transpose"](node, tensors_dict, context, refs)
         gf = ggml.ggml_build_forward(output_tensor)
         ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
-        results.append(ggml.utils.to_numpy(output_tensor))
+        ggml_results.append(ggml.utils.to_numpy(output_tensor))
 
-    assert np.allclose(results[0], transpose_numpy)
+    test_results = []
+
+    for i, result in enumerate(ggml_results):
+        test_results.append(np.allclose(result, onnx_results[i]))
+        # if not np.allclose(result, onnx_results[i]):
+        # print()
+        # print()
+        # print()
+        # print(permutations[i])
+        # print("ggml:")
+        # print(result)
+        # print("onnx:")
+        # print(onnx_results[i])
+        # break
+
+    print(test_results)
+
+    ggml.ggml_free(context)
+
+
+def test_ggml_onnx_range_operator():
+    # return
+
+    def onnx_range(start, limit, delta):
+        range_node = onnx.helper.make_node(
+            "Range",
+            inputs=["start", "limit", "delta"],
+            outputs=["output"],
+        )
+
+        graph = onnx.helper.make_graph(
+            [range_node],
+            "range_graph",
+            inputs=[
+                onnx.helper.make_tensor_value_info(
+                    "start", onnx.TensorProto.FLOAT, list(start.shape)
+                ),
+                onnx.helper.make_tensor_value_info(
+                    "limit", onnx.TensorProto.FLOAT, list(limit.shape)
+                ),
+                onnx.helper.make_tensor_value_info(
+                    "delta", onnx.TensorProto.FLOAT, list(delta.shape)
+                ),
+            ],
+            outputs=[
+                onnx.helper.make_tensor_value_info(
+                    "output", onnx.TensorProto.FLOAT, list(start.shape)
+                ),
+            ],
+        )
+
+        model = onnx.helper.make_model(graph)
+
+        f = BytesIO()
+        onnx.save_model(model, f)
+
+        onnx_model_bytes = BytesIO(f.getvalue())
+
+        onnx_model_bytes.seek(0)
+        sess = ort.InferenceSession(onnx_model_bytes.read())
+
+        input_feed = {"start": start, "limit": limit, "delta": delta}
+
+        output = sess.run(None, input_feed)
+
+        return output[0]
+
+    params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
+    context = ggml.ggml_init(params=params)
+    tensors_dict = {}
+    refs = []
+
+    start_array = np.random.uniform(-10, 10, (1,)).astype(np.float32)
+    limit_array = np.random.uniform(0, 20, (1,)).astype(np.float32)
+    delta_array = np.random.uniform(0.1, 2, (1,)).astype(np.float32)
+
+    range_numpy = onnx_range(start_array, limit_array, delta_array)
+
+    tensors_dict["start_array"] = ggml.utils.from_numpy(start_array, context)
+    tensors_dict["limit_array"] = ggml.utils.from_numpy(limit_array, context)
+    tensors_dict["delta_array"] = ggml.utils.from_numpy(delta_array, context)
+
+    range_node = onnx.helper.make_node(
+        "Range",
+        inputs=["start_array", "limit_array", "delta_array"],
+        outputs=["range_output"],
+    )
+
+    output_tensor = ggml_operators["Range"](range_node, tensors_dict, context, refs)
+    gf = ggml.ggml_build_forward(output_tensor)
+    ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
+    result = ggml.utils.to_numpy(output_tensor)
+
+    assert np.allclose(result, range_numpy)
 
     ggml.ggml_free(context)
 

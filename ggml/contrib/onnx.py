@@ -634,11 +634,54 @@ def ggml_operator_div(
     return div_result
 
 
+@ggml.ggml_custom2_op_t
+def custom_range(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    tensors = ggml.utils.to_numpy(tensor_in_2)
+    start_array, limit_array, delta_array = tensors
+
+    new_tensor = np.arange(start_array, limit_array, delta_array)
+
+    set_tensor_out(tensor_out, new_tensor)
+
+
 @ggml_operator("Range")
 def ggml_operator_range(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
-    raise NotImplementedError(f'Operator "Range" not implemented')
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 3:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Range" requires exactly three inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    tensors = [ggml.utils.to_numpy(node_input) for node_input in node_inputs]
+
+    start, stop, step = tensors
+    output_shape = (int(np.ceil((stop - start) / step)),)
+
+    x = np.empty(output_shape, dtype=step.dtype)
+    x_t = ggml.utils.from_numpy(x, context)
+
+    input_tensors = ggml.utils.from_numpy(np.array(tensors), context)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+        context,
+        x_t,
+        input_tensors,
+        custom_range,
+        1,
+        None,
+    )
+
+    return new_tensor
 
 
 @ggml_operator("Sub")
@@ -709,7 +752,7 @@ def ggml_operator_transpose(
         perm = list(perm_attr.ints)
         perm += [0, 1, 2, 3][len(perm) :]
 
-    ax0, ax1, ax2, ax3 = perm  # TODO: do this for all node_inputs
+    ax0, ax1, ax2, ax3 = perm
     transpose_result = ggml.ggml_permute(context, node_inputs[0], ax0, ax1, ax2, ax3)
     tensors_dict[output_name] = transpose_result
     return transpose_result
