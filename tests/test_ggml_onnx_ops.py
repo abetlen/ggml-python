@@ -569,7 +569,7 @@ def test_ggml_onnx_concat_operator():
 
 
 def test_ggml_onnx_reshape_operation():
-    return
+    # return
 
     def onnx_reshape(input_tensor, shape):
         class DynamicReshapeModel(torch.nn.Module):
@@ -1024,36 +1024,42 @@ def test_ggml_onnx_max_operator():
 
 
 def test_ggml_onnx_matmul_operator():
-    return
+    # return
 
-    def onnx_matmul(x1, x2):
-        class MatMulModel(torch.nn.Module):
-            def forward(self, input1, input2):
-                return torch.matmul(input1, input2)
+    def onnx_matmul(x, y):
+        matmul_node = onnx.helper.make_node(
+            "MatMul", inputs=["input1", "input2"], outputs=["output"]
+        )
 
-        model = MatMulModel()
+        graph = onnx.helper.make_graph(
+            [matmul_node],
+            "matmul_graph",
+            inputs=[
+                onnx.helper.make_tensor_value_info(
+                    "input1", onnx.TensorProto.FLOAT, list(x.shape)
+                ),
+                onnx.helper.make_tensor_value_info(
+                    "input2", onnx.TensorProto.FLOAT, list(y.shape)
+                ),
+            ],
+            outputs=[
+                onnx.helper.make_tensor_value_info(
+                    "output", onnx.TensorProto.FLOAT, list((x.shape[0], y.shape[1]))
+                )
+            ],
+        )
 
-        x1_tensor = torch.tensor(x1, dtype=torch.float32)
-        x2_tensor = torch.tensor(x2, dtype=torch.float32)
+        model = onnx.helper.make_model(graph)
 
         f = BytesIO()
-        torch.onnx.export(
-            model,
-            (x1_tensor, x2_tensor),
-            f,
-            input_names=["input1", "input2"],
-            output_names=["output"],
-            verbose=False,
-        )
+        onnx.save_model(model, f)
 
         onnx_model_bytes = BytesIO(f.getvalue())
 
         onnx_model_bytes.seek(0)
         sess = ort.InferenceSession(onnx_model_bytes.read())
 
-        x1_list = x1.tolist()
-        x2_list = x2.tolist()
-        input_feed = {"input1": x1_list, "input2": x2_list}
+        input_feed = {"input1": x, "input2": y}
 
         output = sess.run(None, input_feed)
 
@@ -1225,7 +1231,7 @@ def test_ggml_onnx_relu_operator():
 
 
 def test_ggml_onnx_transpose_operator():
-    return
+    # return
 
     def onnx_transpose(x, perm=[1, 0]):
         transpose_node = onnx.helper.make_node(
@@ -1367,9 +1373,9 @@ def test_ggml_onnx_range_operator():
     tensors_dict = {}
     refs = []
 
-    start_array = np.random.uniform(-10, 10, (1,)).astype(np.float32)
-    limit_array = np.random.uniform(0, 20, (1,)).astype(np.float32)
-    delta_array = np.random.uniform(0.1, 2, (1,)).astype(np.float32)
+    start_array = np.array([-5], np.float32)
+    limit_array = np.array([10], np.float32)
+    delta_array = np.array([0.5], np.float32)
 
     range_numpy = onnx_range(start_array, limit_array, delta_array)
 

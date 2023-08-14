@@ -736,7 +736,43 @@ def ggml_operator_relu(
 def ggml_operator_reshape(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
-    raise NotImplementedError(f'Operator "Reshape" not implemented')
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Reshape" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    output_name = node.output[0]
+    a = node_inputs[0]
+    b = node_inputs[1]
+
+    b_numpy_reverse: list = ggml.utils.to_numpy(b).tolist()
+    b_numpy_reverse.reverse()
+
+    dims = len(b_numpy_reverse)
+
+    if dims > 4:
+        raise NotImplementedError(
+            f'Operator "Reshape" not implemented for over 4D arrays.'
+        )
+
+    b_numpy_reverse += [0, 0, 0][:dims]
+
+    ne0, ne1, ne2, ne3 = b_numpy_reverse
+
+    dim_map = {
+        1: (ggml.ggml_reshape_1d, (context, a, ne0)),
+        2: (ggml.ggml_reshape_2d, (context, a, ne0, ne1)),
+        3: (ggml.ggml_reshape_3d, (context, a, ne0, ne1, ne2)),
+        4: (ggml.ggml_reshape_4d, (context, a, ne0, ne1, ne2, ne3)),
+    }
+
+    func = dim_map[dims][0]
+    args = dim_map[dims][1]
+    reshape_result = func(*args)
+    tensors_dict[output_name] = reshape_result
+    return reshape_result
 
 
 class ShapeUserData(ctypes.Structure):
