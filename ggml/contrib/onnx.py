@@ -53,6 +53,28 @@ def set_tensor_out(tensor, ndarray):
 # ------ Operators ------
 
 
+@ggml_operator("Abs")
+def ggml_operator_abs(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Abs" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    output_name = node.output[0]
+    a = node_inputs[0]
+
+    abs_result = ggml.ggml_abs(
+        context,
+        a,
+    )
+    tensors_dict[output_name] = abs_result
+    return abs_result
+
+
 @ggml_operator("Add")
 def ggml_operator_add(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
@@ -78,79 +100,18 @@ def ggml_operator_add(
     return add_result
 
 
-class ShapeUserData(ctypes.Structure):
-    _fields_ = [("start", ctypes.c_int), ("end", ctypes.c_int)]
-
-
-@ggml.ggml_custom2_op_t
-def custom_shape(
-    tensor_out: ggml.ggml_tensor_p,
-    tensor_in_1: ggml.ggml_tensor_p,
-    tensor_in_2: ggml.ggml_tensor_p,
-    ith: int,
-    nth: int,
-    userdata: Optional[ctypes.c_void_p],
-):
-    userdata_data_ptr = ctypes.cast(userdata, ctypes.POINTER(ShapeUserData))
-    userdata_data = userdata_data_ptr.contents
-
-    tensor = ggml.utils.to_numpy(tensor_in_2)
-    start = userdata_data.start
-    end = userdata_data.end
-
-    shaped_tensor = tensor[start:end]
-    tensor_shape = np.array(shaped_tensor.shape, dtype=np.int32)
-
-    ggml.utils.to_numpy(tensor_out)[:] = tensor_shape
-
-
-@ggml_operator("Shape")
-def ggml_operator_shape(
+@ggml_operator("Cast")
+def ggml_operator_cast(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
-    node_inputs = [tensors_dict[inp] for inp in node.input]
+    raise NotImplementedError(f'Operator "Cast" not implemented')
 
-    if len(node_inputs) == 0 or len(node_inputs) > 3:
-        raise ValueError(
-            f'Error for node "{node.name}": Operation "Shape" requires at least 1 and maximum of 3 inputs. Actual number of inputs: {len(node_inputs)}'
-        )
 
-    tensor = ggml.utils.to_numpy(node_inputs[0])
-    start = (
-        ggml.utils.to_numpy(node_inputs[1])
-        if len(node_inputs) > 1
-        else [ctypes.c_int(0)]
-    )
-    end = (
-        ggml.utils.to_numpy(node_inputs[2])
-        if len(node_inputs) > 2
-        else [ctypes.c_int(tensor.shape[-1])]
-    )
-
-    start = start[0] if len(start) else ctypes.c_int(0)
-    end = end[0] if len(end) else ctypes.c_int(tensor.shape[-1])
-
-    shape_userdata = ShapeUserData(start, end)
-    userdata_p = ctypes.cast(ctypes.pointer(shape_userdata), ctypes.c_void_p)
-
-    output_shape = len(list(tensor.shape))
-
-    x = np.empty(output_shape, dtype=tensor.dtype)
-
-    x_t = ggml.utils.from_numpy(x, context)
-
-    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
-        context,
-        x_t,
-        node_inputs[0],
-        custom_shape,
-        1,
-        userdata_p,
-    )
-
-    refs.append(shape_userdata)
-
-    return new_tensor
+@ggml_operator("Concat")
+def ggml_operator_concat(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+):
+    raise NotImplementedError(f'Operator "Concat" not implemented')
 
 
 @ggml.ggml_custom2_op_t
@@ -279,51 +240,28 @@ def ggml_operator_constant_of_shape(
     return new_tensor
 
 
-@ggml_operator("Mul")
-def ggml_operator_mul(
+@ggml_operator("Div")
+def ggml_operator_div(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
     if len(node_inputs) != 2:
         raise ValueError(
-            f'Error for node "{node.name}": Operation "Mul" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+            f'Error for node "{node.name}": Operation "Div" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
         )
 
     output_name = node.output[0]
     a = node_inputs[0]
     b = node_inputs[1]
 
-    mul_result = ggml.ggml_mul(
+    div_result = ggml.ggml_div(
         context,
         a,
         b,
     )
-
-    tensors_dict[output_name] = mul_result
-    return mul_result
-
-
-@ggml_operator("Softmax")
-def ggml_operator_softmax(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
-):
-    node_inputs = [tensors_dict[inp] for inp in node.input]
-
-    if len(node_inputs) != 1:
-        raise ValueError(
-            f'Error for node "{node.name}": Operation "Softmax" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
-        )
-
-    output_name = node.output[0]
-    a = node_inputs[0]
-
-    soft_max_result = ggml.ggml_soft_max(
-        context,
-        a,
-    )
-    tensors_dict[output_name] = soft_max_result
-    return soft_max_result
+    tensors_dict[output_name] = div_result
+    return div_result
 
 
 @ggml.ggml_custom3_op_t
@@ -382,402 +320,6 @@ def ggml_operator_gather(
     refs.append(axis_c)
 
     return new_tensor
-
-
-@ggml_operator("Relu")
-def ggml_operator_relu(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
-):
-    node_inputs = [tensors_dict[inp] for inp in node.input]
-
-    if len(node_inputs) != 1:
-        raise ValueError(
-            f'Error for node "{node.name}": Operation "Relu" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
-        )
-
-    output_name = node.output[0]
-    a = node_inputs[0]
-
-    relu_result = ggml.ggml_relu(
-        context,
-        a,
-    )
-    tensors_dict[output_name] = relu_result
-    return relu_result
-
-
-@ggml_operator("MatMul")
-def ggml_operator_mat_mul(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
-):
-    raise NotImplementedError(f'Operator "MatMul" not implemented')
-
-
-@ggml_operator("Abs")
-def ggml_operator_abs(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
-):
-    node_inputs = [tensors_dict[inp] for inp in node.input]
-
-    if len(node_inputs) != 1:
-        raise ValueError(
-            f'Error for node "{node.name}": Operation "Abs" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
-        )
-
-    output_name = node.output[0]
-    a = node_inputs[0]
-
-    abs_result = ggml.ggml_abs(
-        context,
-        a,
-    )
-    tensors_dict[output_name] = abs_result
-    return abs_result
-
-
-@ggml.ggml_custom3_op_t
-def custom_unsqueeze(
-    tensor_out: ggml.ggml_tensor_p,
-    tensor_in_1: ggml.ggml_tensor_p,
-    tensor_in_2: ggml.ggml_tensor_p,
-    tensor_in_3: ggml.ggml_tensor_p,
-    ith: int,
-    nth: int,
-    userdata: Optional[ctypes.c_void_p],
-):
-    x = ggml.utils.to_numpy(tensor_in_2)
-    axes = ggml.utils.to_numpy(tensor_in_3)
-
-    for axis in np.nditer(axes):
-        x = np.expand_dims(x, axis=axis)
-
-    ggml.utils.to_numpy(tensor_out)[:] = x
-
-
-@ggml_operator("Unsqueeze")
-def ggml_operator_unsqueeze(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
-):
-    node_inputs = [tensors_dict[inp] for inp in node.input]
-
-    if len(node_inputs) != 2:
-        raise ValueError(
-            f'Error for node "{node.name}": Operation "Unsqueeze" requires exactly two inputs, data and axes. Actual number of inputs: {len(node_inputs)}'
-        )
-
-    x_input = ggml.utils.to_numpy(node_inputs[0])
-    axes = ggml.utils.to_numpy(node_inputs[1])
-
-    output_shape = x_input.shape
-
-    for axis in np.nditer(axes):
-        output_shape = np.insert(output_shape, axis, 1)
-
-    output_shape = output_shape.astype(np.int32)
-
-    x = np.empty(output_shape, dtype=x_input.dtype)
-    x_t = ggml.utils.from_numpy(x, context)
-
-    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom3_inplace(
-        context,
-        x_t,
-        node_inputs[0],
-        node_inputs[1],
-        custom_unsqueeze,
-        1,
-        None,
-    )
-
-    return new_tensor
-
-
-@ggml_operator("Sqrt")
-def ggml_operator_sqrt(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
-):
-    node_inputs = [tensors_dict[inp] for inp in node.input]
-
-    if len(node_inputs) != 1:
-        raise ValueError(
-            f'Error for node "{node.name}": Operation "Sqrt" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
-        )
-
-    output_name = node.output[0]
-    a = node_inputs[0]
-
-    sqrt_result = ggml.ggml_sqrt(
-        context,
-        a,
-    )
-    tensors_dict[output_name] = sqrt_result
-    return sqrt_result
-
-
-class RedueMeanUserData(ctypes.Structure):
-    _fields_ = [
-        ("axes", ctypes.POINTER(ctypes.c_int)),
-        ("axes_length", ctypes.c_int),
-        ("keepdims", ctypes.c_int),
-    ]
-
-    def __init__(self, axes, keepdims):
-        if isinstance(axes, list):
-            self.axes_length = len(axes)
-            self.axes = (ctypes.c_int * self.axes_length)(*axes)
-        else:
-            raise ValueError("axes should be a list of integers")
-
-        self.keepdims = keepdims
-
-
-@ggml.ggml_custom2_op_t
-def custom_reduce_mean(
-    tensor_out: ggml.ggml_tensor_p,
-    tensor_in_1: ggml.ggml_tensor_p,
-    tensor_in_2: ggml.ggml_tensor_p,
-    ith: int,
-    nth: int,
-    userdata: Optional[ctypes.c_void_p],
-):
-    userdata_data_ptr = ctypes.cast(userdata, ctypes.POINTER(RedueMeanUserData))
-    userdata_data = userdata_data_ptr.contents
-
-    tensor = ggml.utils.to_numpy(tensor_in_2)
-    axes = [userdata_data.axes[i] for i in range(userdata_data.axes_length)]
-    keepdims = userdata_data.keepdims
-
-    rmean_result = np.mean(tensor, tuple(axes), keepdims=keepdims)
-
-    set_tensor_out(tensor_out, rmean_result)
-
-
-@ggml_operator("ReduceMean")
-def ggml_operator_reduce_mean(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
-):
-    node_inputs = [tensors_dict[inp] for inp in node.input]
-
-    if len(node_inputs) != 1:
-        raise ValueError(
-            f'Error for node "{node.name}": Operation "ReduceMean" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
-        )
-
-    tensor = ggml.utils.to_numpy(node_inputs[0])
-    axes = next(attr for attr in node.attribute if attr.name == "axes").ints
-    keepdims = next(attr for attr in node.attribute if attr.name == "keepdims").i
-
-    rmean_userdata = RedueMeanUserData(list(axes), keepdims)
-    userdata_p = ctypes.cast(ctypes.pointer(rmean_userdata), ctypes.c_void_p)
-
-    output_shape = list(tensor.shape)
-    for axis in axes:
-        output_shape[axis] = 1
-    for axis in axes:
-        if not keepdims:
-            output_shape.pop(0)
-
-    output_shape = tuple(output_shape)
-
-    x = np.empty(output_shape, dtype=tensor.dtype)
-
-    x_t = ggml.utils.from_numpy(x, context)
-
-    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
-        context,
-        x_t,
-        node_inputs[0],
-        custom_reduce_mean,
-        1,
-        userdata_p,
-    )
-
-    refs.append(rmean_userdata)
-
-    return new_tensor
-
-
-@ggml_operator("Where")
-def ggml_operator_where(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
-):
-    raise NotImplementedError(f'Operator "Where" not implemented')
-
-
-@ggml_operator("Concat")
-def ggml_operator_concat(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
-):
-    raise NotImplementedError(f'Operator "Concat" not implemented')
-
-
-@ggml_operator("Div")
-def ggml_operator_div(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
-):
-    node_inputs = [tensors_dict[inp] for inp in node.input]
-
-    if len(node_inputs) != 2:
-        raise ValueError(
-            f'Error for node "{node.name}": Operation "Div" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
-        )
-
-    output_name = node.output[0]
-    a = node_inputs[0]
-    b = node_inputs[1]
-
-    div_result = ggml.ggml_div(
-        context,
-        a,
-        b,
-    )
-    tensors_dict[output_name] = div_result
-    return div_result
-
-
-@ggml.ggml_custom2_op_t
-def custom_range(
-    tensor_out: ggml.ggml_tensor_p,
-    tensor_in_1: ggml.ggml_tensor_p,
-    tensor_in_2: ggml.ggml_tensor_p,
-    ith: int,
-    nth: int,
-    userdata: Optional[ctypes.c_void_p],
-):
-    tensors = ggml.utils.to_numpy(tensor_in_2)
-    start_array, limit_array, delta_array = tensors
-
-    new_tensor = np.arange(start_array, limit_array, delta_array)
-
-    set_tensor_out(tensor_out, new_tensor)
-
-
-@ggml_operator("Range")
-def ggml_operator_range(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
-):
-    node_inputs = [tensors_dict[inp] for inp in node.input]
-
-    if len(node_inputs) != 3:
-        raise ValueError(
-            f'Error for node "{node.name}": Operation "Range" requires exactly three inputs. Actual number of inputs: {len(node_inputs)}'
-        )
-
-    tensors = [ggml.utils.to_numpy(node_input) for node_input in node_inputs]
-
-    start, stop, step = tensors
-    output_shape = (int(np.ceil((stop - start) / step)),)
-
-    x = np.empty(output_shape, dtype=step.dtype)
-    x_t = ggml.utils.from_numpy(x, context)
-
-    input_tensors = ggml.utils.from_numpy(np.array(tensors), context)
-
-    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
-        context,
-        x_t,
-        input_tensors,
-        custom_range,
-        1,
-        None,
-    )
-
-    return new_tensor
-
-
-@ggml_operator("Sub")
-def ggml_operator_sub(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
-):
-    node_inputs = [tensors_dict[inp] for inp in node.input]
-
-    if len(node_inputs) != 2:
-        raise ValueError(
-            f'Error for node "{node.name}": Operation "Sub" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
-        )
-
-    output_name = node.output[0]
-    a = node_inputs[0]
-    b = node_inputs[1]
-
-    sub_result = ggml.ggml_sub(
-        context,
-        a,
-        b,
-    )
-    tensors_dict[output_name] = sub_result
-    return sub_result
-
-
-@ggml_operator("Pow")
-def ggml_operator_pow(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
-):
-    raise NotImplementedError(f'Operator "Pow" not implemented')
-
-
-@ggml_operator("Cast")
-def ggml_operator_cast(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
-):
-    raise NotImplementedError(f'Operator "Cast" not implemented')
-
-
-@ggml_operator("Reshape")
-def ggml_operator_reshape(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
-):
-    raise NotImplementedError(f'Operator "Reshape" not implemented')
-
-
-@ggml_operator("Transpose")
-def ggml_operator_transpose(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
-):
-    node_inputs = [tensors_dict[inp] for inp in node.input]
-
-    if len(node_inputs) != 1:
-        raise ValueError(
-            f'Error for node "{node.name}": Operation "Transpose" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
-        )
-
-    output_name = node.output[0]
-    input_shape = ggml.utils.to_numpy(node_inputs[0]).shape
-    perm_map = {1: [0, 1, 2, 3], 2: [1, 0, 2, 3], 3: [2, 1, 0, 3], 4: [3, 2, 1, 0]}
-
-    perm_attr = next((attr for attr in node.attribute if attr.name == "perm"), None)
-
-    if perm_attr is None:
-        perm = perm_map.get(len(input_shape), [1, 0, 2, 3])
-    else:
-        perm = list(perm_attr.ints)
-        perm += [0, 1, 2, 3][len(perm) :]
-
-    ax0, ax1, ax2, ax3 = perm
-    transpose_result = ggml.ggml_permute(context, node_inputs[0], ax0, ax1, ax2, ax3)
-    tensors_dict[output_name] = transpose_result
-    return transpose_result
-
-
-@ggml_operator("Log")
-def ggml_operator_log(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
-):
-    node_inputs = [tensors_dict[inp] for inp in node.input]
-
-    if len(node_inputs) != 1:
-        raise ValueError(
-            f'Error for node "{node.name}": Operation "Log" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
-        )
-
-    output_name = node.output[0]
-    a = node_inputs[0]
-
-    log_result = ggml.ggml_log(
-        context,
-        a,
-    )
-    tensors_dict[output_name] = log_result
-    return log_result
 
 
 @ggml.ggml_custom3_op_t
@@ -880,53 +422,33 @@ def ggml_operator_less(
     return new_tensor
 
 
-@ggml.ggml_custom2_op_t
-def custom_min(
-    tensor_out: ggml.ggml_tensor_p,
-    tensor_in_1: ggml.ggml_tensor_p,
-    tensor_in_2: ggml.ggml_tensor_p,
-    ith: int,
-    nth: int,
-    userdata: Optional[ctypes.c_void_p],
-):
-    a = ggml.utils.to_numpy(tensor_in_2)
-    x = np.min(a)
-    set_tensor_out(tensor_out, np.array(x))
-
-
-@ggml_operator("Min")
-def ggml_operator_min(
+@ggml_operator("Log")
+def ggml_operator_log(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
     if len(node_inputs) != 1:
         raise ValueError(
-            f'Error for node "{node.name}": Operation "Min" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+            f'Error for node "{node.name}": Operation "Log" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
         )
 
-    a = ggml.utils.to_numpy(node_inputs[0])
+    output_name = node.output[0]
+    a = node_inputs[0]
 
-    output_shape = ()
-    ggml_type = map_to_ggml_type(a.dtype)
-
-    x_t = ggml.ggml_new_tensor(
+    log_result = ggml.ggml_log(
         context,
-        ggml_type.value,
-        len(output_shape),
-        (ctypes.c_int64 * len(output_shape))(*output_shape),
+        a,
     )
+    tensors_dict[output_name] = log_result
+    return log_result
 
-    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
-        context,
-        x_t,
-        node_inputs[0],
-        custom_min,
-        1,
-        None,
-    )
 
-    return new_tensor
+@ggml_operator("MatMul")
+def ggml_operator_mat_mul(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+):
+    raise NotImplementedError(f'Operator "MatMul" not implemented')
 
 
 @ggml.ggml_custom2_op_t
@@ -976,6 +498,484 @@ def ggml_operator_max(
     )
 
     return new_tensor
+
+
+@ggml.ggml_custom2_op_t
+def custom_min(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    a = ggml.utils.to_numpy(tensor_in_2)
+    x = np.min(a)
+    set_tensor_out(tensor_out, np.array(x))
+
+
+@ggml_operator("Min")
+def ggml_operator_min(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Min" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    a = ggml.utils.to_numpy(node_inputs[0])
+
+    output_shape = ()
+    ggml_type = map_to_ggml_type(a.dtype)
+
+    x_t = ggml.ggml_new_tensor(
+        context,
+        ggml_type.value,
+        len(output_shape),
+        (ctypes.c_int64 * len(output_shape))(*output_shape),
+    )
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+        context,
+        x_t,
+        node_inputs[0],
+        custom_min,
+        1,
+        None,
+    )
+
+    return new_tensor
+
+
+@ggml_operator("Mul")
+def ggml_operator_mul(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Mul" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    output_name = node.output[0]
+    a = node_inputs[0]
+    b = node_inputs[1]
+
+    mul_result = ggml.ggml_mul(
+        context,
+        a,
+        b,
+    )
+
+    tensors_dict[output_name] = mul_result
+    return mul_result
+
+
+@ggml_operator("Pow")
+def ggml_operator_pow(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+):
+    raise NotImplementedError(f'Operator "Pow" not implemented')
+
+
+@ggml.ggml_custom2_op_t
+def custom_range(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    tensors = ggml.utils.to_numpy(tensor_in_2)
+    start_array, limit_array, delta_array = tensors
+
+    new_tensor = np.arange(start_array, limit_array, delta_array)
+
+    set_tensor_out(tensor_out, new_tensor)
+
+
+@ggml_operator("Range")
+def ggml_operator_range(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 3:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Range" requires exactly three inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    tensors = [ggml.utils.to_numpy(node_input) for node_input in node_inputs]
+
+    start, stop, step = tensors
+    output_shape = (int(np.ceil((stop - start) / step)),)
+
+    x = np.empty(output_shape, dtype=step.dtype)
+    x_t = ggml.utils.from_numpy(x, context)
+
+    input_tensors = ggml.utils.from_numpy(np.array(tensors), context)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+        context,
+        x_t,
+        input_tensors,
+        custom_range,
+        1,
+        None,
+    )
+
+    return new_tensor
+
+
+class RedueMeanUserData(ctypes.Structure):
+    _fields_ = [
+        ("axes", ctypes.POINTER(ctypes.c_int)),
+        ("axes_length", ctypes.c_int),
+        ("keepdims", ctypes.c_int),
+    ]
+
+    def __init__(self, axes, keepdims):
+        if isinstance(axes, list):
+            self.axes_length = len(axes)
+            self.axes = (ctypes.c_int * self.axes_length)(*axes)
+        else:
+            raise ValueError("axes should be a list of integers")
+
+        self.keepdims = keepdims
+
+
+@ggml.ggml_custom2_op_t
+def custom_reduce_mean(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    userdata_data_ptr = ctypes.cast(userdata, ctypes.POINTER(RedueMeanUserData))
+    userdata_data = userdata_data_ptr.contents
+
+    tensor = ggml.utils.to_numpy(tensor_in_2)
+    axes = [userdata_data.axes[i] for i in range(userdata_data.axes_length)]
+    keepdims = userdata_data.keepdims
+
+    rmean_result = np.mean(tensor, tuple(axes), keepdims=keepdims)
+
+    set_tensor_out(tensor_out, rmean_result)
+
+
+@ggml_operator("ReduceMean")
+def ggml_operator_reduce_mean(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "ReduceMean" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    tensor = ggml.utils.to_numpy(node_inputs[0])
+    axes = next(attr for attr in node.attribute if attr.name == "axes").ints
+    keepdims = next(attr for attr in node.attribute if attr.name == "keepdims").i
+
+    rmean_userdata = RedueMeanUserData(list(axes), keepdims)
+    userdata_p = ctypes.cast(ctypes.pointer(rmean_userdata), ctypes.c_void_p)
+
+    output_shape = list(tensor.shape)
+    for axis in axes:
+        output_shape[axis] = 1
+    for axis in axes:
+        if not keepdims:
+            output_shape.pop(0)
+
+    output_shape = tuple(output_shape)
+
+    x = np.empty(output_shape, dtype=tensor.dtype)
+
+    x_t = ggml.utils.from_numpy(x, context)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+        context,
+        x_t,
+        node_inputs[0],
+        custom_reduce_mean,
+        1,
+        userdata_p,
+    )
+
+    refs.append(rmean_userdata)
+
+    return new_tensor
+
+
+@ggml_operator("Relu")
+def ggml_operator_relu(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Relu" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    output_name = node.output[0]
+    a = node_inputs[0]
+
+    relu_result = ggml.ggml_relu(
+        context,
+        a,
+    )
+    tensors_dict[output_name] = relu_result
+    return relu_result
+
+
+@ggml_operator("Reshape")
+def ggml_operator_reshape(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+):
+    raise NotImplementedError(f'Operator "Reshape" not implemented')
+
+
+class ShapeUserData(ctypes.Structure):
+    _fields_ = [("start", ctypes.c_int), ("end", ctypes.c_int)]
+
+
+@ggml.ggml_custom2_op_t
+def custom_shape(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    userdata_data_ptr = ctypes.cast(userdata, ctypes.POINTER(ShapeUserData))
+    userdata_data = userdata_data_ptr.contents
+
+    tensor = ggml.utils.to_numpy(tensor_in_2)
+    start = userdata_data.start
+    end = userdata_data.end
+
+    shaped_tensor = tensor[start:end]
+    tensor_shape = np.array(shaped_tensor.shape, dtype=np.int32)
+
+    ggml.utils.to_numpy(tensor_out)[:] = tensor_shape
+
+
+@ggml_operator("Shape")
+def ggml_operator_shape(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) == 0 or len(node_inputs) > 3:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Shape" requires at least 1 and maximum of 3 inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    tensor = ggml.utils.to_numpy(node_inputs[0])
+    start = (
+        ggml.utils.to_numpy(node_inputs[1])
+        if len(node_inputs) > 1
+        else [ctypes.c_int(0)]
+    )
+    end = (
+        ggml.utils.to_numpy(node_inputs[2])
+        if len(node_inputs) > 2
+        else [ctypes.c_int(tensor.shape[-1])]
+    )
+
+    start = start[0] if len(start) else ctypes.c_int(0)
+    end = end[0] if len(end) else ctypes.c_int(tensor.shape[-1])
+
+    shape_userdata = ShapeUserData(start, end)
+    userdata_p = ctypes.cast(ctypes.pointer(shape_userdata), ctypes.c_void_p)
+
+    output_shape = len(list(tensor.shape))
+
+    x = np.empty(output_shape, dtype=tensor.dtype)
+
+    x_t = ggml.utils.from_numpy(x, context)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+        context,
+        x_t,
+        node_inputs[0],
+        custom_shape,
+        1,
+        userdata_p,
+    )
+
+    refs.append(shape_userdata)
+
+    return new_tensor
+
+
+@ggml_operator("Softmax")
+def ggml_operator_softmax(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Softmax" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    output_name = node.output[0]
+    a = node_inputs[0]
+
+    soft_max_result = ggml.ggml_soft_max(
+        context,
+        a,
+    )
+    tensors_dict[output_name] = soft_max_result
+    return soft_max_result
+
+
+@ggml_operator("Sqrt")
+def ggml_operator_sqrt(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Sqrt" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    output_name = node.output[0]
+    a = node_inputs[0]
+
+    sqrt_result = ggml.ggml_sqrt(
+        context,
+        a,
+    )
+    tensors_dict[output_name] = sqrt_result
+    return sqrt_result
+
+
+@ggml_operator("Sub")
+def ggml_operator_sub(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Sub" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    output_name = node.output[0]
+    a = node_inputs[0]
+    b = node_inputs[1]
+
+    sub_result = ggml.ggml_sub(
+        context,
+        a,
+        b,
+    )
+    tensors_dict[output_name] = sub_result
+    return sub_result
+
+
+@ggml_operator("Transpose")
+def ggml_operator_transpose(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Transpose" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    output_name = node.output[0]
+    input_shape = ggml.utils.to_numpy(node_inputs[0]).shape
+    perm_map = {1: [0, 1, 2, 3], 2: [1, 0, 2, 3], 3: [2, 1, 0, 3], 4: [3, 2, 1, 0]}
+
+    perm_attr = next((attr for attr in node.attribute if attr.name == "perm"), None)
+
+    if perm_attr is None:
+        perm = perm_map.get(len(input_shape), [1, 0, 2, 3])
+    else:
+        perm = list(perm_attr.ints)
+        perm += [0, 1, 2, 3][len(perm) :]
+
+    ax0, ax1, ax2, ax3 = perm
+    transpose_result = ggml.ggml_permute(context, node_inputs[0], ax0, ax1, ax2, ax3)
+    tensors_dict[output_name] = transpose_result
+    return transpose_result
+
+
+@ggml.ggml_custom3_op_t
+def custom_unsqueeze(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    tensor_in_3: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    x = ggml.utils.to_numpy(tensor_in_2)
+    axes = ggml.utils.to_numpy(tensor_in_3)
+
+    for axis in np.nditer(axes):
+        x = np.expand_dims(x, axis=axis)
+
+    ggml.utils.to_numpy(tensor_out)[:] = x
+
+
+@ggml_operator("Unsqueeze")
+def ggml_operator_unsqueeze(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Unsqueeze" requires exactly two inputs, data and axes. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    x_input = ggml.utils.to_numpy(node_inputs[0])
+    axes = ggml.utils.to_numpy(node_inputs[1])
+
+    output_shape = x_input.shape
+
+    for axis in np.nditer(axes):
+        output_shape = np.insert(output_shape, axis, 1)
+
+    output_shape = output_shape.astype(np.int32)
+
+    x = np.empty(output_shape, dtype=x_input.dtype)
+    x_t = ggml.utils.from_numpy(x, context)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom3_inplace(
+        context,
+        x_t,
+        node_inputs[0],
+        node_inputs[1],
+        custom_unsqueeze,
+        1,
+        None,
+    )
+
+    return new_tensor
+
+
+@ggml_operator("Where")
+def ggml_operator_where(
+    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+):
+    raise NotImplementedError(f'Operator "Where" not implemented')
 
 
 class GgmlBackendRep(BackendRep):
