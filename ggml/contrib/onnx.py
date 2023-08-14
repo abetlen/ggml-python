@@ -531,7 +531,7 @@ class RedueMeanUserData(ctypes.Structure):
 
 
 @ggml.ggml_custom2_op_t
-def custom_reducemean(
+def custom_reduce_mean(
     tensor_out: ggml.ggml_tensor_p,
     tensor_in_1: ggml.ggml_tensor_p,
     tensor_in_2: ggml.ggml_tensor_p,
@@ -586,7 +586,7 @@ def ggml_operator_reduce_mean(
         context,
         x_t,
         node_inputs[0],
-        custom_reducemean,
+        custom_reduce_mean,
         1,
         userdata_p,
     )
@@ -849,7 +849,7 @@ def custom_less(
 
 
 @ggml_operator("Less")
-def ggml_operator_greater(
+def ggml_operator_less(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
@@ -895,7 +895,7 @@ def custom_min(
 
 
 @ggml_operator("Min")
-def ggml_operator_greater(
+def ggml_operator_min(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
@@ -944,7 +944,7 @@ def custom_max(
 
 
 @ggml_operator("Max")
-def ggml_operator_greater(
+def ggml_operator_max(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
