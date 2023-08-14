@@ -1,10 +1,9 @@
 import ctypes
-import struct
 from typing import Any, Tuple, List
 
 import numpy as np
 import onnx
-from onnx import defs, helper
+from onnx import defs
 from onnx.backend.base import Backend, BackendRep
 from onnx.helper import make_opsetid
 from onnx.onnx_ml_pb2 import GraphProto, ModelProto, NodeProto
@@ -12,12 +11,9 @@ from onnx.helper import tensor_dtype_to_np_dtype
 
 import ggml
 import ggml.utils
-import torch
 from typing import Optional
 
-
 ggml_operators = {}
-
 onnx_dtype_map = {
     elem_type: np_dtype
     for elem_type, np_dtype in onnx.mapping.TENSOR_TYPE_TO_NP_TYPE.items()
