@@ -444,7 +444,38 @@ def ggml_operator_log(
 def ggml_operator_mat_mul(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
-    raise NotImplementedError(f'Operator "MatMul" not implemented')
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "MatMul" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    output_name = node.output[0]
+    a = node_inputs[0]
+    b = node_inputs[1]
+
+    b_numpy = ggml.utils.to_numpy(b)
+
+    b_transposed = ggml.ggml_cpy(
+        context,
+        ggml.ggml_transpose(context, b),
+        ggml.ggml_new_tensor(
+            context,
+            map_to_ggml_type(b_numpy.dtype).value,
+            len(b_numpy.shape),
+            (ctypes.c_int64 * len(b_numpy.shape))(*b_numpy.shape),
+        ),
+    )
+
+    mul_mat_result = ggml.ggml_mul_mat(
+        context,
+        b_transposed,
+        a,
+    )
+
+    tensors_dict[output_name] = mul_mat_result
+    return mul_mat_result
 
 
 @ggml.ggml_custom2_op_t
