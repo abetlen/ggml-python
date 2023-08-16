@@ -111,37 +111,54 @@ def ggml_operator_add(
     return add_result
 
 
+@ggml.ggml_custom1_op_t
+def custom_cast(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    dtype = ctypes.cast(userdata, ctypes.POINTER(ctypes.c_int)).contents.value
+    tensor = ggml.utils.to_numpy(tensor_in_1)
+    np_data_type = tensor_dtype_to_np_dtype(dtype)
+    np_data_type_limit = np.dtype(str(np_data_type).replace("64", "32"))
+
+    set_tensor_out(tensor_out, tensor.astype(np_data_type_limit))
+
+
 @ggml_operator("Cast")
 def ggml_operator_cast(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
-    raise NotImplementedError(f'Operator "Cast" not implemented')
+    # using custom operator
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Cast" requires exactly one input and a dtype. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    onnx_type = next(attr for attr in node.attribute if attr.name == "to").i
+    onnx_type_c = ctypes.c_int(onnx_type)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom1_inplace(
+        context,
+        node_inputs[0],
+        custom_cast,
+        1,
+        ctypes.pointer(onnx_type_c),
+    )
+
+    refs.append(onnx_type_c)
+
+    return new_tensor
 
 
 @ggml_operator("Concat")
 def ggml_operator_concat(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
-    node_inputs = [tensors_dict[inp] for inp in node.input]
-
-    if len(node_inputs) < 2:
-        raise ValueError(
-            f'Error for node "{node.name}": Operation "Concat" requires at least two inputs and an axis. Actual number of inputs: {len(node_inputs)}'
-        )
-
-    shapes = [get_tensor_shape(tensor) for tensor in node_inputs]
-
-    axis = next(attr for attr in node.attribute if attr.name == "axis").i
-    output_shape = np.concatenate([np.empty(shape) for shape in shapes]).shape
-
-    print()
-    print()
-    print("axis:", axis)
-    print("shapes:", shapes)
-    print("output_shape:", output_shape)
-    print()
-    print()
-
     raise NotImplementedError(f'Operator "Concat" not implemented')
 
 

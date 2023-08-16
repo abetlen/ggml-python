@@ -1399,6 +1399,67 @@ def test_ggml_onnx_range_operator():
     ggml.ggml_free(context)
 
 
+def test_ggml_onnx_cast_operator():
+    # return
+
+    def onnx_cast(input_data, to_dtype):
+        class CastModel(torch.nn.Module):
+            def forward(self, input):
+                return input.to(dtype=to_dtype)
+
+        model = CastModel()
+
+        x_tensor = torch.tensor(input_data, dtype=torch.float32)
+
+        f = BytesIO()
+        torch.onnx.export(
+            model,
+            (x_tensor,),
+            f,
+            input_names=["input"],
+            output_names=["output"],
+            verbose=False,
+        )
+
+        onnx_model_bytes = BytesIO(f.getvalue())
+
+        onnx_model_bytes.seek(0)
+        sess = ort.InferenceSession(onnx_model_bytes.read())
+
+        input_feed = {"input": input_data}
+
+        output = sess.run(None, input_feed)
+
+        return output[0]
+
+    params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
+    context = ggml.ggml_init(params=params)
+    tensors_dict = {}
+    refs = []
+
+    input_data_array = np.array([1.2, 2.5, 3.7], np.float32)
+
+    cast_numpy = onnx_cast(input_data_array, torch.int32)
+
+    tensors_dict["input_data_array"] = ggml.utils.from_numpy(input_data_array, context)
+
+    cast_node = onnx.helper.make_node(
+        "Cast",
+        inputs=["input_data_array"],
+        outputs=["cast_output"],
+        to=onnx.TensorProto.INT32,
+    )
+
+    output_tensor = ggml_operators["Cast"](cast_node, tensors_dict, context, refs)
+    gf = ggml.ggml_build_forward(output_tensor)
+    ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
+    result = ggml.utils.to_numpy(output_tensor)
+
+    assert np.allclose(result, cast_numpy)
+
+    ggml.ggml_free(context)
+
+
 def test_ggml_onnx_runtime_basic():
     # return
 
