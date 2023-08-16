@@ -1460,6 +1460,78 @@ def test_ggml_onnx_cast_operator():
     ggml.ggml_free(context)
 
 
+def test_ggml_onnx_where_operator():
+    # return
+
+    def onnx_where(condition_data, x_data, y_data):
+        class WhereModel(torch.nn.Module):
+            def forward(self, condition, x, y):
+                return torch.where(condition, x, y)
+
+        model = WhereModel()
+
+        condition_tensor = torch.tensor(condition_data, dtype=torch.bool)
+        x_tensor = torch.tensor(x_data, dtype=torch.float32)
+        y_tensor = torch.tensor(y_data, dtype=torch.float32)
+
+        f = BytesIO()
+        torch.onnx.export(
+            model,
+            (condition_tensor, x_tensor, y_tensor),
+            f,
+            input_names=["condition", "x", "y"],
+            output_names=["output"],
+            verbose=False,
+        )
+
+        onnx_model_bytes = BytesIO(f.getvalue())
+
+        onnx_model_bytes.seek(0)
+        sess = ort.InferenceSession(onnx_model_bytes.read())
+
+        input_feed = {
+            "condition": condition_data,
+            "x": x_data,
+            "y": y_data,
+        }
+
+        output = sess.run(None, input_feed)
+
+        return output[0]
+
+    params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
+    context = ggml.ggml_init(params=params)
+    tensors_dict = {}
+    refs = []
+
+    condition_data_array = np.array([True, False, True], dtype=bool)
+    x_data_array = np.array([1.2, 2.5, 3.7], np.float32)
+    y_data_array = np.array([0.5, 1.0, 2.0], np.float32)
+
+    where_numpy = onnx_where(condition_data_array, x_data_array, y_data_array)
+
+    tensors_dict["condition_data_array"] = ggml.utils.from_numpy(
+        condition_data_array, context
+    )
+    tensors_dict["x_data_array"] = ggml.utils.from_numpy(x_data_array, context)
+    tensors_dict["y_data_array"] = ggml.utils.from_numpy(y_data_array, context)
+
+    where_node = onnx.helper.make_node(
+        "Where",
+        inputs=["condition_data_array", "x_data_array", "y_data_array"],
+        outputs=["where_output"],
+    )
+
+    output_tensor = ggml_operators["Where"](where_node, tensors_dict, context, refs)
+    gf = ggml.ggml_build_forward(output_tensor)
+    ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
+    result = ggml.utils.to_numpy(output_tensor)
+
+    assert np.array_equal(result, where_numpy)
+
+    ggml.ggml_free(context)
+
+
 def test_ggml_onnx_runtime_basic():
     # return
 

@@ -1051,7 +1051,7 @@ def custom_unsqueeze(
     for axis in np.nditer(axes):
         x = np.expand_dims(x, axis=axis)
 
-    ggml.utils.to_numpy(tensor_out)[:] = x
+    set_tensor_out(tensor_out, x)
 
 
 @ggml_operator("Unsqueeze")
@@ -1090,11 +1090,45 @@ def ggml_operator_unsqueeze(
     return new_tensor
 
 
+@ggml.ggml_custom3_op_t
+def custom_where(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    tensor_in_3: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    x = ggml.utils.to_numpy(tensor_in_1)
+    y = ggml.utils.to_numpy(tensor_in_2)
+    condition_array = ggml.utils.to_numpy(tensor_in_3)
+    new_tensor = np.where(condition_array, x, y)
+    set_tensor_out(tensor_out, new_tensor)
+
+
 @ggml_operator("Where")
 def ggml_operator_where(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
-    raise NotImplementedError(f'Operator "Where" not implemented')
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 3:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Where" requires exactly three inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom3_inplace(
+        context,
+        node_inputs[1],
+        node_inputs[2],
+        node_inputs[0],
+        custom_where,
+        1,
+        None,
+    )
+
+    return new_tensor
 
 
 class GgmlBackendRep(BackendRep):
