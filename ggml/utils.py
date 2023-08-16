@@ -4,7 +4,7 @@ import enum
 import ctypes
 import contextlib
 
-from typing import Any, Optional, Tuple
+from typing import Any, Optional, Sequence, Tuple
 
 from ggml import ggml
 
@@ -155,7 +155,8 @@ def quantize_0(
         work: work buffer
 
     Returns:
-        (work, hist, cur_size): outpuut buffer, histogram, number of bytes in work buffer"""
+        (work, hist, cur_size): outpuut buffer, histogram, number of bytes in work buffer
+    """
     work = work or (ctypes.c_float * nelements)()
     hist = hist or (ctypes.c_int64 * (1 << 4))()
     quantize_func = {
@@ -255,3 +256,85 @@ def get_strides(tensor: ggml.ggml_tensor_p) -> Tuple[int, ...]:
         Strides of tensor
     """
     return tensor.contents.nb[: tensor.contents.n_dims]
+
+
+def slice_tensor(
+    ctx: ggml.ggml_context_p, tensor: ggml.ggml_tensor_p, indices: Sequence[slice]
+):
+    """Slice a ggml tensor along multiple dimensions.
+
+    The slice is a view of the original tensor with the same number of dimensions.
+    
+    Parameters:
+        ctx: ggml context
+        tensor: ggml tensor
+        indices: indices to slice along
+        
+    Returns:
+        New ggml tensor slice view"""
+    ndims = get_ndims(tensor)
+
+    # check that the number of dimensions match
+    if len(indices) != ndims:
+        raise ValueError(
+            f"tensor has {ndims} dimensions but {len(indices)} indices were given"
+        )
+
+    # calculate slice
+    start = tuple(idx.start or 0 for idx in indices)
+    end = tuple(idx.stop or get_shape(tensor)[i] for i, idx in enumerate(indices))
+    step = tuple(idx.step or 1 for idx in indices)
+
+    # get the shape of the slice
+    shape = tuple((end[i] - start[i] + step[i] - 1) // step[i] for i in range(ndims))
+
+    # get the strides of the slice
+    strides = tuple(get_strides(tensor)[i] * step[i] for i in range(ndims))
+
+    # get the offset of the slice
+    offset = sum(get_strides(tensor)[i] * start[i] for i in range(ndims))
+
+    if ndims == 1:
+        return ggml.ggml_view_1d(
+            ctx,
+            tensor,
+            shape[0],
+            offset,
+        )
+    elif ndims == 2:
+        return ggml.ggml_view_2d(
+            ctx,
+            tensor,
+            shape[0],
+            shape[1],
+            strides[1],
+            offset,
+        )
+    elif ndims == 3:
+        return ggml.ggml_view_3d(
+            ctx,
+            tensor,
+            shape[0],
+            shape[1],
+            shape[2],
+            strides[1],
+            strides[2],
+            offset,
+        )
+    elif ndims == 4:
+        return ggml.ggml_view_4d(
+            ctx,
+            tensor,
+            shape[0],
+            shape[1],
+            shape[2],
+            shape[3],
+            strides[1],
+            strides[2],
+            strides[3],
+            offset,
+        )
+    else:
+        raise NotImplementedError(
+            f"ggml tensors with {ndims} dimensions are not supported"
+        )
