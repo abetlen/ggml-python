@@ -52,3 +52,16 @@ def test_numpy_arrays_transposed():
         t = ggml.utils.from_numpy(x.T, ctx)
         x_t = ggml.utils.to_numpy(t)
         assert np.array_equal(x.T, x_t)
+
+
+def test_slice_tensor():
+    params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024)
+    with ggml.utils.ggml_context_manager(params) as ctx:
+        x = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int32)
+        t = ggml.utils.from_numpy(x, ctx)
+        t_slice = ggml.utils.slice_tensor(ctx, t, [
+            slice(0, 2),
+            slice(0, 1)
+        ])
+        x_slice = ggml.utils.to_numpy(t_slice)
+        assert np.array_equal(x_slice, x[:1, :2])
