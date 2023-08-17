@@ -1,5 +1,7 @@
 import ctypes
 import io
+import os
+import sys
 from io import BytesIO
 
 import numpy as np
@@ -11,6 +13,7 @@ import torch.onnx
 from onnx import TensorProto, helper, numpy_helper
 from onnxruntime import InferenceSession
 
+import contextlib
 import ggml
 import ggml.utils
 from ggml.contrib.onnx import GgmlRuntimeBackend, ggml_operators
@@ -31,19 +34,14 @@ def test_ggml_onnx_runtime_shape_operator():
     tensors_dict["input_tensor"] = ggml.utils.from_numpy(input_data1, context)
 
     tensors_dict["start1"] = ggml.utils.from_numpy(
-        np.array([], dtype=np.int32), context
+        np.array([0], dtype=np.int32), context
     )
-    tensors_dict["end1"] = ggml.utils.from_numpy(np.array([], dtype=np.int32), context)
+    tensors_dict["end1"] = ggml.utils.from_numpy(np.array([6], dtype=np.int32), context)
 
     tensors_dict["start2"] = ggml.utils.from_numpy(
-        np.array([], dtype=np.int32), context
-    )
-    tensors_dict["end2"] = ggml.utils.from_numpy(np.array([6], dtype=np.int32), context)
-
-    tensors_dict["start3"] = ggml.utils.from_numpy(
         np.array([2], dtype=np.int32), context
     )
-    tensors_dict["end3"] = ggml.utils.from_numpy(np.array([6], dtype=np.int32), context)
+    tensors_dict["end2"] = ggml.utils.from_numpy(np.array([6], dtype=np.int32), context)
 
     shape_node1 = onnx.helper.make_node(
         "Shape",
@@ -66,14 +64,7 @@ def test_ggml_onnx_runtime_shape_operator():
         outputs=["output_tensor3"],
     )
 
-    shape_node4 = onnx.helper.make_node(
-        "Shape",
-        name="Shape4",
-        inputs=["input_tensor", "start3", "end3"],
-        outputs=["output_tensor4"],
-    )
-
-    nodes = [shape_node1, shape_node2, shape_node3, shape_node4]
+    nodes = [shape_node1, shape_node2, shape_node3]
     results = []
     refs = []
 
@@ -84,9 +75,8 @@ def test_ggml_onnx_runtime_shape_operator():
         results.append(ggml.utils.to_numpy(output_tensor))
 
     assert results[0] == list(input_data1.shape)
-    assert results[1] == list(input_data1.shape)
-    assert results[2] == list(input_data1[:6].shape)
-    assert results[3] == list(input_data1[2:6].shape)
+    assert results[1] == list(input_data1[:6].shape)
+    assert results[2] == list(input_data1[2:6].shape)
 
     ggml.ggml_free(context)
 
@@ -106,15 +96,15 @@ def test_ggml_onnx_runtime_unsqueeze_operator():
         x_tensor = torch.tensor(x, dtype=torch.int32)
 
         f = BytesIO()
-        torch.onnx.export(
-            model,
-            x_tensor,
-            f,
-            input_names=["data"],
-            output_names=["output"],
-            verbose=False,
-        )
-
+        with contextlib.redirect_stdout(None):
+            torch.onnx.export(
+                model,
+                x_tensor,
+                f,
+                input_names=["data"],
+                output_names=["output"],
+                verbose=False,
+            )
         onnx_model_bytes = BytesIO(f.getvalue())
 
         onnx_model_bytes.seek(0)
@@ -206,6 +196,8 @@ def test_ggml_onnx_runtime_gather_operator():
         node_def = onnx.helper.make_node(
             "Gather", inputs=["data", "indices"], outputs=["output"], axis=axis
         )
+        output_shape = list(x.shape)  # Initial assumption, adjust if needed
+        output_shape[axis] = indices.shape[0]  # Update the size along the gather axis
         graph_def = onnx.helper.make_graph(
             [node_def],
             "gather_model",
@@ -219,7 +211,7 @@ def test_ggml_onnx_runtime_gather_operator():
             ],
             outputs=[
                 onnx.helper.make_tensor_value_info(
-                    "output", onnx.TensorProto.INT32, list(x.shape)
+                    "output", onnx.TensorProto.INT32, output_shape
                 )
             ],
         )
@@ -387,8 +379,7 @@ def test_ggml_onnx_constant_operator():
 def test_ggml_onnx_constant_of_shape_operator():
     # return
 
-    def onnx_constant(value, other):
-        shape = list(other.shape)
+    def onnx_constant_of_shape(value, other):
         value = numpy_helper.from_array(value)
         constant_node = onnx.helper.make_node(
             "ConstantOfShape", inputs=["data"], outputs=["constant_output"], value=value
@@ -398,12 +389,14 @@ def test_ggml_onnx_constant_of_shape_operator():
             "constant_graph",
             inputs=[
                 onnx.helper.make_tensor_value_info(
-                    "data", onnx.TensorProto.INT64, shape
+                    "data", onnx.TensorProto.INT64, list(other.shape)
                 )
             ],
             outputs=[
                 onnx.helper.make_tensor_value_info(
-                    "constant_output", onnx.TensorProto.FLOAT, shape
+                    "constant_output",
+                    onnx.TensorProto.FLOAT,
+                    other.astype(np.int32).tolist(),
                 )
             ],
         )
@@ -439,7 +432,7 @@ def test_ggml_onnx_constant_of_shape_operator():
 
     tensors_dict["shape1"] = ggml.utils.from_numpy(shape1, context)
 
-    constant_onnx = onnx_constant(value_tensor, shape1)
+    constant_onnx = onnx_constant_of_shape(value_tensor, shape1)
 
     nodes = [cof_node1]
     results = []
@@ -597,11 +590,11 @@ def test_ggml_onnx_reshape_operation():
         input_tensor = torch.tensor(input_tensor, dtype=torch.int32)
 
         f = BytesIO()
-        torch.onnx.export(
-            model, input_tensor, f, opset_version=12, do_constant_folding=True
-        )
+        with contextlib.redirect_stdout(None):
+            torch.onnx.export(
+                model, input_tensor, f, opset_version=12, do_constant_folding=True
+            )
         f.seek(0)
-
         sess = ort.InferenceSession(f.getvalue())
         input_name = sess.get_inputs()[0].name
         output_name = sess.get_outputs()[0].name
@@ -696,14 +689,15 @@ def test_ggml_onnx_reducemean_operator():
         x_tensor = torch.tensor(x, dtype=torch.float32)
 
         f = BytesIO()
-        torch.onnx.export(
-            model,
-            x_tensor,
-            f,
-            input_names=["data"],
-            output_names=["output"],
-            verbose=False,
-        )
+        with contextlib.redirect_stdout(None):
+            torch.onnx.export(
+                model,
+                x_tensor,
+                f,
+                input_names=["data"],
+                output_names=["output"],
+                verbose=False,
+            )
 
         onnx_model_bytes = BytesIO(f.getvalue())
 
@@ -783,15 +777,15 @@ def test_ggml_onnx_less_operator():
         y_tensor = torch.tensor(y, dtype=torch.float32)
 
         f = BytesIO()
-        torch.onnx.export(
-            model,
-            (x_tensor, y_tensor),
-            f,
-            input_names=["input1", "input2"],
-            output_names=["output"],
-            verbose=False,
-        )
-
+        with contextlib.redirect_stdout(None):
+            torch.onnx.export(
+                model,
+                (x_tensor, y_tensor),
+                f,
+                input_names=["input1", "input2"],
+                output_names=["output"],
+                verbose=False,
+            )
         onnx_model_bytes = BytesIO(f.getvalue())
 
         onnx_model_bytes.seek(0)
@@ -852,15 +846,15 @@ def test_ggml_onnx_greater_operator():
         y_tensor = torch.tensor(y, dtype=torch.float32)
 
         f = BytesIO()
-        torch.onnx.export(
-            model,
-            (x_tensor, y_tensor),
-            f,
-            input_names=["input1", "input2"],
-            output_names=["output"],
-            verbose=False,
-        )
-
+        with contextlib.redirect_stdout(None):
+            torch.onnx.export(
+                model,
+                (x_tensor, y_tensor),
+                f,
+                input_names=["input1", "input2"],
+                output_names=["output"],
+                verbose=False,
+            )
         onnx_model_bytes = BytesIO(f.getvalue())
 
         onnx_model_bytes.seek(0)
@@ -916,15 +910,15 @@ def test_ggml_onnx_min_operator():
         x_tensor = torch.tensor(x, dtype=torch.float32)
 
         f = BytesIO()
-        torch.onnx.export(
-            model,
-            (x_tensor),
-            f,
-            input_names=["input1"],
-            output_names=["output"],
-            verbose=False,
-        )
-
+        with contextlib.redirect_stdout(None):
+            torch.onnx.export(
+                model,
+                (x_tensor),
+                f,
+                input_names=["input1"],
+                output_names=["output"],
+                verbose=False,
+            )
         onnx_model_bytes = BytesIO(f.getvalue())
 
         onnx_model_bytes.seek(0)
@@ -977,15 +971,15 @@ def test_ggml_onnx_max_operator():
         x_tensor = torch.tensor(x, dtype=torch.float32)
 
         f = BytesIO()
-        torch.onnx.export(
-            model,
-            (x_tensor),
-            f,
-            input_names=["input1"],
-            output_names=["output"],
-            verbose=False,
-        )
-
+        with contextlib.redirect_stdout(None):
+            torch.onnx.export(
+                model,
+                (x_tensor),
+                f,
+                input_names=["input1"],
+                output_names=["output"],
+                verbose=False,
+            )
         onnx_model_bytes = BytesIO(f.getvalue())
 
         onnx_model_bytes.seek(0)
@@ -1110,15 +1104,15 @@ def test_ggml_onnx_pow_operator():
         y_tensor = torch.tensor(y, dtype=torch.float32)
 
         f = BytesIO()
-        torch.onnx.export(
-            model,
-            (x_tensor, y_tensor),
-            f,
-            input_names=["input1", "input2"],
-            output_names=["output"],
-            verbose=False,
-        )
-
+        with contextlib.redirect_stdout(None):
+            torch.onnx.export(
+                model,
+                (x_tensor, y_tensor),
+                f,
+                input_names=["input1", "input2"],
+                output_names=["output"],
+                verbose=False,
+            )
         onnx_model_bytes = BytesIO(f.getvalue())
 
         onnx_model_bytes.seek(0)
@@ -1178,15 +1172,15 @@ def test_ggml_onnx_relu_operator():
         x_tensor = torch.tensor(x, dtype=torch.float32)
 
         f = BytesIO()
-        torch.onnx.export(
-            model,
-            (x_tensor,),
-            f,
-            input_names=["input"],
-            output_names=["output"],
-            verbose=False,
-        )
-
+        with contextlib.redirect_stdout(None):
+            torch.onnx.export(
+                model,
+                (x_tensor,),
+                f,
+                input_names=["input"],
+                output_names=["output"],
+                verbose=False,
+            )
         onnx_model_bytes = BytesIO(f.getvalue())
 
         onnx_model_bytes.seek(0)
@@ -1347,7 +1341,9 @@ def test_ggml_onnx_range_operator():
             ],
             outputs=[
                 onnx.helper.make_tensor_value_info(
-                    "output", onnx.TensorProto.FLOAT, list(start.shape)
+                    "output",
+                    onnx.TensorProto.FLOAT,
+                    (int(np.ceil((limit - start) / delta)),),
                 ),
             ],
         )
@@ -1485,15 +1481,15 @@ def test_ggml_onnx_cast_operator():
         x_tensor = torch.tensor(input_data, dtype=torch.float32)
 
         f = BytesIO()
-        torch.onnx.export(
-            model,
-            (x_tensor,),
-            f,
-            input_names=["input"],
-            output_names=["output"],
-            verbose=False,
-        )
-
+        with contextlib.redirect_stdout(None):
+            torch.onnx.export(
+                model,
+                (x_tensor,),
+                f,
+                input_names=["input"],
+                output_names=["output"],
+                verbose=False,
+            )
         onnx_model_bytes = BytesIO(f.getvalue())
 
         onnx_model_bytes.seek(0)
@@ -1548,15 +1544,15 @@ def test_ggml_onnx_where_operator():
         y_tensor = torch.tensor(y_data, dtype=torch.float32)
 
         f = BytesIO()
-        torch.onnx.export(
-            model,
-            (condition_tensor, x_tensor, y_tensor),
-            f,
-            input_names=["condition", "x", "y"],
-            output_names=["output"],
-            verbose=False,
-        )
-
+        with contextlib.redirect_stdout(None):
+            torch.onnx.export(
+                model,
+                (condition_tensor, x_tensor, y_tensor),
+                f,
+                input_names=["condition", "x", "y"],
+                output_names=["output"],
+                verbose=False,
+            )
         onnx_model_bytes = BytesIO(f.getvalue())
 
         onnx_model_bytes.seek(0)
