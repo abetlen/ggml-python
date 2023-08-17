@@ -74,6 +74,9 @@ def from_numpy(x: npt.NDArray[Any], ctx: ggml.ggml_context_p) -> ggml.ggml_tenso
     Returns:
         New ggml tensor with data copied from x
     """
+    if x.dtype.type == np.bool_:
+        x = x.astype(np.int32)
+
     ggml_type = NUMPY_DTYPE_TO_GGML_TYPE[x.dtype.type]
     shape = tuple(reversed(x.shape))
     tensor = ggml.ggml_new_tensor(
@@ -264,12 +267,12 @@ def slice_tensor(
     """Slice a ggml tensor along multiple dimensions.
 
     The slice is a view of the original tensor with the same number of dimensions.
-    
+
     Parameters:
         ctx: ggml context
         tensor: ggml tensor
         indices: indices to slice along
-        
+
     Returns:
         New ggml tensor slice view"""
     ndims = get_ndims(tensor)
