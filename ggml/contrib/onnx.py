@@ -1,17 +1,15 @@
 import ctypes
-from typing import Any, Tuple, List
+from typing import Any, List, Optional, Tuple
 
 import numpy as np
 import onnx
 from onnx import defs
 from onnx.backend.base import Backend, BackendRep
-from onnx.helper import make_opsetid
+from onnx.helper import make_opsetid, tensor_dtype_to_np_dtype
 from onnx.onnx_ml_pb2 import GraphProto, ModelProto, NodeProto
-from onnx.helper import tensor_dtype_to_np_dtype
 
 import ggml
 import ggml.utils
-from typing import Optional
 
 ggml_operators = {}
 onnx_dtype_map = {
@@ -328,7 +326,7 @@ def custom_gather(
 
     new_array = np.take(input_array, index_array, axis=axis)
 
-    ggml.utils.to_numpy(tensor_out)[:] = new_array
+    set_tensor_out(tensor_out, new_array)
 
 
 @ggml_operator("Gather")
@@ -921,7 +919,7 @@ def custom_shape(
     shaped_tensor = tensor[start:end]
     tensor_shape = np.array(shaped_tensor.shape, dtype=np.int32)
 
-    ggml.utils.to_numpy(tensor_out)[:] = tensor_shape
+    set_tensor_out(tensor_out, tensor_shape)
 
 
 @ggml_operator("Shape")
@@ -1248,7 +1246,7 @@ class GgmlBackendRep(BackendRep):
 
         # Set user inputs
         for key, value in inputs.items():
-            ggml.utils.to_numpy(ggml_tensors[key])[:] = value
+            set_tensor_out(ggml_tensors[key], value)
 
         # Compute graph
         ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
@@ -1341,7 +1339,7 @@ class GgmlRuntimeBackend(Backend):
             tensor.contents.data = ctypes.cast(
                 ctypes.addressof(buffer) + offset, ctypes.c_void_p
             )
-            ggml.utils.to_numpy(tensor)[:] = onnx.numpy_helper.to_array(initializer)
+            set_tensor_out(tensor, onnx.numpy_helper.to_array(initializer))
             offset += nbytes
 
         ggml_backend_rep.ggml_buffer = buffer
