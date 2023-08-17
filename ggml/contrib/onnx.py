@@ -656,11 +656,47 @@ def ggml_operator_mul(
     return mul_result
 
 
+@ggml.ggml_custom2_op_t
+def custom_pow(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    x1 = ggml.utils.to_numpy(tensor_in_1)
+    x2 = ggml.utils.to_numpy(tensor_in_2)
+
+    new_tensor = np.power(x1, x2)
+
+    set_tensor_out(tensor_out, new_tensor)
+
+
 @ggml_operator("Pow")
 def ggml_operator_pow(
     node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
 ):
-    raise NotImplementedError(f'Operator "Pow" not implemented')
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Pow" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    x1 = node_inputs[0]
+    x2 = node_inputs[1]
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+        context,
+        x1,
+        x2,
+        custom_pow,
+        1,
+        None,
+    )
+
+    return new_tensor
 
 
 @ggml.ggml_custom2_op_t
