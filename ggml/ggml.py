@@ -5962,6 +5962,95 @@ lib.ggml_internal_get_type_traits.restype = ggml_type_traits_t
 
 
 #####################################################
+# GGML ALLOC API
+# source: ggml-alloc.h
+#####################################################
+
+ggml_allocr_p = ctypes.c_void_p
+
+
+# GGML_API struct ggml_allocr * ggml_allocr_new(void * data, size_t size, size_t alignment);
+def ggml_allocr_new(
+    data: ctypes.c_void_p,
+    size: Union[ctypes.c_size_t, int],
+    alignment: Union[ctypes.c_size_t, int],
+) -> ggml_allocr_p:
+    return lib.ggml_allocr_new(data, size, alignment)
+
+
+lib.ggml_allocr_new.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_size_t]
+lib.ggml_allocr_new.restype = ggml_allocr_p
+
+
+# GGML_API struct ggml_allocr * ggml_allocr_new_measure(size_t alignment);
+def ggml_allocr_new_measure(
+    alignment: Union[ctypes.c_size_t, int],
+) -> ggml_allocr_p:
+    return lib.ggml_allocr_new_measure(alignment)
+
+
+lib.ggml_allocr_new_measure.argtypes = [ctypes.c_size_t]
+lib.ggml_allocr_new_measure.restype = ggml_allocr_p
+
+
+# GGML_API void   ggml_allocr_free(struct ggml_allocr * alloc);
+def ggml_allocr_free(
+    alloc: ggml_allocr_p,
+):
+    return lib.ggml_allocr_free(alloc)
+
+
+lib.ggml_allocr_free.argtypes = [ggml_allocr_p]
+lib.ggml_allocr_free.restype = None
+
+
+# GGML_API bool   ggml_allocr_is_measure(struct ggml_allocr * alloc);
+def ggml_allocr_is_measure(
+    alloc: ggml_allocr_p,
+) -> bool:
+    return lib.ggml_allocr_is_measure(alloc)
+
+
+lib.ggml_allocr_is_measure.argtypes = [ggml_allocr_p]
+lib.ggml_allocr_is_measure.restype = ctypes.c_bool
+
+
+# GGML_API void   ggml_allocr_reset(struct ggml_allocr * alloc);
+def ggml_allocr_reset(
+    alloc: ggml_allocr_p,
+):
+    return lib.ggml_allocr_reset(alloc)
+
+
+lib.ggml_allocr_reset.argtypes = [ggml_allocr_p]
+lib.ggml_allocr_reset.restype = None
+
+
+# GGML_API void   ggml_allocr_alloc(struct ggml_allocr * alloc, struct ggml_tensor * tensor);
+def ggml_allocr_alloc(
+    alloc: ggml_allocr_p,
+    tensor: ggml_tensor_p,
+):
+    return lib.ggml_allocr_alloc(alloc, tensor)
+
+
+lib.ggml_allocr_alloc_graph.argtypes = [ggml_allocr_p, ctypes.POINTER(ggml_tensor)]
+lib.ggml_allocr_alloc.restype = None
+
+
+# GGML_API size_t ggml_allocr_alloc_graph(struct ggml_allocr * alloc, struct ggml_cgraph * graph);
+def ggml_allocr_alloc_graph(
+    alloc: ggml_allocr_p,
+    graph: ggml_cgraph_p,
+) -> int:
+    return lib.ggml_allocr_alloc_graph(alloc, graph)
+
+
+lib.ggml_allocr_alloc_graph.argtypes = [ggml_allocr_p, ctypes.POINTER(ggml_cgraph)]
+lib.ggml_allocr_alloc_graph.restype = ctypes.c_size_t
+
+
+#####################################################
 # GGML CUDA API
 # source: ggml-cuda.h
 #####################################################
