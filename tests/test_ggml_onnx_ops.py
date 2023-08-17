@@ -1091,7 +1091,7 @@ def test_ggml_onnx_matmul_operator():
 
 
 def test_ggml_onnx_pow_operator():
-    return
+    # return
 
     def onnx_pow(x, y):
         class PowModel(torch.nn.Module):
@@ -1154,7 +1154,7 @@ def test_ggml_onnx_pow_operator():
         ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
         results.append(ggml.utils.to_numpy(output_tensor))
 
-    assert np.allclose(results[0], pow_numpy)
+    assert np.array_equal(results[0], pow_numpy)
 
     ggml.ggml_free(context)
 
@@ -1391,79 +1391,6 @@ def test_ggml_onnx_range_operator():
     result = ggml.utils.to_numpy(output_tensor)
 
     assert np.allclose(result, range_numpy)
-
-    ggml.ggml_free(context)
-
-
-def test_ggml_onnx_pow_operator():
-    # return
-
-    def onnx_pow(input, exponent):
-        pow_node = onnx.helper.make_node(
-            "Pow",
-            inputs=["input", "exponent"],
-            outputs=["output"],
-        )
-
-        graph = onnx.helper.make_graph(
-            [pow_node],
-            "pow_graph",
-            inputs=[
-                onnx.helper.make_tensor_value_info(
-                    "input", onnx.TensorProto.FLOAT, list(input.shape)
-                ),
-                onnx.helper.make_tensor_value_info(
-                    "exponent", onnx.TensorProto.FLOAT, list(exponent.shape)
-                ),
-            ],
-            outputs=[
-                onnx.helper.make_tensor_value_info(
-                    "output", onnx.TensorProto.FLOAT, list(input.shape)
-                ),
-            ],
-        )
-
-        model = onnx.helper.make_model(graph)
-
-        f = BytesIO()
-        onnx.save_model(model, f)
-
-        onnx_model_bytes = BytesIO(f.getvalue())
-
-        onnx_model_bytes.seek(0)
-        sess = ort.InferenceSession(onnx_model_bytes.read())
-
-        input_feed = {"input": input, "exponent": exponent}
-
-        output = sess.run(None, input_feed)
-
-        return output[0]
-
-    params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
-    context = ggml.ggml_init(params=params)
-    tensors_dict = {}
-    refs = []
-
-    input_array = np.array([2, 3, 4], np.float32)
-    exponent_array = np.array([3, 2, 1], np.float32)
-
-    pow_numpy = onnx_pow(input_array, exponent_array)
-
-    tensors_dict["input_array"] = ggml.utils.from_numpy(input_array, context)
-    tensors_dict["exponent_array"] = ggml.utils.from_numpy(exponent_array, context)
-
-    pow_node = onnx.helper.make_node(
-        "Pow",
-        inputs=["input_array", "exponent_array"],
-        outputs=["pow_output"],
-    )
-
-    output_tensor = ggml_operators["Pow"](pow_node, tensors_dict, context, refs)
-    gf = ggml.ggml_build_forward(output_tensor)
-    ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
-    result = ggml.utils.to_numpy(output_tensor)
-
-    assert np.allclose(result, pow_numpy)
 
     ggml.ggml_free(context)
 
