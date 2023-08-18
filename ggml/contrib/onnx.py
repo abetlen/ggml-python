@@ -1509,16 +1509,6 @@ class GgmlBackendRep(BackendRep):
 
         # Build layers
         for node in model_graph.node:
-            # print(
-            #     "OP:",
-            #     node.op_type,
-            #     "| NODE:",
-            #     node.name,
-            #     "| IN:",
-            #     node.input,
-            #     "| OUT:",
-            #     node.output[0],
-            # )
             node_output = ggml_operators[node.op_type](
                 self,
                 node,
@@ -1526,10 +1516,6 @@ class GgmlBackendRep(BackendRep):
                 context,
                 refs,
             )
-
-            node_value = ggml.utils.to_numpy(self.eval_tensor(node_output, context))
-            # print("OUTPUT_SHAPE:", node_value.shape)
-            # print()
 
             if node.output[-1] == self.graph.output[-1].name:
                 exit_node = node_output
