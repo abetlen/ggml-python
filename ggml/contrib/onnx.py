@@ -59,12 +59,107 @@ def get_tensor_dtype(tensor):
     return np.dtype(ctypes_type)
 
 
+def can_quantize(
+    np_array: np.ndarray,
+    name: str,
+    graph_def: GraphProto,
+):
+    return False
+
+    allowed_op_types = set(["MatMul"])
+
+    is_weight = is_2d = is_f32 = is_op_supported = False
+
+    is_weight = name in [initializer.name for initializer in graph_def.initializer]
+    is_2d = np_array.ndim == 2
+    is_f32 = np_array.dtype == np.float32
+    is_op_supported = any(
+        [
+            node
+            for node in graph_def.node
+            if node.op_type in allowed_op_types
+            and name in node.input
+            and node.input[0] == name
+        ]
+    )
+
+    return all([is_weight, is_2d, is_f32, is_op_supported])
+
+
+def broadcast_tensor(
+    ctx: ggml.ggml_context_p, tensor: ggml.ggml_tensor_p, shape: Tuple
+):
+    ggml_type = ggml.utils.GGML_TYPE(tensor.contents.type)
+
+    new_tensor = ggml.ggml_new_tensor(
+        ctx,
+        ggml_type.value,
+        len(shape),
+        (ctypes.c_int64 * len(shape))(*shape),
+    )
+
+    # new_tensor = ggml.ggml_repeat(
+    #     ctx,
+    #     tensor,
+    #     new_tensor,
+    # )
+
+    if ggml.utils.get_shape(tensor) == ():
+        ggml.utils.to_numpy(new_tensor)[()] = ggml.utils.to_numpy(tensor)
+    else:
+        ggml.utils.to_numpy(new_tensor)[:] = ggml.utils.to_numpy(tensor)
+
+    return new_tensor
+
+
+def broadcast_shapes(
+    ctx: ggml.ggml_context_p, a: ggml.ggml_tensor_p, b: ggml.ggml_tensor_p
+):
+    a_shape = get_tensor_shape(a)
+    b_shape = get_tensor_shape(b)
+
+    output_shape = tuple(
+        reversed(np.broadcast(np.empty(a_shape), np.empty(b_shape)).shape)
+    )
+
+    a_shaped = a
+    b_shaped = b
+
+    if a_shape != output_shape:
+        a_shaped = broadcast_tensor(ctx, a, output_shape)
+    if b_shape != output_shape:
+        b_shaped = broadcast_tensor(ctx, b, output_shape)
+
+    return a_shaped, b_shaped
+
+
+@ggml.ggml_custom2_op_t
+def custom_broadcast(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    context = userdata
+    tensor_out = ggml.ggml_repeat(
+        context,
+        tensor_in_1,
+        tensor_in_2,
+    )
+
+
 # ------ Operators ------
 
 
 @ggml_operator("Abs")
 def ggml_operator_abs(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: dict,
+    context: ggml.ggml_context_p,
+    refs: List[Any],
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
@@ -86,7 +181,11 @@ def ggml_operator_abs(
 
 @ggml_operator("Add")
 def ggml_operator_add(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: dict,
+    context: ggml.ggml_context_p,
+    refs: List[Any],
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
@@ -127,9 +226,12 @@ def custom_cast(
 
 @ggml_operator("Cast")
 def ggml_operator_cast(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: dict,
+    context: ggml.ggml_context_p,
+    refs: List[Any],
 ):
-    # using custom operator
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
     if len(node_inputs) != 1:
@@ -137,7 +239,7 @@ def ggml_operator_cast(
             f'Error for node "{node.name}": Operation "Cast" requires exactly one input and a dtype. Actual number of inputs: {len(node_inputs)}'
         )
 
-    onnx_type = next(attr for attr in node.attribute if attr.name == "to").i
+    onnx_type = next(attr.i for attr in node.attribute if attr.name == "to")
     onnx_type_c = ctypes.c_int(onnx_type)
 
     new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom1_inplace(
@@ -155,9 +257,61 @@ def ggml_operator_cast(
 
 @ggml_operator("Concat")
 def ggml_operator_concat(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: dict,
+    context: ggml.ggml_context_p,
+    refs: List[Any],
 ):
-    raise NotImplementedError(f'Operator "Concat" not implemented')
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) < 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Concat" requires at least two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    axis = next((attr.i for attr in node.attribute if attr.name == "axis"), 0)
+    shapes = [get_tensor_shape(tensor) for tensor in node_inputs]
+
+    if not all(
+        shape[:axis] == shapes[0][:axis] and shape[axis + 1 :] == shapes[0][axis + 1 :]
+        for shape in shapes
+    ):
+        raise ValueError(
+            "All tensors must have the same shape along the specified axis."
+        )
+
+    total_dim = sum(shape[axis] for shape in shapes)
+    output_shape = list(shapes[0])
+    output_shape[axis] = total_dim
+
+    x = np.empty(output_shape, dtype=get_tensor_dtype(node_inputs[0]))
+    x_t = ggml.utils.from_numpy(x, context)
+
+    @ggml.ggml_custom1_op_t
+    def custom_concat(
+        tensor_out: ggml.ggml_tensor_p,
+        tensor_in_1: ggml.ggml_tensor_p,
+        ith: int,
+        nth: int,
+        userdata: Optional[ctypes.c_void_p],
+    ):
+        tensors = [ggml.utils.to_numpy(node_input) for node_input in node_inputs]
+        x = np.concatenate(tensors, axis=axis)
+
+        set_tensor_out(tensor_out, x)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom1_inplace(
+        context,
+        x_t,
+        custom_concat,
+        1,
+        None,
+    )
+
+    refs.append(custom_concat)
+
+    return new_tensor
 
 
 @ggml.ggml_custom2_op_t
@@ -178,7 +332,11 @@ def custom_constant(
 
 @ggml_operator("Constant")
 def ggml_operator_constant(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: dict,
+    context: ggml.ggml_context_p,
+    refs: List[Any],
 ):
     node_attributes = node.attribute
 
@@ -186,6 +344,8 @@ def ggml_operator_constant(
     tensor = value_attr.t
     data_type = tensor.data_type
     np_data_type = tensor_dtype_to_np_dtype(data_type)
+
+    # print(node_attributes)
 
     np_data_type_limit = np.dtype(str(np_data_type).replace("64", "32"))
 
@@ -244,7 +404,11 @@ def custom_constant_of_shape(
 
 @ggml_operator("ConstantOfShape")
 def ggml_operator_constant_of_shape(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: dict,
+    context: ggml.ggml_context_p,
+    refs: List[Any],
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
@@ -288,7 +452,11 @@ def ggml_operator_constant_of_shape(
 
 @ggml_operator("Div")
 def ggml_operator_div(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: dict,
+    context: ggml.ggml_context_p,
+    refs: List[Any],
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
@@ -300,6 +468,8 @@ def ggml_operator_div(
     output_name = node.output[0]
     a = node_inputs[0]
     b = node_inputs[1]
+
+    a, b = broadcast_shapes(context, a, b)
 
     div_result = ggml.ggml_div(
         context,
@@ -331,7 +501,11 @@ def custom_gather(
 
 @ggml_operator("Gather")
 def ggml_operator_gather(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: dict,
+    context: ggml.ggml_context_p,
+    refs: List[Any],
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
@@ -340,18 +514,19 @@ def ggml_operator_gather(
             f'Error for node "{node.name}": Operation "Gather" requires exactly two inputs and one axis. Actual number of inputs: {len(node_inputs)}'
         )
 
-    axis = node.attribute[0].i if len(node.attribute) > 0 else -1
-
+    axis = next((attr.i for attr in node.attribute if attr.name == "axis"), 0)
     axis_c = ctypes.c_int(axis)
 
-    input_ndim = ggml.utils.get_ndims(node_inputs[0])
+    input_shape = get_tensor_shape(node_inputs[0])
     input_dtype = get_tensor_dtype(node_inputs[0])
     index_shape = get_tensor_shape(node_inputs[1])
 
-    output_shape = (input_ndim - 1) * (1,) + index_shape
+    Ni = input_shape[:axis]
+    Nk = input_shape[axis + 1 :]
+    Nj = index_shape
 
+    output_shape = tuple(list(Ni) + list(Nj) + list(Nk))
     x = np.empty(output_shape, dtype=input_dtype)
-
     x_t = ggml.utils.from_numpy(x, context)
 
     new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom3_inplace(
@@ -389,7 +564,11 @@ def custom_greater(
 
 @ggml_operator("Greater")
 def ggml_operator_greater(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: dict,
+    context: ggml.ggml_context_p,
+    refs: List[Any],
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
@@ -440,7 +619,11 @@ def custom_less(
 
 @ggml_operator("Less")
 def ggml_operator_less(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: dict,
+    context: ggml.ggml_context_p,
+    refs: List[Any],
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
@@ -473,7 +656,11 @@ def ggml_operator_less(
 
 @ggml_operator("Log")
 def ggml_operator_log(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: dict,
+    context: ggml.ggml_context_p,
+    refs: List[Any],
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
@@ -495,7 +682,11 @@ def ggml_operator_log(
 
 @ggml_operator("MatMul")
 def ggml_operator_mat_mul(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: dict,
+    context: ggml.ggml_context_p,
+    refs: List[Any],
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
@@ -507,9 +698,11 @@ def ggml_operator_mat_mul(
     output_name = node.output[0]
     a = node_inputs[0]
     b = node_inputs[1]
-    b_shape = get_tensor_shape(node_inputs[1])
-    b_dtype = get_tensor_dtype(node_inputs[1])
 
+    a, b = broadcast_shapes(context, a, b)
+
+    b_shape = get_tensor_shape(b)
+    b_dtype = get_tensor_dtype(b)
     b_transposed = ggml.ggml_cpy(
         context,
         ggml.ggml_transpose(context, b),
@@ -547,7 +740,11 @@ def custom_max(
 
 @ggml_operator("Max")
 def ggml_operator_max(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: dict,
+    context: ggml.ggml_context_p,
+    refs: List[Any],
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
@@ -596,7 +793,11 @@ def custom_min(
 
 @ggml_operator("Min")
 def ggml_operator_min(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: dict,
+    context: ggml.ggml_context_p,
+    refs: List[Any],
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
@@ -631,7 +832,11 @@ def ggml_operator_min(
 
 @ggml_operator("Mul")
 def ggml_operator_mul(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: dict,
+    context: ggml.ggml_context_p,
+    refs: List[Any],
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
@@ -643,6 +848,8 @@ def ggml_operator_mul(
     output_name = node.output[0]
     a = node_inputs[0]
     b = node_inputs[1]
+
+    a, b = broadcast_shapes(context, a, b)
 
     mul_result = ggml.ggml_mul(
         context,
@@ -673,7 +880,11 @@ def custom_pow(
 
 @ggml_operator("Pow")
 def ggml_operator_pow(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: dict,
+    context: ggml.ggml_context_p,
+    refs: List[Any],
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
@@ -716,7 +927,11 @@ def custom_range(
 
 @ggml_operator("Range")
 def ggml_operator_range(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: dict,
+    context: ggml.ggml_context_p,
+    refs: List[Any],
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
@@ -787,7 +1002,11 @@ def custom_reduce_mean(
 
 @ggml_operator("ReduceMean")
 def ggml_operator_reduce_mean(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: dict,
+    context: ggml.ggml_context_p,
+    refs: List[Any],
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
@@ -798,8 +1017,8 @@ def ggml_operator_reduce_mean(
 
     tensor_shape = get_tensor_shape(node_inputs[0])
     tensor_dtype = get_tensor_dtype(node_inputs[0])
-    axes = next(attr for attr in node.attribute if attr.name == "axes").ints
-    keepdims = next(attr for attr in node.attribute if attr.name == "keepdims").i
+    axes = next(attr.ints for attr in node.attribute if attr.name == "axes")
+    keepdims = next((attr.i for attr in node.attribute if attr.name == "keepdims"), 0)
 
     rmean_userdata = RedueMeanUserData(list(axes), keepdims)
     userdata_p = ctypes.cast(ctypes.pointer(rmean_userdata), ctypes.c_void_p)
@@ -833,7 +1052,11 @@ def ggml_operator_reduce_mean(
 
 @ggml_operator("Relu")
 def ggml_operator_relu(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: dict,
+    context: ggml.ggml_context_p,
+    refs: List[Any],
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
@@ -855,7 +1078,11 @@ def ggml_operator_relu(
 
 @ggml_operator("Reshape")
 def ggml_operator_reshape(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: dict,
+    context: ggml.ggml_context_p,
+    refs: List[Any],
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
@@ -864,36 +1091,41 @@ def ggml_operator_reshape(
             f'Error for node "{node.name}": Operation "Reshape" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
         )
 
-    output_name = node.output[0]
     a = node_inputs[0]
     b = node_inputs[1]
+    eval_b = backend.eval_tensor(b, context)
 
-    b_numpy_reverse: list = ggml.utils.to_numpy(b).tolist()
-    b_numpy_reverse.reverse()
+    new_shape = ggml.utils.to_numpy(eval_b).astype(dtype=np.int32)
 
-    dims = len(b_numpy_reverse)
+    temp_a = np.empty(get_tensor_shape(a), dtype=get_tensor_dtype(a))
+    x = temp_a.reshape(new_shape)
+    x_t = ggml.utils.from_numpy(x, context)
 
-    if dims > 4:
-        raise NotImplementedError(
-            f'Operator "Reshape" not implemented for over 4D arrays.'
-        )
+    @ggml.ggml_custom2_op_t
+    def custom_reshape(
+        tensor_out: ggml.ggml_tensor_p,
+        tensor_in_1: ggml.ggml_tensor_p,
+        tensor_in_2: ggml.ggml_tensor_p,
+        ith: int,
+        nth: int,
+        userdata: Optional[ctypes.c_void_p],
+    ):
+        x = ggml.utils.to_numpy(tensor_in_2)
+        x_reshape = np.reshape(x, new_shape)
+        set_tensor_out(tensor_out, x_reshape)
 
-    b_numpy_reverse += [0, 0, 0][:dims]
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+        context,
+        x_t,
+        a,
+        custom_reshape,
+        1,
+        None,
+    )
 
-    ne0, ne1, ne2, ne3 = b_numpy_reverse
+    refs.append(custom_reshape)
 
-    dim_map = {
-        1: (ggml.ggml_reshape_1d, (context, a, ne0)),
-        2: (ggml.ggml_reshape_2d, (context, a, ne0, ne1)),
-        3: (ggml.ggml_reshape_3d, (context, a, ne0, ne1, ne2)),
-        4: (ggml.ggml_reshape_4d, (context, a, ne0, ne1, ne2, ne3)),
-    }
-
-    func = dim_map[dims][0]
-    args = dim_map[dims][1]
-    reshape_result = func(*args)
-    tensors_dict[output_name] = reshape_result
-    return reshape_result
+    return new_tensor
 
 
 class ShapeUserData(ctypes.Structure):
@@ -924,7 +1156,11 @@ def custom_shape(
 
 @ggml_operator("Shape")
 def ggml_operator_shape(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: dict,
+    context: ggml.ggml_context_p,
+    refs: List[Any],
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
@@ -974,7 +1210,11 @@ def ggml_operator_shape(
 
 @ggml_operator("Softmax")
 def ggml_operator_softmax(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: dict,
+    context: ggml.ggml_context_p,
+    refs: List[Any],
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
@@ -996,7 +1236,11 @@ def ggml_operator_softmax(
 
 @ggml_operator("Sqrt")
 def ggml_operator_sqrt(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: dict,
+    context: ggml.ggml_context_p,
+    refs: List[Any],
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
@@ -1018,7 +1262,11 @@ def ggml_operator_sqrt(
 
 @ggml_operator("Sub")
 def ggml_operator_sub(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: dict,
+    context: ggml.ggml_context_p,
+    refs: List[Any],
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
@@ -1031,6 +1279,8 @@ def ggml_operator_sub(
     a = node_inputs[0]
     b = node_inputs[1]
 
+    a, b = broadcast_shapes(context, a, b)
+
     sub_result = ggml.ggml_sub(
         context,
         a,
@@ -1042,7 +1292,11 @@ def ggml_operator_sub(
 
 @ggml_operator("Transpose")
 def ggml_operator_transpose(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: dict,
+    context: ggml.ggml_context_p,
+    refs: List[Any],
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
@@ -1052,10 +1306,14 @@ def ggml_operator_transpose(
         )
 
     output_name = node.output[0]
-    input_shape = get_tensor_shape(node_inputs[0])
-    perm_map = {1: [0, 1, 2, 3], 2: [1, 0, 2, 3], 3: [2, 1, 0, 3], 4: [3, 2, 1, 0]}
+    x = node_inputs[0]
+    input_shape = get_tensor_shape(x)
+
+    perm_map = {2: [1, 0, 2, 3], 3: [2, 1, 0, 3], 4: [3, 2, 1, 0]}
 
     perm_attr = next((attr for attr in node.attribute if attr.name == "perm"), None)
+
+    # add special case and -> fix me comments
 
     if perm_attr is None:
         perm = perm_map.get(len(input_shape), [1, 0, 2, 3])
@@ -1064,7 +1322,9 @@ def ggml_operator_transpose(
         perm += [0, 1, 2, 3][len(perm) :]
 
     ax0, ax1, ax2, ax3 = perm
-    transpose_result = ggml.ggml_permute(context, node_inputs[0], ax0, ax1, ax2, ax3)
+
+    transpose_result = ggml.ggml_permute(context, x, ax0, ax1, ax2, ax3)
+
     tensors_dict[output_name] = transpose_result
     return transpose_result
 
@@ -1090,7 +1350,11 @@ def custom_unsqueeze(
 
 @ggml_operator("Unsqueeze")
 def ggml_operator_unsqueeze(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: dict,
+    context: ggml.ggml_context_p,
+    refs: List[Any],
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
@@ -1143,7 +1407,11 @@ def custom_where(
 
 @ggml_operator("Where")
 def ggml_operator_where(
-    node: NodeProto, tensors_dict: dict, context: ggml.ggml_context_p, refs: List[Any]
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: dict,
+    context: ggml.ggml_context_p,
+    refs: List[Any],
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
@@ -1172,6 +1440,12 @@ class GgmlBackendRep(BackendRep):
     def __del__(self):
         if hasattr(self, "ggml_context"):
             ggml.ggml_free(self.ggml_context)
+
+    def eval_tensor(self, tensor: ggml.ggml_tensor_p, context: ggml.ggml_context_p):
+        gf = ggml.ggml_build_forward(tensor)
+        ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
+
+        return tensor
 
     def run(self, inputs: Any, **kwargs: Any) -> Tuple[Any, ...]:
         """Abstract function."""
@@ -1229,24 +1503,39 @@ class GgmlBackendRep(BackendRep):
 
             ggml_tensors[input_name] = tensor
 
+        # Set user inputs
+        for key, value in inputs.items():
+            set_tensor_out(ggml_tensors[key], value)
+
         # Build layers
         for node in model_graph.node:
+            # print(
+            #     "OP:",
+            #     node.op_type,
+            #     "| NODE:",
+            #     node.name,
+            #     "| IN:",
+            #     node.input,
+            #     "| OUT:",
+            #     node.output[0],
+            # )
             node_output = ggml_operators[node.op_type](
+                self,
                 node,
                 ggml_tensors,
                 context,
                 refs,
             )
 
+            node_value = ggml.utils.to_numpy(self.eval_tensor(node_output, context))
+            # print("OUTPUT_SHAPE:", node_value.shape)
+            # print()
+
             if node.output[-1] == self.graph.output[-1].name:
                 exit_node = node_output
 
         # Build graph
         gf = ggml.ggml_build_forward(exit_node)
-
-        # Set user inputs
-        for key, value in inputs.items():
-            set_tensor_out(ggml_tensors[key], value)
 
         # Compute graph
         ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
@@ -1324,7 +1613,18 @@ class GgmlRuntimeBackend(Backend):
         for initializer in graph_def.initializer:
             name = initializer.name
             np_array = onnx.numpy_helper.to_array(initializer)
-            tensor = ggml.utils.from_numpy(x=np_array, ctx=context)
+            if can_quantize(np_array, name, graph_def):
+                ggml_qtype = ggml.utils.GGML_TYPE.Q8_0
+                shape = tuple(reversed(np_array.shape))
+                tensor = ggml.ggml_new_tensor(
+                    context,
+                    ggml_qtype.value,
+                    len(shape),
+                    (ctypes.c_int64 * len(shape))(*shape),
+                )
+
+            else:
+                tensor = ggml.utils.from_numpy(x=np_array, ctx=context)
 
             ggml.ggml_set_name(tensor=tensor, name=name.encode())
             total_nbytes += ggml.ggml_nbytes(tensor)
@@ -1339,7 +1639,26 @@ class GgmlRuntimeBackend(Backend):
             tensor.contents.data = ctypes.cast(
                 ctypes.addressof(buffer) + offset, ctypes.c_void_p
             )
-            set_tensor_out(tensor, onnx.numpy_helper.to_array(initializer))
+
+            np_array = onnx.numpy_helper.to_array(initializer)
+            if ggml.ggml_is_quantized(tensor.contents.type):
+                np_c_float_data = ctypes.cast(
+                    np_array.ctypes.data, ctypes.POINTER(ctypes.c_float)
+                )
+
+                ggml.utils.quantize_0(
+                    np_c_float_data,
+                    np_array.size,
+                    np_array.shape[0],
+                    ggml_qtype,
+                    work=ctypes.cast(
+                        ctypes.addressof(buffer) + offset, ctypes.c_void_p
+                    ),
+                )
+
+            else:
+                set_tensor_out(tensor, np_array)
+
             offset += nbytes
 
         ggml_backend_rep.ggml_buffer = buffer
