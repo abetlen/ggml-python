@@ -8,6 +8,7 @@ from transformers import AutoTokenizer
 from InstructorEmbedding import INSTRUCTOR
 
 from ggml.contrib.onnx import GgmlRuntimeBackend
+import torch
 
 
 def test_ggml_onnx_runtime_basic():
@@ -84,6 +85,41 @@ def test_ggml_onnx_runtime_basic():
     ggml_dummy_model = GgmlRuntimeBackend.prepare(model_def)
     ggml_result = ggml_dummy_model.run(input_data)
     assert ggml_result == runtime_result
+
+
+def test_ggml_onnx_qweights():
+    class MatMulModel(torch.nn.Module):
+        def __init__(self):
+            super(MatMulModel, self).__init__()
+            self.weight = torch.nn.Parameter(
+                torch.tensor(
+                    [[2.001034010, 1.00103040134], [0.1341415, 3.0001341340]],
+                    dtype=torch.float32,
+                )
+            )
+
+        def forward(self, x):
+            return torch.matmul(x, self.weight)
+
+    model = MatMulModel()
+    input_data = torch.tensor(
+        [[1.0187673849, 2.23652460], [3.42562560, -4.024562465]], dtype=torch.float32
+    )
+
+    f = io.BytesIO()
+    torch.onnx.export(model, input_data, f, input_names=["x"], output_names=["output"])
+    f.seek(0)
+
+    onnx_model = onnx.load_model(f)
+    session = InferenceSession(f.getvalue())
+    input_name = session.get_inputs()[0].name
+    input_feed = {input_name: input_data.numpy()}
+
+    runtime_result = session.run(None, input_feed)[0]
+
+    ggml_dummy_model = GgmlRuntimeBackend.prepare(onnx_model)
+    ggml_result = ggml_dummy_model.run(input_feed)[0]
+    assert np.allclose(ggml_result, runtime_result)
 
 
 def test_ggml_onnx_runtime_instructor():
