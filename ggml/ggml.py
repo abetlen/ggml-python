@@ -348,6 +348,7 @@ GGML_FTYPE_MOSTLY_Q6_K = 14
 #     GGML_OP_CLAMP,
 #     GGML_OP_CONV_1D,
 #     GGML_OP_CONV_2D,
+#     GGML_OP_CONV_TRANSPOSE_2D,
 #     GGML_OP_POOL_1D,
 #     GGML_OP_POOL_2D,
 
@@ -356,6 +357,8 @@ GGML_FTYPE_MOSTLY_Q6_K = 14
 #     GGML_OP_FLASH_ATTN_BACK,
 #     GGML_OP_WIN_PART,
 #     GGML_OP_WIN_UNPART,
+#     GGML_OP_GET_REL_POS,
+#     GGML_OP_ADD_REL_POS,
 
 #     GGML_OP_UNARY,
 
@@ -419,25 +422,28 @@ GGML_OP_ALIBI = 40
 GGML_OP_CLAMP = 41
 GGML_OP_CONV_1D = 42
 GGML_OP_CONV_2D = 43
-GGML_OP_POOL_1D = 44
-GGML_OP_POOL_2D = 45
-GGML_OP_FLASH_ATTN = 46
-GGML_OP_FLASH_FF = 47
-GGML_OP_FLASH_ATTN_BACK = 48
-GGML_OP_WIN_PART = 49
-GGML_OP_WIN_UNPART = 50
-GGML_OP_UNARY = 51
-GGML_OP_MAP_UNARY = 52
-GGML_OP_MAP_BINARY = 53
-GGML_OP_MAP_CUSTOM1_F32 = 54
-GGML_OP_MAP_CUSTOM2_F32 = 55
-GGML_OP_MAP_CUSTOM3_F32 = 56
-GGML_OP_MAP_CUSTOM1 = 57
-GGML_OP_MAP_CUSTOM2 = 58
-GGML_OP_MAP_CUSTOM3 = 59
-GGML_OP_CROSS_ENTROPY_LOSS = 60
-GGML_OP_CROSS_ENTROPY_LOSS_BACK = 61
-GGML_OP_COUNT = 62
+GGML_OP_CONV_TRANSPOSE_2D = 44
+GGML_OP_POOL_1D = 45
+GGML_OP_POOL_2D = 46
+GGML_OP_FLASH_ATTN = 47
+GGML_OP_FLASH_FF = 48
+GGML_OP_FLASH_ATTN_BACK = 49
+GGML_OP_WIN_PART = 50
+GGML_OP_WIN_UNPART = 51
+GGML_OP_GET_REL_POS = 52
+GGML_OP_ADD_REL_POS = 53
+GGML_OP_UNARY = 54
+GGML_OP_MAP_UNARY = 55
+GGML_OP_MAP_BINARY = 56
+GGML_OP_MAP_CUSTOM1_F32 = 57
+GGML_OP_MAP_CUSTOM2_F32 = 58
+GGML_OP_MAP_CUSTOM3_F32 = 59
+GGML_OP_MAP_CUSTOM1 = 60
+GGML_OP_MAP_CUSTOM2 = 61
+GGML_OP_MAP_CUSTOM3 = 62
+GGML_OP_CROSS_ENTROPY_LOSS = 63
+GGML_OP_CROSS_ENTROPY_LOSS_BACK = 64
+GGML_OP_COUNT = 65
 
 # enum ggml_unary_op {
 #     GGML_UNARY_OP_ABS,
@@ -4036,6 +4042,44 @@ lib.ggml_conv_1d.argtypes = [
 lib.ggml_conv_1d.restype = ctypes.POINTER(ggml_tensor)
 
 
+# // conv_1d with padding = half
+# // alias for ggml_conv_1d(a, b, s, a->ne[0]/2, d)
+# GGML_API struct ggml_tensor* ggml_conv_1d_ph(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b,
+#         int                   s,
+#         int                   d);
+def ggml_conv_1d_ph(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    s: Union[ctypes.c_int, int],
+    d: Union[ctypes.c_int, int],
+) -> ggml_tensor_p:
+    """Convolution 1D with padding = half
+
+    Parameters:
+        a: input tensor
+        b: filter tensor
+        s: stride
+        d: dilation
+
+    Returns:
+        output tensor"""
+    return lib.ggml_conv_1d_ph(ctx, a, b, s, d)
+
+
+lib.ggml_conv_1d_ph.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+    ctypes.c_int,
+    ctypes.c_int,
+]
+lib.ggml_conv_1d_ph.restype = ctypes.POINTER(ggml_tensor)
+
+
 # GGML_API struct ggml_tensor * ggml_conv_2d(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a,
@@ -4088,42 +4132,108 @@ lib.ggml_conv_2d.argtypes = [
 lib.ggml_conv_2d.restype = ctypes.POINTER(ggml_tensor)
 
 
-# // conv_1d with padding = half
-# // alias for ggml_conv_1d(a, b, s, a->ne[0]/2, d)
-# GGML_API struct ggml_tensor * ggml_conv_1d_ph(
+# // kernel size is a->ne[0] x a->ne[1]
+# // stride is equal to kernel size
+# // padding is zero
+# // example:
+# // a:     16   16    3  768
+# // b:   1024 1024    3    1
+# // res:   64   64  768    1
+# // used in sam
+# GGML_API struct ggml_tensor * ggml_conv_2d_sk_p0(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a,
-#         struct ggml_tensor  * b,
-#         int                   s,
-#         int                   d);
-def ggml_conv_1d_ph(
+#         struct ggml_tensor  * b);
+def ggml_conv_2d_sk_p0(
     ctx: ggml_context_p,
     a: ggml_tensor_p,
     b: ggml_tensor_p,
-    s: Union[ctypes.c_int, int],
-    d: Union[ctypes.c_int, int],
 ) -> ggml_tensor_p:
-    """Convolution 1D with padding = half
+    """Convolution 2D
 
     Parameters:
         a: input tensor
         b: filter tensor
-        s: stride
-        d: dilation
 
     Returns:
         output tensor"""
-    return lib.ggml_conv_1d_ph(ctx, a, b, s, d)
+    return lib.ggml_conv_2d_sk_p0(ctx, a, b)
 
 
-lib.ggml_conv_1d_ph.argtypes = [
+lib.ggml_conv_2d_sk_p0.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+]
+lib.ggml_conv_2d_sk_p0.restype = ctypes.POINTER(ggml_tensor)
+
+
+# // kernel size is a->ne[0] x a->ne[1]
+# // stride is 1
+# // padding is half
+# // example:
+# // a:      3    3    256  256
+# // b:     64   64    256    1
+# // res:   64   64    256    1
+# // used in sam
+# GGML_API struct ggml_tensor * ggml_conv_2d_s1_ph(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b);
+def ggml_conv_2d_s1_ph(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+) -> ggml_tensor_p:
+    """Convolution 2D with stride = 1 and padding = half
+
+    Parameters:
+        a: input tensor
+        b: filter tensor
+
+    Returns:
+        output tensor"""
+    return lib.ggml_conv_2d_s1_ph(ctx, a, b)
+
+
+lib.ggml_conv_2d_s1_ph.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+]
+lib.ggml_conv_2d_s1_ph.restype = ctypes.POINTER(ggml_tensor)
+
+
+# GGML_API struct ggml_tensor * ggml_conv_transpose_2d_p0(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b,
+#         int                   stride);
+def ggml_conv_transpose_2d_p0(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    stride: Union[ctypes.c_int, int],
+) -> ggml_tensor_p:
+    """Convolution Transpose 2D with padding = zero
+
+    Parameters:
+        a: input tensor
+        b: filter tensor
+        stride: stride
+
+    Returns:
+        output tensor"""
+    return lib.ggml_conv_transpose_2d_p0(ctx, a, b, stride)
+
+
+lib.ggml_conv_transpose_2d_p0.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_tensor),
     ctypes.POINTER(ggml_tensor),
     ctypes.c_int,
-    ctypes.c_int,
 ]
-lib.ggml_conv_1d_ph.restype = ctypes.POINTER(ggml_tensor)
+lib.ggml_conv_transpose_2d_p0.restype = ctypes.POINTER(ggml_tensor)
 
 # enum ggml_op_pool {
 #     GGML_OP_POOL_MAX,
@@ -4402,6 +4512,54 @@ lib.ggml_unary_inplace.argtypes = [
     ctypes.c_int,
 ]
 lib.ggml_unary_inplace.restype = ctypes.POINTER(ggml_tensor)
+
+
+# // used in sam
+# GGML_API struct ggml_tensor * ggml_get_rel_pos(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         int                   qh,
+#         int                   kh);
+def ggml_get_rel_pos(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    qh: Union[ctypes.c_int, int],
+    kh: Union[ctypes.c_int, int],
+) -> ggml_tensor_p:
+    return lib.ggml_get_rel_pos(ctx, a, qh, kh)
+
+
+lib.ggml_get_rel_pos.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.c_int,
+    ctypes.c_int,
+]
+lib.ggml_get_rel_pos.restype = ctypes.POINTER(ggml_tensor)
+
+
+# // used in sam
+# GGML_API struct ggml_tensor * ggml_add_rel_pos(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * pw,
+#         struct ggml_tensor  * ph);
+def ggml_add_rel_pos(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    pw: ggml_tensor_p,
+    ph: ggml_tensor_p,
+) -> ggml_tensor_p:
+    return lib.ggml_add_rel_pos(ctx, a, pw, ph)
+
+
+lib.ggml_add_rel_pos.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+]
+lib.ggml_add_rel_pos.restype = ctypes.POINTER(ggml_tensor)
 
 # // custom operators (DEPRECATED)
 
