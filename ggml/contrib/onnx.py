@@ -117,7 +117,7 @@ def broadcast_shapes(
 
     output_shape = tuple(
         reversed(np.broadcast(np.empty(a_shape), np.empty(b_shape)).shape)
-    ) # TODO: Fix this
+    )  # TODO: Fix this
 
     a_shaped = a
     b_shaped = b
@@ -176,7 +176,7 @@ def ggml_operator_add(
 
     output_name = node.output[0]
 
-    a, b  = node_inputs
+    a, b = node_inputs
     a, b = broadcast_shapes(context, a, b)
 
     add_result = ggml.ggml_add(
@@ -1063,19 +1063,31 @@ def ggml_operator_reshape(
     refs: List[Any],
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
-
     if len(node_inputs) != 2:
         raise ValueError(
             f'Error for node "{node.name}": Operation "Reshape" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
         )
+
+
+    try:
+        allowzero_attr = next(attr for attr in node.attribute if attr.name == "allowzero")
+        allowzero = allowzero_attr.i == 1
+    except StopIteration:
+        allowzero = False
+
 
     a = node_inputs[0]
     b = node_inputs[1]
     eval_b = backend.eval_tensor(b, context)
 
     new_shape = ggml.utils.to_numpy(eval_b).astype(dtype=np.int32)
+    old_shape = get_tensor_shape(a)
 
-    temp_a = np.empty(get_tensor_shape(a), dtype=get_tensor_dtype(a))
+    if not allowzero:
+        keep_idxs = np.where(new_shape == 0)[0]
+        new_shape[keep_idxs] = np.array(old_shape)[keep_idxs]
+
+    temp_a = np.empty(old_shape, dtype=get_tensor_dtype(a))
     x = temp_a.reshape(new_shape)
     x_t = ggml.utils.from_numpy(x, context)
 
@@ -1412,7 +1424,16 @@ def ggml_operator_where(
 
 
 class GgmlBackendRep(BackendRep):
-    def __init__(self, graph, weights, weights_buffer, inputs, outputs, ggml_context, ggml_init_params):
+    def __init__(
+        self,
+        graph,
+        weights,
+        weights_buffer,
+        inputs,
+        outputs,
+        ggml_context,
+        ggml_init_params,
+    ):
         super(GgmlBackendRep, self).__init__()
         self.graph = graph
         self.weights = weights
@@ -1436,7 +1457,7 @@ class GgmlBackendRep(BackendRep):
         """Run the model with the specified inputs."""
 
         if isinstance(inputs, list):
-            inputs = {k.name:v for k,v in zip(self.inputs, inputs)}
+            inputs = {k.name: v for k, v in zip(self.inputs, inputs)}
 
         assert isinstance(inputs, dict)
 
