@@ -87,12 +87,38 @@ def test_ggml_onnx_runtime_basic():
     assert ggml_result == runtime_result
 
 
-# # This is a pytest magic variable to load extra plugins
-# pytest_plugins = ("onnx.backend.test.report",)
+# This is a pytest magic variable to load extra plugins
+pytest_plugins = ("onnx.backend.test.report",)
 
-# backend_test = onnx.backend.test.BackendTest(GgmlRuntimeBackend, __name__)
-# # backend_test.exclude(".*")
-# # backend_test.include("test_ggml_onnx_runtime_basic")
-# backend_test.include('test_add_cpu')
-# # import all test cases at global scope to make them visible to python.unittest
-# globals().update(backend_test.enable_report().test_cases)
+backend_test = onnx.backend.test.BackendTest(GgmlRuntimeBackend, __name__)
+backend_test.include("test_abs_")
+# backend_test.include("test_add_")
+# backend_test.include("test_cast")
+backend_test.include("test_concat_")
+# backend_test.include("test_constant_")
+# backend_test.include("test_div_")
+# backend_test.include("test_gather_")
+# backend_test.include("test_greater_")
+# backend_test.include("test_less_")
+# backend_test.include("test_log_")
+# backend_test.include("test_matmul_")
+# backend_test.include("test_max_")
+# backend_test.include("test_min_")
+# backend_test.include("test_mul_")
+# backend_test.include("test_pow_")
+# backend_test.include("test_range_")
+# backend_test.include("test_reduce_mean_")
+# backend_test.include("test_relu_")
+# backend_test.include("test_reshape_")
+# backend_test.include("test_shape")
+# backend_test.include("test_softmax_")
+backend_test.include("test_sqrt_")
+# backend_test.include("test_sub_")
+# backend_test.include("test_transpose_")
+# backend_test.include("test_unsqueeze_")
+# backend_test.include("test_where_")
+
+# backend_test.exclude(".*cuda.*")
+
+# import all test cases at global scope to make them visible to python.unittest
+globals().update(backend_test.enable_report().test_cases)
