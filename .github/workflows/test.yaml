@@ -25,8 +25,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
         run: |
-          python3 -m pip install --upgrade pip pytest cmake scikit-build setuptools
-          python3 -m pip install --verbose --editable .[onnx,onnx-tests]
+          python3 -m pip install --upgrade pip pytest cmake scikit-build setuptools onnxruntime onnx
+          python3 -m pip install --verbose --editable .
       - name: Test with pytest
         run: |
           python3 -m pytest
