@@ -1086,7 +1086,6 @@ def ggml_operator_reshape(
     if not allowzero:
         keep_idxs = np.where(new_shape == 0)[0]
         new_shape[keep_idxs] = np.array(old_shape)[keep_idxs]
-        new_shape = new_shape.copy()
 
     temp_a = np.empty(old_shape, dtype=get_tensor_dtype(a))
     x = temp_a.reshape(new_shape)
