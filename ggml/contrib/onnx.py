@@ -1254,9 +1254,7 @@ def ggml_operator_sub(
         )
 
     output_name = node.output[0]
-    a = node_inputs[0]
-    b = node_inputs[1]
-
+    a, b  = node_inputs
     a, b = broadcast_shapes(context, a, b)
 
     sub_result = ggml.ggml_sub(
