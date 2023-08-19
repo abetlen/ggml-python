@@ -1616,7 +1616,7 @@ class GgmlRuntimeBackend(Backend):
         )
 
     @classmethod
-    def run_model(cls, model, inputs, device=None, **kwargs):
+    def run_model(cls, model: ModelProto, inputs: Any, device=None, **kwargs) -> Tuple[Any, ...]:
         """
         Compute the prediction.
 
@@ -1633,7 +1633,7 @@ class GgmlRuntimeBackend(Backend):
         return rep.run(inputs, **kwargs)
 
     @classmethod
-    def run_node(cls, node, inputs, device=None, outputs_info=None, **kwargs):
+    def run_node(cls, node: NodeProto, inputs: Any, device=None, outputs_info=None, **kwargs) -> Tuple[Any, ...]:
         """
         This method is not implemented as it is much more efficient
         to run a whole model than every node independently.
