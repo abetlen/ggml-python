@@ -2,17 +2,17 @@ import io
 
 import numpy as np
 import onnx
-from onnx import TensorProto, helper
-from onnxruntime import InferenceSession
-from transformers import AutoTokenizer
-from InstructorEmbedding import INSTRUCTOR
+from onnx import helper
+from onnx.onnx_pb import TensorProto
+
+import onnx.backend.test
+
+from onnxruntime import InferenceSession  # type: ignore
 
 from ggml.contrib.onnx import GgmlRuntimeBackend
-import torch
 
 
 def test_ggml_onnx_runtime_basic():
-    # return
     # The name of the input tensor
     input_name = "X"
 
@@ -87,63 +87,12 @@ def test_ggml_onnx_runtime_basic():
     assert ggml_result == runtime_result
 
 
-def test_ggml_onnx_qweights():
-    class MatMulModel(torch.nn.Module):
-        def __init__(self):
-            super(MatMulModel, self).__init__()
-            self.weight = torch.nn.Parameter(
-                torch.tensor(
-                    [[2.001034010, 1.00103040134], [0.1341415, 3.0001341340]],
-                    dtype=torch.float32,
-                )
-            )
+# # This is a pytest magic variable to load extra plugins
+# pytest_plugins = ("onnx.backend.test.report",)
 
-        def forward(self, x):
-            return torch.matmul(x, self.weight)
-
-    model = MatMulModel()
-    input_data = torch.tensor(
-        [[1.0187673849, 2.23652460], [3.42562560, -4.024562465]], dtype=torch.float32
-    )
-
-    f = io.BytesIO()
-    torch.onnx.export(model, input_data, f, input_names=["x"], output_names=["output"])
-    f.seek(0)
-
-    onnx_model = onnx.load_model(f)
-    session = InferenceSession(f.getvalue())
-    input_name = session.get_inputs()[0].name
-    input_feed = {input_name: input_data.numpy()}
-
-    runtime_result = session.run(None, input_feed)[0]
-
-    ggml_dummy_model = GgmlRuntimeBackend.prepare(onnx_model)
-    ggml_result = ggml_dummy_model.run(input_feed)[0]
-    assert np.allclose(ggml_result, runtime_result)
-
-
-def test_ggml_onnx_runtime_instructor():
-    # return
-    instructor_model = INSTRUCTOR("hkunlp/instructor-base")
-
-    onnx_instructor_model = onnx.load("instructor_base_onnx/encoder_model.onnx")
-    ggml_onnx_instructor_model = GgmlRuntimeBackend.prepare(onnx_instructor_model)
-
-    instructor_tokenizer = AutoTokenizer.from_pretrained("t5-large")
-
-    sentence = "This is a sentence"
-    instruction = "Represent the follwing sentence:"
-
-    sentence_tokens = instructor_tokenizer.encode(
-        [instruction, sentence], return_tensors="np"
-    )
-
-    input_data = {
-        "input_ids": sentence_tokens,
-        "attention_mask": [np.ones(sentence_tokens.shape[1])],
-    }
-
-    instructor_output = instructor_model.encode([[instruction, sentence]])
-    ggml_output = ggml_onnx_instructor_model.run(input_data)
-
-    assert instructor_output == ggml_output
+# backend_test = onnx.backend.test.BackendTest(GgmlRuntimeBackend, __name__)
+# # backend_test.exclude(".*")
+# # backend_test.include("test_ggml_onnx_runtime_basic")
+# backend_test.include('test_add_cpu')
+# # import all test cases at global scope to make them visible to python.unittest
+# globals().update(backend_test.enable_report().test_cases)

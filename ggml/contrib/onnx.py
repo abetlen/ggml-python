@@ -1,11 +1,14 @@
+"""GGML ONNX backend.
+
+This module implements a GGML backend for ONNX models and operators.
+"""
 import ctypes
 from typing import Any, List, Optional, Tuple
 
 import numpy as np
 import onnx
-from onnx import defs
 from onnx.backend.base import Backend, BackendRep
-from onnx.helper import make_opsetid, tensor_dtype_to_np_dtype
+from onnx.helper import tensor_dtype_to_np_dtype
 from onnx.onnx_ml_pb2 import GraphProto, ModelProto, NodeProto
 
 import ggml
@@ -344,8 +347,6 @@ def ggml_operator_constant(
     tensor = value_attr.t
     data_type = tensor.data_type
     np_data_type = tensor_dtype_to_np_dtype(data_type)
-
-    # print(node_attributes)
 
     np_data_type_limit = np.dtype(str(np_data_type).replace("64", "32"))
 
@@ -1450,6 +1451,8 @@ class GgmlBackendRep(BackendRep):
     def run(self, inputs: Any, **kwargs: Any) -> Tuple[Any, ...]:
         """Abstract function."""
 
+        print(inputs)
+
         # check: data is should be on CPU
 
         model_graph = self.graph
@@ -1552,32 +1555,7 @@ class GgmlRuntimeBackend(Backend):
         """
 
         super(GgmlRuntimeBackend, cls).prepare(model, device, **kwargs)
-        ggml_rep = cls.onnx_model_to_ggml_rep(model, **kwargs)
-
-        return ggml_rep
-
-    @classmethod
-    def onnx_model_to_ggml_rep(cls, model: ModelProto, **kwargs):
-        """Convert ONNX model to GgmlRep.
-
-        :param model: ONNX ModelProto object.
-        and the converted tensorflow model.
-        :return: GgmlRep object.
-        """
-
-        # Models with IR_VERSION less than 3 does not have opset_import set.
-        # We default to minimum opset, this behavior is consistent with
-        # onnx checker.
-        # c.f. https://github.com/onnx/onnx/blob/427ac0c1b792363d373e3d7e4eef97fa46458420/onnx/checker.cc#L478
-        if model.ir_version < 3:
-            opset_import = [make_opsetid(defs.ONNX_DOMAIN, 1)]
-        else:
-            opset_import = model.opset_import
-
-        return cls._onnx_graph_to_ggml_rep(model.graph, opset_import, **kwargs)
-
-    @classmethod
-    def _onnx_graph_to_ggml_rep(cls, graph_def: GraphProto, opset, **kwargs):
+        graph_def = model.graph
         ggml_backend_rep = GgmlBackendRep()
         ggml_backend_rep.graph = graph_def
 
@@ -1628,8 +1606,8 @@ class GgmlRuntimeBackend(Backend):
 
             np_array = onnx.numpy_helper.to_array(initializer)
             if ggml.ggml_is_quantized(tensor.contents.type):
-                np_c_float_data = ctypes.cast(
-                    np_array.ctypes.data, ctypes.POINTER(ctypes.c_float)
+                np_c_float_data = (ctypes.c_float * np_array.size).from_address(
+                    ctypes.addressof(np_array.ctypes.data)
                 )
 
                 ggml.utils.quantize_0(
@@ -1669,6 +1647,8 @@ class GgmlRuntimeBackend(Backend):
         :return: predictions
         """
         rep = cls.prepare(model, device, **kwargs)
+        if isinstance(inputs, list):
+            inputs = {k:v for k, v in zip(model.graph.input, inputs)}
         return rep.run(inputs, **kwargs)
 
     @classmethod
