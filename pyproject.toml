@@ -49,9 +49,6 @@ onnx-tests = [
     "pytest-cov==4.1.0", 
     "pytest-runner==6.0.0", 
     "onnxruntime==1.15.1", 
-    "InstructorEmbedding==1.0.1", 
-    "sentence_transformers==2.2.2", 
-    "sentencepiece==0.1.99"
 ]
 
 [project.urls]
