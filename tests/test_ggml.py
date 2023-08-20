@@ -131,6 +131,7 @@ def test_ggml_alloc():
         # outputs
         f = ggml.ggml_add(ctx, tmp, b)
         ggml.ggml_set_name(f, b"f")
+        ggml.ggml_allocr_alloc(alloc, f)
 
         # build graph
         gf = ggml.ggml_build_forward(f)
