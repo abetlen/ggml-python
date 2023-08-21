@@ -2,17 +2,17 @@ import io
 
 import numpy as np
 import onnx
-from onnx import TensorProto, helper
-from onnxruntime import InferenceSession
-from transformers import AutoTokenizer
-from InstructorEmbedding import INSTRUCTOR
+from onnx import helper
+from onnx.onnx_pb import TensorProto
+
+import onnx.backend.test
+
+from onnxruntime import InferenceSession  # type: ignore
 
 from ggml.contrib.onnx import GgmlRuntimeBackend
-import torch
 
 
 def test_ggml_onnx_runtime_basic():
-    # return
     # The name of the input tensor
     input_name = "X"
 
@@ -87,63 +87,148 @@ def test_ggml_onnx_runtime_basic():
     assert ggml_result == runtime_result
 
 
-def test_ggml_onnx_qweights():
-    class MatMulModel(torch.nn.Module):
-        def __init__(self):
-            super(MatMulModel, self).__init__()
-            self.weight = torch.nn.Parameter(
-                torch.tensor(
-                    [[2.001034010, 1.00103040134], [0.1341415, 3.0001341340]],
-                    dtype=torch.float32,
-                )
-            )
+# This is a pytest magic variable to load extra plugins
+pytest_plugins = ("onnx.backend.test.report",)
 
-        def forward(self, x):
-            return torch.matmul(x, self.weight)
+backend_test = onnx.backend.test.BackendTest(GgmlRuntimeBackend, __name__)
 
-    model = MatMulModel()
-    input_data = torch.tensor(
-        [[1.0187673849, 2.23652460], [3.42562560, -4.024562465]], dtype=torch.float32
-    )
+backend_test.include("test_abs_")
 
-    f = io.BytesIO()
-    torch.onnx.export(model, input_data, f, input_names=["x"], output_names=["output"])
-    f.seek(0)
+backend_test.include("test_add_")
+backend_test.exclude("test_add_uint8_") # not supported
 
-    onnx_model = onnx.load_model(f)
-    session = InferenceSession(f.getvalue())
-    input_name = session.get_inputs()[0].name
-    input_feed = {input_name: input_data.numpy()}
+backend_test.include("test_cast_")
 
-    runtime_result = session.run(None, input_feed)[0]
+backend_test.include("test_concat_")
 
-    ggml_dummy_model = GgmlRuntimeBackend.prepare(onnx_model)
-    ggml_result = ggml_dummy_model.run(input_feed)[0]
-    assert np.allclose(ggml_result, runtime_result)
+backend_test.include("test_constant_")
 
+backend_test.include("test_div_")
 
-def test_ggml_onnx_runtime_instructor():
-    # return
-    instructor_model = INSTRUCTOR("hkunlp/instructor-base")
+backend_test.exclude("test_div_uint8_") # not supported
 
-    onnx_instructor_model = onnx.load("instructor_base_onnx/encoder_model.onnx")
-    ggml_onnx_instructor_model = GgmlRuntimeBackend.prepare(onnx_instructor_model)
+backend_test.include("test_gather_")
+backend_test.exclude("test_gather_2d")
+backend_test.exclude("test_gather_elements")
+backend_test.exclude("test_gather_negative")
 
-    instructor_tokenizer = AutoTokenizer.from_pretrained("t5-large")
+backend_test.include("test_greater_")
+backend_test.exclude("test_greater_bcast")
+backend_test.exclude("test_greater_equal")
 
-    sentence = "This is a sentence"
-    instruction = "Represent the follwing sentence:"
+backend_test.include("test_less_")
+backend_test.exclude("test_less_")
+backend_test.exclude("test_less_bcast")
+backend_test.exclude("test_less_cuda")
+backend_test.exclude("test_less_equal_")
 
-    sentence_tokens = instructor_tokenizer.encode(
-        [instruction, sentence], return_tensors="np"
-    )
+backend_test.include("test_log_")
+backend_test.exclude("test_log_")
 
-    input_data = {
-        "input_ids": sentence_tokens,
-        "attention_mask": [np.ones(sentence_tokens.shape[1])],
-    }
+backend_test.include("test_matmul_")
+backend_test.exclude("test_matmul_")
 
-    instructor_output = instructor_model.encode([[instruction, sentence]])
-    ggml_output = ggml_onnx_instructor_model.run(input_data)
+backend_test.include("test_max_")
+backend_test.exclude("test_max_one")
+backend_test.exclude("test_max_two")
+backend_test.exclude("test_max_float16")
+backend_test.exclude("test_max_float32")
+backend_test.exclude("test_max_float64")
+backend_test.exclude("test_max_int8")
+backend_test.exclude("test_max_int16")
+backend_test.exclude("test_max_int32")
+backend_test.exclude("test_max_int64")
+backend_test.exclude("test_max_uint")
+backend_test.exclude("test_max_example")
 
-    assert instructor_output == ggml_output
+backend_test.include("test_min_")
+backend_test.exclude("test_min_one")
+backend_test.exclude("test_min_two")
+backend_test.exclude("test_min_float16")
+backend_test.exclude("test_min_float32")
+backend_test.exclude("test_min_float64")
+backend_test.exclude("test_min_int8")
+backend_test.exclude("test_min_int16")
+backend_test.exclude("test_min_int32")
+backend_test.exclude("test_min_int64")
+backend_test.exclude("test_min_uint")
+backend_test.exclude("test_min_example")
+
+backend_test.include("test_mul_")
+backend_test.exclude("test_mul_")
+backend_test.exclude("test_mul_bcast")
+backend_test.exclude("test_mul_example")
+backend_test.exclude("test_mul_uint8")
+
+backend_test.include("test_pow_")
+backend_test.exclude("test_pow_")
+backend_test.exclude("test_pow_types")
+backend_test.exclude("test_pow_types_int64")
+backend_test.exclude("test_pow_types_int64")
+
+backend_test.include("test_range_")
+backend_test.exclude("test_range_float")
+backend_test.exclude("test_range_int32")
+
+backend_test.include("test_reduce_mean_")
+backend_test.exclude("test_reduce_mean_default")
+backend_test.exclude("test_reduce_mean_do_not_keepdims")
+backend_test.exclude("test_reduce_mean_keepdims")
+backend_test.exclude("test_reduce_mean_negative_axes")
+
+backend_test.include("test_relu_")
+backend_test.exclude("test_relu_")
+backend_test.exclude("test_relu_expanded")
+
+backend_test.include("test_reshape_")
+backend_test.exclude("test_reshape_allowzero")
+backend_test.exclude("test_reshape_negative")
+backend_test.exclude("test_reshape_one_dim")
+backend_test.exclude("test_reshape_reduced")
+backend_test.exclude("test_reshape_reordered")
+backend_test.exclude("test_reshape_zero")
+backend_test.exclude("test_reshape_extended")
+
+backend_test.include("test_shape_")
+backend_test.exclude("test_shape_cpu")
+backend_test.exclude("test_shape_cuda")
+backend_test.exclude("test_shape_clip")
+backend_test.exclude("test_shape_start")
+backend_test.exclude("test_shape_end")
+backend_test.exclude("test_shape_example")
+
+backend_test.include("test_softmax_")
+backend_test.exclude("test_softmax_axis")
+backend_test.exclude("test_softmax_default_axis")
+backend_test.exclude("test_softmax_example")
+backend_test.exclude("test_softmax_large_number")
+backend_test.exclude("test_softmax_negative_axis")
+backend_test.exclude("test_softmax_functional")
+backend_test.exclude("test_softmax_lastdim")
+
+backend_test.include("test_sqrt_")
+backend_test.exclude("test_sqrt_cpu")
+backend_test.exclude("test_sqrt_cuda")
+backend_test.exclude("test_sqrt_example")
+
+backend_test.include("test_sub_")
+backend_test.exclude("test_sub_cpu")
+backend_test.exclude("test_sub_example") # not supported
+backend_test.exclude("test_sub_cuda") # not supported
+backend_test.exclude("test_sub_bcast_") # not supported
+backend_test.exclude("test_sub_uint8_") # not supported
+
+backend_test.include("test_transpose_")
+backend_test.exclude("test_transpose_")
+
+backend_test.include("test_unsqueeze_")
+backend_test.exclude("test_unsqueeze_")
+
+backend_test.include("test_where_")
+backend_test.exclude("test_where_long")
+backend_test.exclude("test_where_example")
+
+backend_test.exclude(".*cuda.*")
+
+# import all test cases at global scope to make them visible to python.unittest
+globals().update(backend_test.enable_report().test_cases)
