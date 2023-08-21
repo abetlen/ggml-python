@@ -98,22 +98,24 @@ def broadcast_tensor(
         (ctypes.c_int64 * len(shape))(*shape),
     )
 
-    # new_tensor = ggml.ggml_repeat(
-    #     ctx,
-    #     tensor,
-    #     new_tensor,
-    # )
+    new_tensor = ggml.ggml_repeat(
+        ctx,
+        tensor,
+        new_tensor,
+    )
 
-    if ggml.utils.get_shape(tensor) == ():
-        ggml.utils.to_numpy(new_tensor)[()] = ggml.utils.to_numpy(tensor)
-    else:
-        ggml.utils.to_numpy(new_tensor)[:] = ggml.utils.to_numpy(tensor)
+    # if ggml.utils.get_shape(tensor) == ():
+    #     ggml.utils.to_numpy(new_tensor)[()] = ggml.utils.to_numpy(tensor)
+    # else:
+    #     ggml.utils.to_numpy(new_tensor)[:] = ggml.utils.to_numpy(tensor)
 
     return new_tensor
 
 
 def broadcast_shapes(
-    ctx: ggml.ggml_context_p, a: ggml.ggml_tensor_p, b: ggml.ggml_tensor_p
+    ctx: ggml.ggml_context_p,
+    a: ggml.ggml_tensor_p,
+    b: ggml.ggml_tensor_p,
 ):
     a_shape = get_tensor_shape(a)
     b_shape = get_tensor_shape(b)
@@ -345,8 +347,6 @@ def ggml_operator_constant(
     data_type = tensor.data_type
     np_data_type = tensor_dtype_to_np_dtype(data_type)
 
-    # print(node_attributes)
-
     np_data_type_limit = np.dtype(str(np_data_type).replace("64", "32"))
 
     data_value = np.frombuffer(tensor.raw_data, dtype=np_data_type)
@@ -433,7 +433,8 @@ def ggml_operator_constant_of_shape(
         context,
     )
 
-    shape = ggml.utils.to_numpy(node_inputs[0])
+    shape_eval = backend.eval_tensor(node_inputs[0], context)
+    shape = ggml.utils.to_numpy(shape_eval)
 
     x = np.empty(shape, dtype=np_data_type_limit)
     x_t = ggml.utils.from_numpy(x, context)
@@ -940,7 +941,10 @@ def ggml_operator_range(
             f'Error for node "{node.name}": Operation "Range" requires exactly three inputs. Actual number of inputs: {len(node_inputs)}'
         )
 
-    tensors = [ggml.utils.to_numpy(node_input) for node_input in node_inputs]
+    tensors_eval = [
+        backend.eval_tensor(node_input, context) for node_input in node_inputs
+    ]
+    tensors = [ggml.utils.to_numpy(tensor_eval) for tensor_eval in tensors_eval]
 
     start, stop, step = tensors
     output_shape = (int(np.ceil((stop - start) / step)),)
@@ -1171,16 +1175,17 @@ def ggml_operator_shape(
 
     tensor_shape = get_tensor_shape(node_inputs[0])
     tensor_dtype = get_tensor_dtype(node_inputs[0])
-    start = (
-        ggml.utils.to_numpy(node_inputs[1])
-        if len(node_inputs) > 1
-        else [ctypes.c_int(0)]
-    )
-    end = (
-        ggml.utils.to_numpy(node_inputs[2])
-        if len(node_inputs) > 2
-        else [ctypes.c_int(tensor_shape[-1])]
-    )
+
+    start = [ctypes.c_int(0)]
+    end = [ctypes.c_int(tensor_shape[-1])]
+
+    if len(node_inputs) > 1:
+        eval_start = backend.eval_tensor(node_inputs[1], context)
+        start = ggml.utils.to_numpy(eval_start)
+
+    if len(node_inputs) > 2:
+        eval_end = backend.eval_tensor(node_inputs[2], context)
+        end = ggml.utils.to_numpy(eval_end)
 
     start = start[0] if len(start) else ctypes.c_int(0)
     end = end[0] if len(end) else ctypes.c_int(tensor_shape[-1])
@@ -1365,7 +1370,9 @@ def ggml_operator_unsqueeze(
 
     x_shape = get_tensor_shape(node_inputs[0])
     x_dtype = get_tensor_dtype(node_inputs[0])
-    axes = ggml.utils.to_numpy(node_inputs[1])
+
+    axes_eval = backend.eval_tensor(node_inputs[1], context)
+    axes = ggml.utils.to_numpy(axes_eval)
 
     for axis in np.nditer(axes):
         x_shape = np.insert(x_shape, axis, 1)
@@ -1509,6 +1516,16 @@ class GgmlBackendRep(BackendRep):
 
         # Build layers
         for node in model_graph.node:
+            # print(
+            #     "OP:",
+            #     node.op_type,
+            #     "| NODE:",
+            #     node.name,
+            #     "| IN:",
+            #     node.input,
+            #     "| OUT:",
+            #     node.output[0],
+            # )
             node_output = ggml_operators[node.op_type](
                 self,
                 node,
@@ -1516,6 +1533,10 @@ class GgmlBackendRep(BackendRep):
                 context,
                 refs,
             )
+
+            # node_value = ggml.utils.to_numpy(self.eval_tensor(node_output, context))
+            # print("OUTPUT_SHAPE:", node_value.shape)
+            # print()
 
             if node.output[-1] == self.graph.output[-1].name:
                 exit_node = node_output
