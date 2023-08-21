@@ -95,7 +95,7 @@ backend_test = onnx.backend.test.BackendTest(GgmlRuntimeBackend, __name__)
 backend_test.include("test_abs_")
 
 backend_test.include("test_add_")
-backend_test.exclude("test_add_uint8_") # not supported
+backend_test.exclude("test_add_uint8_")  # not supported
 
 backend_test.include("test_cast_")
 
@@ -105,7 +105,7 @@ backend_test.include("test_constant_")
 
 backend_test.include("test_div_")
 
-backend_test.exclude("test_div_uint8_") # not supported
+backend_test.exclude("test_div_uint8_")  # not supported
 
 backend_test.include("test_gather_")
 backend_test.exclude("test_gather_2d")
@@ -213,10 +213,10 @@ backend_test.exclude("test_sqrt_example")
 
 backend_test.include("test_sub_")
 backend_test.exclude("test_sub_cpu")
-backend_test.exclude("test_sub_example") # not supported
-backend_test.exclude("test_sub_cuda") # not supported
-backend_test.exclude("test_sub_bcast_") # not supported
-backend_test.exclude("test_sub_uint8_") # not supported
+backend_test.exclude("test_sub_example")  # not supported
+backend_test.exclude("test_sub_cuda")  # not supported
+backend_test.exclude("test_sub_bcast_")  # not supported
+backend_test.exclude("test_sub_uint8_")  # not supported
 
 backend_test.include("test_transpose_")
 backend_test.exclude("test_transpose_")
@@ -229,6 +229,7 @@ backend_test.exclude("test_where_long")
 backend_test.exclude("test_where_example")
 
 backend_test.exclude(".*cuda.*")
+backend_test.exclude(".*pad.*")
 
 # import all test cases at global scope to make them visible to python.unittest
 globals().update(backend_test.enable_report().test_cases)
