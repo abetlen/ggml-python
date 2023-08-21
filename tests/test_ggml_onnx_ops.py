@@ -70,7 +70,19 @@ def test_ggml_onnx_runtime_shape_operator():
 
     for shape_node in nodes:
         output_tensor = ggml_operators["Shape"](
-            GgmlBackendRep(), shape_node, tensors_dict, context, refs
+            GgmlBackendRep(
+                graph=None,
+                weights=None,
+                weights_buffer=None,
+                inputs=None,
+                outputs=None,
+                ggml_context=None,
+                ggml_init_params=None,
+            ),
+            shape_node,
+            tensors_dict,
+            context,
+            refs,
         )
         gf = ggml.ggml_build_forward(output_tensor)
         ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
@@ -164,12 +176,36 @@ def test_ggml_onnx_runtime_unsqueeze_operator():
 
     with pytest.raises(ValueError) as ex_input_error:
         ggml_operators["Unsqueeze"](
-            GgmlBackendRep(), unsqueeze_node1, tensors_dict, context, refs
+            GgmlBackendRep(
+                graph=None,
+                weights=None,
+                weights_buffer=None,
+                inputs=None,
+                outputs=None,
+                ggml_context=None,
+                ggml_init_params=None,
+            ),
+            unsqueeze_node1,
+            tensors_dict,
+            context,
+            refs,
         )
 
     for shape_node in nodes:
         output_tensor = ggml_operators["Unsqueeze"](
-            GgmlBackendRep(), shape_node, tensors_dict, context, refs
+            GgmlBackendRep(
+                graph=None,
+                weights=None,
+                weights_buffer=None,
+                inputs=None,
+                outputs=None,
+                ggml_context=None,
+                ggml_init_params=None,
+            ),
+            shape_node,
+            tensors_dict,
+            context,
+            refs,
         )
 
         gf = ggml.ggml_build_forward(output_tensor)
@@ -281,7 +317,19 @@ def test_ggml_onnx_runtime_gather_operator():
     refs = []
 
     output_tensor = ggml_operators["Gather"](
-        GgmlBackendRep(), gather_node2, tensors_dict, context, refs
+        GgmlBackendRep(
+            graph=None,
+            weights=None,
+            weights_buffer=None,
+            inputs=None,
+            outputs=None,
+            ggml_context=None,
+            ggml_init_params=None,
+        ),
+        gather_node2,
+        tensors_dict,
+        context,
+        refs,
     )
 
     gf = ggml.ggml_build_forward(output_tensor)
@@ -368,7 +416,19 @@ def test_ggml_onnx_constant_operator():
 
     for shape_node in nodes:
         output_tensor = ggml_operators["Constant"](
-            GgmlBackendRep(), shape_node, tensors_dict, context, refs
+            GgmlBackendRep(
+                graph=None,
+                weights=None,
+                weights_buffer=None,
+                inputs=None,
+                outputs=None,
+                ggml_context=None,
+                ggml_init_params=None,
+            ),
+            shape_node,
+            tensors_dict,
+            context,
+            refs,
         )
         gf = ggml.ggml_build_forward(output_tensor)
         ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
@@ -446,7 +506,19 @@ def test_ggml_onnx_constant_of_shape_operator():
 
     for shape_node in nodes:
         output_tensor = ggml_operators["ConstantOfShape"](
-            GgmlBackendRep(), shape_node, tensors_dict, context, refs
+            GgmlBackendRep(
+                graph=None,
+                weights=None,
+                weights_buffer=None,
+                inputs=None,
+                outputs=None,
+                ggml_context=None,
+                ggml_init_params=None,
+            ),
+            shape_node,
+            tensors_dict,
+            context,
+            refs,
         )
         gf = ggml.ggml_build_forward(output_tensor)
         ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
@@ -557,7 +629,19 @@ def test_ggml_onnx_concat_operator():
 
     for concat_node in nodes:
         output_tensor = ggml_operators["Concat"](
-            GgmlBackendRep(), concat_node, tensors_dict, context, refs
+            GgmlBackendRep(
+                graph=None,
+                weights=None,
+                weights_buffer=None,
+                inputs=None,
+                outputs=None,
+                ggml_context=None,
+                ggml_init_params=None,
+            ),
+            concat_node,
+            tensors_dict,
+            context,
+            refs,
         )
         gf = ggml.ggml_build_forward(output_tensor)
         ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
@@ -632,7 +716,19 @@ def test_ggml_onnx_reshape_operation():
 
     for reshape_node in nodes:
         output_tensor = ggml_operators["Reshape"](
-            GgmlBackendRep(), reshape_node, tensors_dict, context, refs
+            GgmlBackendRep(
+                graph=None,
+                weights=None,
+                weights_buffer=None,
+                inputs=None,
+                outputs=None,
+                ggml_context=None,
+                ggml_init_params=None,
+            ),
+            reshape_node,
+            tensors_dict,
+            context,
+            refs,
         )
         gf = ggml.ggml_build_forward(output_tensor)
         ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
@@ -757,7 +853,19 @@ def test_ggml_onnx_reducemean_operator():
 
     for reducemean_node in nodes:
         output_tensor = ggml_operators["ReduceMean"](
-            GgmlBackendRep(), reducemean_node, tensors_dict, context, refs
+            GgmlBackendRep(
+                graph=None,
+                weights=None,
+                weights_buffer=None,
+                inputs=None,
+                outputs=None,
+                ggml_context=None,
+                ggml_init_params=None,
+            ),
+            reducemean_node,
+            tensors_dict,
+            context,
+            refs,
         )
         gf = ggml.ggml_build_forward(output_tensor)
         ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
@@ -829,7 +937,19 @@ def test_ggml_onnx_less_operator():
 
     for less_node in nodes:
         output_tensor = ggml_operators["Less"](
-            GgmlBackendRep(), less_node, tensors_dict, context, refs
+            GgmlBackendRep(
+                graph=None,
+                weights=None,
+                weights_buffer=None,
+                inputs=None,
+                outputs=None,
+                ggml_context=None,
+                ggml_init_params=None,
+            ),
+            less_node,
+            tensors_dict,
+            context,
+            refs,
         )
         gf = ggml.ggml_build_forward(output_tensor)
         ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
@@ -896,7 +1016,19 @@ def test_ggml_onnx_greater_operator():
     )
 
     output_tensor = ggml_operators["Greater"](
-        GgmlBackendRep(), greater_node, tensors_dict, context, refs
+        GgmlBackendRep(
+            graph=None,
+            weights=None,
+            weights_buffer=None,
+            inputs=None,
+            outputs=None,
+            ggml_context=None,
+            ggml_init_params=None,
+        ),
+        greater_node,
+        tensors_dict,
+        context,
+        refs,
     )
     gf = ggml.ggml_build_forward(output_tensor)
     ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
@@ -959,7 +1091,19 @@ def test_ggml_onnx_min_operator():
     )
 
     output_tensor = ggml_operators["Min"](
-        GgmlBackendRep(), min_node, tensors_dict, context, refs
+        GgmlBackendRep(
+            graph=None,
+            weights=None,
+            weights_buffer=None,
+            inputs=None,
+            outputs=None,
+            ggml_context=None,
+            ggml_init_params=None,
+        ),
+        min_node,
+        tensors_dict,
+        context,
+        refs,
     )
     gf = ggml.ggml_build_forward(output_tensor)
     ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
@@ -1020,7 +1164,19 @@ def test_ggml_onnx_max_operator():
     )
 
     output_tensor = ggml_operators["Max"](
-        GgmlBackendRep(), min_node, tensors_dict, context, refs
+        GgmlBackendRep(
+            graph=None,
+            weights=None,
+            weights_buffer=None,
+            inputs=None,
+            outputs=None,
+            ggml_context=None,
+            ggml_init_params=None,
+        ),
+        min_node,
+        tensors_dict,
+        context,
+        refs,
     )
     gf = ggml.ggml_build_forward(output_tensor)
     ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
@@ -1095,7 +1251,19 @@ def test_ggml_onnx_matmul_operator():
     )
 
     output_tensor = ggml_operators["MatMul"](
-        GgmlBackendRep(), matmul_node, tensors_dict, context, refs
+        GgmlBackendRep(
+            graph=None,
+            weights=None,
+            weights_buffer=None,
+            inputs=None,
+            outputs=None,
+            ggml_context=None,
+            ggml_init_params=None,
+        ),
+        matmul_node,
+        tensors_dict,
+        context,
+        refs,
     )
     gf = ggml.ggml_build_forward(output_tensor)
     ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
@@ -1166,7 +1334,19 @@ def test_ggml_onnx_pow_operator():
 
     for pow_node in nodes:
         output_tensor = ggml_operators["Pow"](
-            GgmlBackendRep(), pow_node, tensors_dict, context, refs
+            GgmlBackendRep(
+                graph=None,
+                weights=None,
+                weights_buffer=None,
+                inputs=None,
+                outputs=None,
+                ggml_context=None,
+                ggml_init_params=None,
+            ),
+            pow_node,
+            tensors_dict,
+            context,
+            refs,
         )
         gf = ggml.ggml_build_forward(output_tensor)
         ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
@@ -1233,7 +1413,19 @@ def test_ggml_onnx_relu_operator():
 
     for relu_node in nodes:
         output_tensor = ggml_operators["Relu"](
-            GgmlBackendRep(), relu_node, tensors_dict, context, refs
+            GgmlBackendRep(
+                graph=None,
+                weights=None,
+                weights_buffer=None,
+                inputs=None,
+                outputs=None,
+                ggml_context=None,
+                ggml_init_params=None,
+            ),
+            relu_node,
+            tensors_dict,
+            context,
+            refs,
         )
         gf = ggml.ggml_build_forward(output_tensor)
         ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
@@ -1308,7 +1500,19 @@ def test_ggml_onnx_transpose_operator():
         onnx_result = onnx_transpose(input_array, permutation)
 
         output_tensor = ggml_operators["Transpose"](
-            GgmlBackendRep(), transpose_node, tensors_dict, context, refs
+            GgmlBackendRep(
+                graph=None,
+                weights=None,
+                weights_buffer=None,
+                inputs=None,
+                outputs=None,
+                ggml_context=None,
+                ggml_init_params=None,
+            ),
+            transpose_node,
+            tensors_dict,
+            context,
+            refs,
         )
         gf = ggml.ggml_build_forward(output_tensor)
         ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
@@ -1397,7 +1601,19 @@ def test_ggml_onnx_range_operator():
     )
 
     output_tensor = ggml_operators["Range"](
-        GgmlBackendRep(), range_node, tensors_dict, context, refs
+        GgmlBackendRep(
+            graph=None,
+            weights=None,
+            weights_buffer=None,
+            inputs=None,
+            outputs=None,
+            ggml_context=None,
+            ggml_init_params=None,
+        ),
+        range_node,
+        tensors_dict,
+        context,
+        refs,
     )
     gf = ggml.ggml_build_forward(output_tensor)
     ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
@@ -1460,7 +1676,19 @@ def test_ggml_onnx_cast_operator():
     )
 
     output_tensor = ggml_operators["Cast"](
-        GgmlBackendRep(), cast_node, tensors_dict, context, refs
+        GgmlBackendRep(
+            graph=None,
+            weights=None,
+            weights_buffer=None,
+            inputs=None,
+            outputs=None,
+            ggml_context=None,
+            ggml_init_params=None,
+        ),
+        cast_node,
+        tensors_dict,
+        context,
+        refs,
     )
     gf = ggml.ggml_build_forward(output_tensor)
     ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
@@ -1534,7 +1762,19 @@ def test_ggml_onnx_where_operator():
     )
 
     output_tensor = ggml_operators["Where"](
-        GgmlBackendRep(), where_node, tensors_dict, context, refs
+        GgmlBackendRep(
+            graph=None,
+            weights=None,
+            weights_buffer=None,
+            inputs=None,
+            outputs=None,
+            ggml_context=None,
+            ggml_init_params=None,
+        ),
+        where_node,
+        tensors_dict,
+        context,
+        refs,
     )
     gf = ggml.ggml_build_forward(output_tensor)
     ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
