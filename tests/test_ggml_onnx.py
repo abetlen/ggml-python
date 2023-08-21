@@ -123,10 +123,9 @@ backend_test.exclude("test_less_cuda")
 backend_test.exclude("test_less_equal_")
 
 backend_test.include("test_log_")
-backend_test.exclude("test_log_")
+backend_test.exclude("test_log_softmax_*")
 
 backend_test.include("test_matmul_")
-backend_test.exclude("test_matmul_")
 
 backend_test.include("test_max_")
 backend_test.exclude("test_max_one")
@@ -155,13 +154,10 @@ backend_test.exclude("test_min_uint")
 backend_test.exclude("test_min_example")
 
 backend_test.include("test_mul_")
-backend_test.exclude("test_mul_")
-backend_test.exclude("test_mul_bcast")
-backend_test.exclude("test_mul_example")
 backend_test.exclude("test_mul_uint8")
 
 backend_test.include("test_pow_")
-backend_test.exclude("test_pow_")
+backend_test.exclude("test_pow_bcast")
 backend_test.exclude("test_pow_types")
 backend_test.exclude("test_pow_types_int64")
 backend_test.exclude("test_pow_types_int64")
@@ -177,25 +173,19 @@ backend_test.exclude("test_reduce_mean_keepdims")
 backend_test.exclude("test_reduce_mean_negative_axes")
 
 backend_test.include("test_relu_")
-backend_test.exclude("test_relu_")
 backend_test.exclude("test_relu_expanded")
 
 backend_test.include("test_reshape_")
 backend_test.exclude("test_reshape_allowzero")
-backend_test.exclude("test_reshape_negative")
-backend_test.exclude("test_reshape_one_dim")
-backend_test.exclude("test_reshape_reduced")
-backend_test.exclude("test_reshape_reordered")
 backend_test.exclude("test_reshape_zero")
-backend_test.exclude("test_reshape_extended")
 
 backend_test.include("test_shape_")
 backend_test.exclude("test_shape_cpu")
 backend_test.exclude("test_shape_cuda")
-backend_test.exclude("test_shape_clip")
-backend_test.exclude("test_shape_start")
-backend_test.exclude("test_shape_end")
-backend_test.exclude("test_shape_example")
+# backend_test.exclude("test_shape_clip")
+# backend_test.exclude("test_shape_start")
+# backend_test.exclude("test_shape_end")
+# backend_test.exclude("test_shape_example")
 
 backend_test.include("test_softmax_")
 backend_test.exclude("test_softmax_axis")
@@ -207,13 +197,13 @@ backend_test.exclude("test_softmax_functional")
 backend_test.exclude("test_softmax_lastdim")
 
 backend_test.include("test_sqrt_")
-backend_test.exclude("test_sqrt_cpu")
+# backend_test.exclude("test_sqrt_cpu")
 backend_test.exclude("test_sqrt_cuda")
-backend_test.exclude("test_sqrt_example")
+# backend_test.exclude("test_sqrt_example")
 
 backend_test.include("test_sub_")
-backend_test.exclude("test_sub_cpu")
-backend_test.exclude("test_sub_example")  # not supported
+# backend_test.exclude("test_sub_cpu")
+# backend_test.exclude("test_sub_example")  # not supported
 backend_test.exclude("test_sub_cuda")  # not supported
 backend_test.exclude("test_sub_bcast_")  # not supported
 backend_test.exclude("test_sub_uint8_")  # not supported
@@ -233,6 +223,7 @@ backend_test.exclude(".*pad.*")
 backend_test.exclude(
     ".*greater.*"
 )  # FIXME: values are correct dtypes are not bool != int32
+backend_test.exclude(".*FLOAT*E*M*.*")
 
 # import all test cases at global scope to make them visible to python.unittest
 globals().update(backend_test.enable_report().test_cases)
