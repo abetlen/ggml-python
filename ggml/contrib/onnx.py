@@ -30,9 +30,10 @@ def ggml_operator(operator):
 
 
 def map_to_ggml_type(dtype: np.dtype):
+    np_data_type_limit = np.dtype(str(dtype).replace("64", "32"))
     ggml_type = ggml.utils.NUMPY_DTYPE_TO_GGML_TYPE.get(
-        dtype.type,
-        ggml.utils.GGML_TYPE.I32,  # TODO: Add i64 but for now, use i32 if looking for i64 or f64
+        np_data_type_limit.type,
+        ggml.GGML_FTYPE_UNKNOWN,  # TODO: Add i64 but for now, use i32 if looking for i64 or f64
     )
 
     return ggml_type
@@ -101,16 +102,16 @@ def broadcast_tensor(
         (ctypes.c_int64 * len(shape))(*shape),
     )
 
-    # new_tensor = ggml.ggml_repeat(
-    #     ctx,
-    #     tensor,
-    #     new_tensor,
-    # )
+    new_tensor = ggml.ggml_repeat(
+        ctx,
+        tensor,
+        new_tensor,
+    )
 
-    if ggml.utils.get_shape(tensor) == ():
-        ggml.utils.to_numpy(new_tensor)[()] = ggml.utils.to_numpy(tensor)
-    else:
-        ggml.utils.to_numpy(new_tensor)[:] = ggml.utils.to_numpy(tensor)
+    # if ggml.utils.get_shape(tensor) == ():
+    #     ggml.utils.to_numpy(new_tensor)[()] = ggml.utils.to_numpy(tensor)
+    # else:
+    #     ggml.utils.to_numpy(new_tensor)[:] = ggml.utils.to_numpy(tensor)
 
     return new_tensor
 
@@ -194,16 +195,17 @@ def ggml_operator_add(
     return add_result
 
 
-@ggml.ggml_custom1_op_t
+@ggml.ggml_custom2_op_t
 def custom_cast(
     tensor_out: ggml.ggml_tensor_p,
     tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
     ith: int,
     nth: int,
     userdata: Optional[ctypes.c_void_p],
 ):
     dtype = ctypes.cast(userdata, ctypes.POINTER(ctypes.c_int)).contents.value
-    tensor = ggml.utils.to_numpy(tensor_in_1)
+    tensor = ggml.utils.to_numpy(tensor_in_2)
     np_data_type = tensor_dtype_to_np_dtype(dtype)
     np_data_type_limit = np.dtype(str(np_data_type).replace("64", "32"))
 
@@ -228,9 +230,17 @@ def ggml_operator_cast(
     onnx_type = next(attr.i for attr in node.attribute if attr.name == "to")
     onnx_type_c = ctypes.c_int(onnx_type)
 
-    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom1_inplace(
+    a = node_inputs[0]
+    np_data_type = tensor_dtype_to_np_dtype(onnx_type)
+    np_data_type_limit = np.dtype(str(np_data_type).replace("64", "32"))
+    x = np.empty(get_tensor_shape(a), dtype=np_data_type_limit)
+
+    x_t = ggml.utils.from_numpy(x, context)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
         context,
-        node_inputs[0],
+        x_t,
+        a,
         custom_cast,
         1,
         ctypes.pointer(onnx_type_c),
@@ -1493,8 +1503,9 @@ class GgmlBackendRep(BackendRep):
 
             # Create the input tensors with the correct type/shape
             ggml_type = map_to_ggml_type(input_data.dtype)
-
             shape = tuple(reversed(input_data.shape))
+
+            context
             tensor = ggml.ggml_new_tensor(
                 context,
                 ggml_type.value,
@@ -1510,27 +1521,17 @@ class GgmlBackendRep(BackendRep):
 
         # Build layers
         for node in model_graph.node:
-            # print(
-            #     "OP:",
-            #     node.op_type,
-            #     "| NODE:",
-            #     node.name,
-            #     "| IN:",
-            #     node.input,
-            #     "| OUT:",
-            #     node.output[0],
-            # )
-            node_output = ggml_operators[node.op_type](
+            operator_func = ggml_operators.get(node.op_type)
+            if operator_func is None:
+                raise NotImplementedError(f'Operator "{node.op_type}" not implemented')
+
+            node_output = operator_func(
                 self,
                 node,
                 ggml_tensors,
                 context,
                 refs,
             )
-
-            # node_value = ggml.utils.to_numpy(self.eval_tensor(node_output, context))
-            # print("OUTPUT_SHAPE:", node_value.shape)
-            # print()
 
             if node.output[-1] == self.graph.output[-1].name:
                 exit_node = node_output
@@ -1541,7 +1542,11 @@ class GgmlBackendRep(BackendRep):
         # Compute graph
         ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
 
-        graph_output = ggml.utils.to_numpy(exit_node)
+        graph_output = ggml.utils.to_numpy(
+            exit_node
+        )  # TODO: Add checks to convert values back to bool or etc types
+
+        ggml.ggml_free(context)
 
         return [graph_output]
 
