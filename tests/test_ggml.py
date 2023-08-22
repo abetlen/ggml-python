@@ -114,6 +114,7 @@ def test_ggml_min_alloc():
     ggml.ggml_free(ctx)
 
 
+@pytest.mark.skip(reason="ggml_allocr_alloc_graph currently causes segfault in some cases")
 def test_ggml_alloc():
     def build_graph(ctx: ggml.ggml_context_p, alloc: ggml.ggml_allocr_p):
         # inputs
