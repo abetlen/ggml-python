@@ -25,9 +25,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
         run: |
-          python3 -m pip install --upgrade pip pytest cmake scikit-build setuptools
+          python3 -m pip install --upgrade pip cmake scikit-build setuptools
 
-          python3 -m pip install --verbose --editable .[onnx,onnx-runtime]
+          python3 -m pip install --verbose --editable .[test,onnx,onnx-runtime]
       - name: Test with pytest
         run: |
           python3 -m pytest
@@ -71,8 +71,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
         run: |
-          python3 -m pip install --upgrade pip pytest cmake scikit-build setuptools
-          python3 -m pip install --verbose --editable .
+          python3 -m pip install --upgrade pip cmake scikit-build setuptools
+          python3 -m pip install --verbose --editable .[test,onnx,onnx-runtime]
       - name: Test with pytest
         run: |
           python3 -m pytest
