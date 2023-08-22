@@ -108,16 +108,14 @@ backend_test.include("test_div_")
 backend_test.exclude("test_div_uint8_")  # not supported
 
 backend_test.include("test_gather_")
-backend_test.exclude("test_gather_2d")
 backend_test.exclude("test_gather_elements")
-backend_test.exclude("test_gather_negative")
 
 backend_test.include("test_greater_")
 backend_test.exclude("test_greater_bcast")
+backend_test.exclude("test_greater_cuda")
 backend_test.exclude("test_greater_equal")
 
 backend_test.include("test_less_")
-backend_test.exclude("test_less_")
 backend_test.exclude("test_less_bcast")
 backend_test.exclude("test_less_cuda")
 backend_test.exclude("test_less_equal_")
@@ -180,12 +178,7 @@ backend_test.exclude("test_reshape_allowzero")
 backend_test.exclude("test_reshape_zero")
 
 backend_test.include("test_shape_")
-backend_test.exclude("test_shape_cpu")
 backend_test.exclude("test_shape_cuda")
-# backend_test.exclude("test_shape_clip")
-# backend_test.exclude("test_shape_start")
-# backend_test.exclude("test_shape_end")
-# backend_test.exclude("test_shape_example")
 
 backend_test.include("test_softmax_")
 backend_test.exclude("test_softmax_axis")
@@ -197,19 +190,15 @@ backend_test.exclude("test_softmax_functional")
 backend_test.exclude("test_softmax_lastdim")
 
 backend_test.include("test_sqrt_")
-# backend_test.exclude("test_sqrt_cpu")
 backend_test.exclude("test_sqrt_cuda")
-# backend_test.exclude("test_sqrt_example")
 
 backend_test.include("test_sub_")
-# backend_test.exclude("test_sub_cpu")
-# backend_test.exclude("test_sub_example")  # not supported
 backend_test.exclude("test_sub_cuda")  # not supported
 backend_test.exclude("test_sub_bcast_")  # not supported
 backend_test.exclude("test_sub_uint8_")  # not supported
 
 backend_test.include("test_transpose_")
-backend_test.exclude("test_transpose_")
+# backend_test.exclude("test_transpose_")
 
 backend_test.include("test_unsqueeze_")
 backend_test.exclude("test_unsqueeze_")
@@ -220,9 +209,6 @@ backend_test.exclude("test_where_example")
 
 backend_test.exclude(".*cuda.*")
 backend_test.exclude(".*pad.*")
-backend_test.exclude(
-    ".*greater.*"
-)  # FIXME: values are correct dtypes are not bool != int32
 backend_test.exclude(".*FLOAT*E*M*.*")
 
 # import all test cases at global scope to make them visible to python.unittest

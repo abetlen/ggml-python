@@ -3,7 +3,8 @@
 This module implements a GGML backend for ONNX models and operators.
 """
 import ctypes
-from typing import Any, List, Optional, Tuple, Dict
+import re
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import onnx
@@ -117,7 +118,9 @@ def broadcast_tensor(
 
 
 def broadcast_shapes(
-    ctx: ggml.ggml_context_p, a: ggml.ggml_tensor_p, b: ggml.ggml_tensor_p
+    ctx: ggml.ggml_context_p,
+    a: ggml.ggml_tensor_p,
+    b: ggml.ggml_tensor_p,
 ):
     a_shape = get_tensor_shape(a)
     b_shape = get_tensor_shape(b)
@@ -135,6 +138,19 @@ def broadcast_shapes(
         b_shaped = broadcast_tensor(ctx, b, output_shape)
 
     return a_shaped, b_shaped
+
+
+def get_final_dtype(tensor: ggml.ggml_tensor_p, pattern: str = r"<(.*?)>"):
+    tensor_name = tensor.contents.name.decode()
+    tensor_dtype = get_tensor_dtype(tensor)
+
+    match = re.search(pattern, tensor_name)
+
+    if match:
+        dtype_str = match.group(1)
+        tensor_dtype = np.dtype(dtype_str)
+
+    return tensor_dtype
 
 
 # ------ Operators ------
@@ -335,15 +351,20 @@ def ggml_operator_constant(
     refs: List[Any],
 ):
     node_attributes = node.attribute
+    name = node.output[0]
 
     value_attr = next(attr for attr in node_attributes if attr.name == "value")
     tensor = value_attr.t
     data_type = tensor.data_type
     np_data_type = tensor_dtype_to_np_dtype(data_type)
-
     np_data_type_limit = np.dtype(str(np_data_type).replace("64", "32"))
 
-    data_value = np.frombuffer(tensor.raw_data, dtype=np_data_type)
+    if tensor.raw_data:
+        data_value = np.frombuffer(tensor.raw_data, dtype=np_data_type)
+    elif tensor.float_data:
+        data_value = np.array(tensor.float_data, dtype=np_data_type)
+    else:
+        raise ValueError("Data field not found.")
 
     data_tensor = ggml.utils.from_numpy(
         data_value.astype(np_data_type_limit),
@@ -377,6 +398,7 @@ def ggml_operator_constant(
         None,
     )
 
+    ggml.ggml_set_name(new_tensor, (name + f"<{np_data_type}>").encode())
     return new_tensor
 
 
@@ -574,13 +596,14 @@ def ggml_operator_greater(
     a_shape = get_tensor_shape(node_inputs[0])
     a_dtype = get_tensor_dtype(node_inputs[0])
     b_shape = get_tensor_shape(node_inputs[1])
+    name = node.output[0]
 
     output_shape = np.broadcast(np.empty(a_shape), np.empty(b_shape)).shape
 
     x = np.empty(output_shape, dtype=a_dtype)
     x_t = ggml.utils.from_numpy(x, context)
 
-    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom3_inplace(
+    new_tensor = tensors_dict[name] = ggml.ggml_map_custom3_inplace(
         context,
         x_t,
         node_inputs[0],
@@ -589,6 +612,8 @@ def ggml_operator_greater(
         1,
         None,
     )
+
+    ggml.ggml_set_name(new_tensor, (name + f"<bool>").encode())
 
     return new_tensor
 
@@ -629,13 +654,14 @@ def ggml_operator_less(
     a_shape = get_tensor_shape(node_inputs[0])
     a_dtype = get_tensor_dtype(node_inputs[0])
     b_shape = get_tensor_shape(node_inputs[1])
+    name = node.output[0]
 
     output_shape = np.broadcast(np.empty(a_shape), np.empty(b_shape)).shape
 
     x = np.empty(output_shape, dtype=a_dtype)
     x_t = ggml.utils.from_numpy(x, context)
 
-    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom3_inplace(
+    new_tensor = tensors_dict[name] = ggml.ggml_map_custom3_inplace(
         context,
         x_t,
         node_inputs[0],
@@ -644,6 +670,8 @@ def ggml_operator_less(
         1,
         None,
     )
+
+    ggml.ggml_set_name(new_tensor, (name + f"<bool>").encode())
 
     return new_tensor
 
@@ -690,16 +718,28 @@ def ggml_operator_mat_mul(
         )
 
     output_name = node.output[0]
-    a = node_inputs[0]
-    b = node_inputs[1]
-
-    a, b = broadcast_shapes(context, a, b)
-
+    a, b = node_inputs
     b_shape = get_tensor_shape(b)
+    a_shape = get_tensor_shape(a)
+
+    # TODO: is this check required? broadcast alone wont pass ONNX tests but is broadcasting itself even required or should it fail if a,b are not correct?
+    try:
+        np.matmul(np.empty(a_shape), np.empty(b_shape))
+    except:
+        a, b = broadcast_shapes(context, a, b)
+
     b_dtype = get_tensor_dtype(b)
+
+    b_permute = ggml.ggml_transpose(
+        context,
+        b,
+    )
+
+    b_shape = ggml.utils.get_shape(b_permute)
+
     b_transposed = ggml.ggml_cpy(
         context,
-        ggml.ggml_transpose(context, b),
+        b_permute,
         ggml.ggml_new_tensor(
             context,
             map_to_ggml_type(b_dtype).value,
@@ -1122,32 +1162,6 @@ def ggml_operator_reshape(
     return new_tensor
 
 
-class ShapeUserData(ctypes.Structure):
-    _fields_ = [("start", ctypes.c_int), ("end", ctypes.c_int)]
-
-
-@ggml.ggml_custom2_op_t
-def custom_shape(
-    tensor_out: ggml.ggml_tensor_p,
-    tensor_in_1: ggml.ggml_tensor_p,
-    tensor_in_2: ggml.ggml_tensor_p,
-    ith: int,
-    nth: int,
-    userdata: Optional[ctypes.c_void_p],
-):
-    userdata_data_ptr = ctypes.cast(userdata, ctypes.POINTER(ShapeUserData))
-    userdata_data = userdata_data_ptr.contents
-
-    tensor = ggml.utils.to_numpy(tensor_in_2)
-    start = userdata_data.start
-    end = userdata_data.end
-
-    shaped_tensor = tensor[start:end]
-    tensor_shape = np.array(shaped_tensor.shape, dtype=np.int32)
-
-    set_tensor_out(tensor_out, tensor_shape)
-
-
 @ggml_operator("Shape")
 def ggml_operator_shape(
     backend: "GgmlBackendRep",
@@ -1158,46 +1172,22 @@ def ggml_operator_shape(
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
-    if len(node_inputs) == 0 or len(node_inputs) > 3:
+    if len(node_inputs) != 1:
         raise ValueError(
-            f'Error for node "{node.name}": Operation "Shape" requires at least 1 and maximum of 3 inputs. Actual number of inputs: {len(node_inputs)}'
+            f'Error for node "{node.name}": Operation "Shape" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
         )
 
-    tensor_shape = get_tensor_shape(node_inputs[0])
-    tensor_dtype = get_tensor_dtype(node_inputs[0])
-    start = (
-        ggml.utils.to_numpy(node_inputs[1])
-        if len(node_inputs) > 1
-        else [ctypes.c_int(0)]
+    tensor_shape = np.array(get_tensor_shape(node_inputs[0]), dtype=np.int32)
+    name = node.output[0]
+    start = next((attr.i for attr in node.attribute if attr.name == "start"), None)
+    end = next(
+        (attr.i for attr in node.attribute if attr.name == "end"),
+        None,
     )
-    end = (
-        ggml.utils.to_numpy(node_inputs[2])
-        if len(node_inputs) > 2
-        else [ctypes.c_int(tensor_shape[-1])]
-    )
+    shape_slice = tensor_shape[start:end]
+    new_tensor = tensors_dict[name] = ggml.utils.from_numpy(shape_slice, context)
 
-    start = start[0] if len(start) else ctypes.c_int(0)
-    end = end[0] if len(end) else ctypes.c_int(tensor_shape[-1])
-
-    shape_userdata = ShapeUserData(start, end)
-    userdata_p = ctypes.cast(ctypes.pointer(shape_userdata), ctypes.c_void_p)
-
-    output_shape = len(list(tensor_shape))
-
-    x = np.empty(output_shape, dtype=tensor_dtype)
-
-    x_t = ggml.utils.from_numpy(x, context)
-
-    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
-        context,
-        x_t,
-        node_inputs[0],
-        custom_shape,
-        1,
-        userdata_p,
-    )
-
-    refs.append(shape_userdata)
+    ggml.ggml_set_name(new_tensor, (name + f"<int64>").encode())
 
     return new_tensor
 
@@ -1301,19 +1291,19 @@ def ggml_operator_transpose(
     x = node_inputs[0]
     input_shape = get_tensor_shape(x)
 
-    perm_map = {2: [1, 0, 2, 3], 3: [2, 1, 0, 3], 4: [3, 2, 1, 0]}
+    perm_map = {1: [0, 1, 2, 3], 2: [1, 0, 2, 3], 3: [2, 1, 0, 3], 4: [3, 2, 1, 0]}
 
     perm_attr = next((attr for attr in node.attribute if attr.name == "perm"), None)
 
     # add special case and -> fix me comments
 
     if perm_attr is None:
-        perm = perm_map.get(len(input_shape), [1, 0, 2, 3])
+        perms = perm_map.get(len(input_shape), [1, 0, 2, 3])
     else:
-        perm = list(perm_attr.ints)
-        perm += [0, 1, 2, 3][len(perm) :]
+        perms = list(perm_attr.ints)
+        perms += [0, 1, 2, 3][len(perms) :]
 
-    ax0, ax1, ax2, ax3 = perm
+    ax0, ax1, ax2, ax3 = perms
 
     transpose_result = ggml.ggml_permute(context, x, ax0, ax1, ax2, ax3)
 
@@ -1541,10 +1531,12 @@ class GgmlBackendRep(BackendRep):
 
         # Compute graph
         ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
-
         graph_output = ggml.utils.to_numpy(
             exit_node
         )  # TODO: Add checks to convert values back to bool or etc types
+        graph_output = graph_output.astype(
+            get_final_dtype(exit_node)
+        )  # TODO: add a second dict to keep track of types and use that instead
 
         ggml.ggml_free(context)
 
