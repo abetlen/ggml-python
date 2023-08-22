@@ -27,7 +27,7 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip cmake scikit-build setuptools
 
-          python3 -m pip install --verbose --editable .[test,onnx,onnx-runtime]
+          python3 -m pip install --verbose --editable .[test,onnx,onnx-tests
       - name: Test with pytest
         run: |
           python3 -m pytest
@@ -49,7 +49,7 @@ jobs:
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip cmake scikit-build setuptools
-          python3 -m pip install --verbose --editable .[test,onnx,onnx-runtime]
+          python3 -m pip install --verbose --editable .[test,onnx,onnx-tests
       - name: Test with pytest
         run: |
           python3 -m pytest
@@ -72,7 +72,7 @@ jobs:
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip cmake scikit-build setuptools
-          python3 -m pip install --verbose --editable .[test,onnx,onnx-runtime]
+          python3 -m pip install --verbose --editable .[test,onnx,onnx-tests]
       - name: Test with pytest
         run: |
           python3 -m pytest
