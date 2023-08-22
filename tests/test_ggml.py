@@ -82,9 +82,9 @@ def test_ggml_min_alloc():
     gp = ggml.ggml_graph_plan(ctypes.pointer(gf), 1)
 
     n_nodes = gf.n_nodes
-    nodes_size = sum(ggml.ggml_nbytes(gf.nodes[i]) for i in range(n_nodes))
+    nodes_size = sum(ggml.ggml_nbytes_pad(gf.nodes[i]) for i in range(n_nodes))
     n_leafs = gf.n_leafs
-    leafs_size = sum(ggml.ggml_nbytes(gf.leafs[i]) for i in range(n_leafs))
+    leafs_size = sum(ggml.ggml_nbytes_pad(gf.leafs[i]) for i in range(n_leafs))
 
     ggml.ggml_free(ctx)
 
@@ -114,7 +114,6 @@ def test_ggml_min_alloc():
     ggml.ggml_free(ctx)
 
 
-@pytest.mark.skip(reason="ggml_allocr_alloc_graph currently causes segfault in some cases")
 def test_ggml_alloc():
     def build_graph(ctx: ggml.ggml_context_p, alloc: ggml.ggml_allocr_p):
         # inputs
