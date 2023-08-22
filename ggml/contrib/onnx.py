@@ -1068,21 +1068,21 @@ def ggml_operator_reshape(
             f'Error for node "{node.name}": Operation "Reshape" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
         )
 
-
     try:
-        allowzero_attr = next(attr for attr in node.attribute if attr.name == "allowzero")
+        allowzero_attr = next(
+            attr for attr in node.attribute if attr.name == "allowzero"
+        )
         allowzero = allowzero_attr.i == 1
     except StopIteration:
         allowzero = False
-
 
     a = node_inputs[0]
     b = node_inputs[1]
     eval_b = backend.eval_tensor(b, context)
 
     new_shape = ggml.utils.to_numpy(eval_b).astype(dtype=np.int32)
-    old_shape = get_tensor_shape(a)
 
+    old_shape = get_tensor_shape(a)
     if not allowzero:
         keep_idxs = np.where(new_shape == 0)[0]
         new_shape[keep_idxs] = np.array(old_shape)[keep_idxs]
