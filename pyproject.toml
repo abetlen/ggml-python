@@ -30,6 +30,9 @@ wheel.packages = ["ggml"]
 wheel.expand-macos-universal-tags = true
 cmake.verbose = true
 
+[tool.pytest.ini_options]
+addopts = "--ignore=vendor"
+
 [project.optional-dependencies]
 test = ["pytest"]
 docs = ["mkdocs", "mkdocstrings[python]", "mkdocs-material", "pillow", "cairosvg"]
