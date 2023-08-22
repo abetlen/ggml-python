@@ -198,14 +198,12 @@ backend_test.exclude("test_sub_bcast_")  # not supported
 backend_test.exclude("test_sub_uint8_")  # not supported
 
 backend_test.include("test_transpose_")
-# backend_test.exclude("test_transpose_")
 
 backend_test.include("test_unsqueeze_")
-backend_test.exclude("test_unsqueeze_")
+# backend_test.exclude("test_unsqueeze_")
 
 backend_test.include("test_where_")
 backend_test.exclude("test_where_long")
-backend_test.exclude("test_where_example")
 
 backend_test.exclude(".*cuda.*")
 backend_test.exclude(".*pad.*")

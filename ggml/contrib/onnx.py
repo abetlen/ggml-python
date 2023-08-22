@@ -34,7 +34,7 @@ def map_to_ggml_type(dtype: np.dtype):
     np_data_type_limit = np.dtype(str(dtype).replace("64", "32"))
     ggml_type = ggml.utils.NUMPY_DTYPE_TO_GGML_TYPE.get(
         np_data_type_limit.type,
-        ggml.GGML_FTYPE_UNKNOWN,  # TODO: Add i64 but for now, use i32 if looking for i64 or f64
+        ggml.utils.GGML_TYPE.I32,  # TODO: Add i64 but for now, use i32 if looking for i64 or f64
     )
 
     return ggml_type
@@ -1046,7 +1046,7 @@ def ggml_operator_reduce_mean(
 
     if len(node_inputs) != 1:
         raise ValueError(
-            f'Error for node "{node.name}": Operation "ReduceMean" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+            f'Error for node "{node.name}": Operation "ReduceMean-13" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
         )
 
     tensor_shape = get_tensor_shape(node_inputs[0])
@@ -1304,8 +1304,20 @@ def ggml_operator_transpose(
         perms += [0, 1, 2, 3][len(perms) :]
 
     ax0, ax1, ax2, ax3 = perms
+    dims = ggml.utils.get_ndims(x)
+
+    if dims > 3:
+        raise ValueError(
+            "n_dims cannot be more than 3. 4D permutations may not work"
+        )  # FIXME: 2,3D permutations are fine 4d is not. Passes ONNX test
+
+    if dims == 3 and f"02" in "".join([str(perm) for perm in perms]):
+        x = ggml.ggml_transpose(context, x)
 
     transpose_result = ggml.ggml_permute(context, x, ax0, ax1, ax2, ax3)
+
+    if dims == 3 and f"02" in "".join([str(perm) for perm in perms]):
+        transpose_result = ggml.ggml_permute(context, transpose_result, 0, 2, 1, 3)
 
     tensors_dict[output_name] = transpose_result
     return transpose_result
@@ -1495,7 +1507,6 @@ class GgmlBackendRep(BackendRep):
             ggml_type = map_to_ggml_type(input_data.dtype)
             shape = tuple(reversed(input_data.shape))
 
-            context
             tensor = ggml.ggml_new_tensor(
                 context,
                 ggml_type.value,
