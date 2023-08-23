@@ -119,6 +119,12 @@ def test_ggml_alloc():
         # inputs
         x = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
         ggml.ggml_set_name(x, b"x")
+
+        print("alignment: ", ctypes.alignment(x), flush=True)
+        print("sizeof: ", ctypes.sizeof(x), flush=True)
+        print("nbytes: ", ggml.ggml_nbytes(x), flush=True)
+        print("nbytes_pad: ", ggml.ggml_nbytes_pad(x), flush=True)
+
         ggml.ggml_allocr_alloc(alloc, x)
         a = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
         ggml.ggml_set_name(a, b"a")
