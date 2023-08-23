@@ -1038,7 +1038,8 @@ def custom_reduce_mean(
     axes = [userdata_data.axes[i] for i in range(userdata_data.axes_length)]
     keepdims = userdata_data.keepdims
 
-    rmean_result = np.mean(tensor, tuple(axes), keepdims=keepdims)
+    axes = tuple(axes) if len(axes) else None
+    rmean_result = np.mean(tensor, axis=axes, keepdims=keepdims)
 
     set_tensor_out(tensor_out, rmean_result)
 
@@ -1053,36 +1054,51 @@ def ggml_operator_reduce_mean(
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
-    if len(node_inputs) != 1:
+    if len(node_inputs) > 2 or len(node_inputs) < 1:
         raise ValueError(
-            f'Error for node "{node.name}": Operation "ReduceMean-13" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+            f'Error for node "{node.name}": Operation "ReduceMean" requires at least one input. Actual number of inputs: {len(node_inputs)}'
         )
 
-    tensor_shape = get_tensor_shape(node_inputs[0])
-    tensor_dtype = get_tensor_dtype(node_inputs[0])
-    axes = next(attr.ints for attr in node.attribute if attr.name == "axes")
+    input_tensor = node_inputs[0]
+
+    tensor_shape = get_tensor_shape(input_tensor)
+    tensor_dtype = get_tensor_dtype(input_tensor)
+
+    axes = next((attr.ints for attr in node.attribute if attr.name == "axes"), None)
+    if not axes:
+        if len(node_inputs) != 2:
+            raise ValueError(
+                f'Error for node "{node.name}": Operation "ReduceMean" requires an axis.'
+            )
+
+        axes_eval = backend.eval_tensor(node_inputs[1], context)
+        axes = ggml.utils.to_numpy(axes_eval)
+
     keepdims = next((attr.i for attr in node.attribute if attr.name == "keepdims"), 0)
 
     rmean_userdata = RedueMeanUserData(list(axes), keepdims)
     userdata_p = ctypes.cast(ctypes.pointer(rmean_userdata), ctypes.c_void_p)
 
-    output_shape = list(tensor_shape)
-    for axis in axes:
-        output_shape[axis] = 1
-    for axis in axes:
-        if not keepdims:
-            output_shape.pop(0)
+    output_shape = tuple([1] * len(tensor_shape)) if keepdims else ()
+
+    if len(axes):
+        output_shape = list(tensor_shape)
+        sorted_axes = sorted(axes, reverse=True)
+
+        for axis in sorted_axes:
+            if keepdims:
+                output_shape[axis] = 1
+            else:
+                output_shape.pop(axis)
 
     output_shape = tuple(output_shape)
-
     x = np.empty(output_shape, dtype=tensor_dtype)
-
     x_t = ggml.utils.from_numpy(x, context)
 
     new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
         context,
         x_t,
-        node_inputs[0],
+        input_tensor,
         custom_reduce_mean,
         1,
         userdata_p,

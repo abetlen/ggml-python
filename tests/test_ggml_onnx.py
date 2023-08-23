@@ -147,10 +147,6 @@ backend_test.exclude("test_range_float")
 backend_test.exclude("test_range_int32")
 
 backend_test.include("test_reduce_mean_")
-backend_test.exclude("test_reduce_mean_default")
-backend_test.exclude("test_reduce_mean_do_not_keepdims")
-backend_test.exclude("test_reduce_mean_keepdims")
-backend_test.exclude("test_reduce_mean_negative_axes")
 
 backend_test.include("test_relu_")
 backend_test.exclude("test_relu_expanded")
