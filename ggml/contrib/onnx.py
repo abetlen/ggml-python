@@ -5,10 +5,11 @@ This module implements a GGML backend for ONNX models and operators.
 import ctypes
 from typing import Any, List, Optional, Tuple, Dict
 
+
 import numpy as np
 import onnx
 from onnx.backend.base import Backend, BackendRep
-from onnx.helper import tensor_dtype_to_np_dtype
+from onnx.helper import tensor_dtype_to_np_dtype, np_dtype_to_tensor_dtype
 from onnx.onnx_ml_pb2 import GraphProto, ModelProto, NodeProto
 
 import ggml
@@ -222,6 +223,36 @@ def ggml_operator_cast(
     onnx_type = next(attr.i for attr in node.attribute if attr.name == "to")
     onnx_type_c = ctypes.c_int(onnx_type)
 
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom1_inplace(
+        context,
+        node_inputs[0],
+        custom_cast,
+        1,
+        ctypes.pointer(onnx_type_c),
+    )
+
+    refs.append(onnx_type_c)
+
+    return new_tensor
+
+
+@ggml_operator("CastLike")
+def ggml_operator_castlike(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "CastLike" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+    dtype = get_tensor_dtype(node_inputs[1])
+    onnx_type = np_dtype_to_tensor_dtype(dtype)
+    onnx_type_c = ctypes.c_int(onnx_type)
     new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom1_inplace(
         context,
         node_inputs[0],

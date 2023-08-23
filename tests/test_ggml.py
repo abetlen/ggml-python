@@ -1,3 +1,5 @@
+import pytest
+
 import ctypes
 from typing import Optional
 import ggml
@@ -32,7 +34,13 @@ def test_ggml_custom_op():
     x_in = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
 
     @ggml.ggml_custom1_op_t
-    def double(tensor_out: ggml.ggml_tensor_p, tensor_in: ggml.ggml_tensor_p, ith: int, nth: int, userdata: Optional[ctypes.c_void_p]):
+    def double(
+        tensor_out: ggml.ggml_tensor_p,
+        tensor_in: ggml.ggml_tensor_p,
+        ith: int,
+        nth: int,
+        userdata: Optional[ctypes.c_void_p],
+    ):
         value = ggml.ggml_get_f32_1d(tensor_in, 0)
         ggml.ggml_set_f32(tensor_out, 2 * value)
 
@@ -74,9 +82,9 @@ def test_ggml_min_alloc():
     gp = ggml.ggml_graph_plan(ctypes.pointer(gf), 1)
 
     n_nodes = gf.n_nodes
-    nodes_size = sum(ggml.ggml_nbytes(gf.nodes[i]) for i in range(n_nodes))
+    nodes_size = sum(ggml.ggml_nbytes_pad(gf.nodes[i]) for i in range(n_nodes))
     n_leafs = gf.n_leafs
-    leafs_size = sum(ggml.ggml_nbytes(gf.leafs[i]) for i in range(n_leafs))
+    leafs_size = sum(ggml.ggml_nbytes_pad(gf.leafs[i]) for i in range(n_leafs))
 
     ggml.ggml_free(ctx)
 
@@ -104,6 +112,89 @@ def test_ggml_min_alloc():
     output = ggml.ggml_get_f32_1d(f, 0)
     assert output == 16.0
     ggml.ggml_free(ctx)
+
+
+@pytest.mark.skip(reason="ggml_allocr_alloc causes segfault on some platforms")
+def test_ggml_alloc():
+    def build_graph(ctx: ggml.ggml_context_p, alloc: ggml.ggml_allocr_p):
+        # inputs
+        x = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
+        ggml.ggml_set_name(x, b"x")
+        ggml.ggml_allocr_alloc(alloc, x)
+        a = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
+        ggml.ggml_set_name(a, b"a")
+        ggml.ggml_allocr_alloc(alloc, a)
+        b = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
+        ggml.ggml_set_name(b, b"b")
+        ggml.ggml_allocr_alloc(alloc, b)
+
+        x2 = ggml.ggml_mul(ctx, x, x)
+        ggml.ggml_allocr_alloc(alloc, x2)
+        tmp = ggml.ggml_mul(ctx, a, x2)
+        ggml.ggml_allocr_alloc(alloc, tmp)
+
+        # outputs
+        f = ggml.ggml_add(ctx, tmp, b)
+        ggml.ggml_set_name(f, b"f")
+        ggml.ggml_allocr_alloc(alloc, f)
+
+        # build graph
+        gf = ggml.ggml_build_forward(f)
+
+        return gf
+
+    overhead = ggml.ggml_tensor_overhead()
+    max_overhead = overhead * 2 * ggml.GGML_MAX_NODES
+    assert max_overhead < 16 * 1024 * 1024  # 16MB
+    params = ggml.ggml_init_params(
+        mem_size=max_overhead, mem_buffer=None, no_alloc=True
+    )
+    ctx = ggml.ggml_init(params=params)
+
+    tensor_alignment = 32
+    alloc = ggml.ggml_allocr_new_measure(tensor_alignment)
+    assert alloc is not None
+    assert ggml.ggml_allocr_is_measure(alloc)
+
+    gf = build_graph(ctx, alloc)
+    gp = ggml.ggml_graph_plan(ctypes.pointer(gf), 1)
+    assert gp.work_size == 0
+
+    alloc_size = (
+        ggml.ggml_allocr_alloc_graph(alloc, ctypes.pointer(gf)) + tensor_alignment
+    )
+
+    ggml.ggml_free(ctx)
+    ggml.ggml_allocr_free(alloc)
+
+    params = ggml.ggml_init_params(
+        mem_size=max_overhead, mem_buffer=None, no_alloc=True
+    )
+    ctx = ggml.ggml_init(params=params)
+    buffer = (ctypes.c_uint8 * alloc_size)()
+    alloc = ggml.ggml_allocr_new(
+        ctypes.cast(buffer, ctypes.c_void_p), alloc_size, tensor_alignment
+    )
+    gf = build_graph(ctx, alloc)
+    ggml.ggml_allocr_alloc_graph(alloc, ctypes.pointer(gf))
+
+    a = ggml.ggml_get_tensor(ctx, b"a")
+    b = ggml.ggml_get_tensor(ctx, b"b")
+    x = ggml.ggml_get_tensor(ctx, b"x")
+    f = ggml.ggml_get_tensor(ctx, b"f")
+
+    assert a is not None and b is not None and x is not None and f is not None
+
+    ggml.ggml_set_f32(x, 2.0)
+    ggml.ggml_set_f32(a, 3.0)
+    ggml.ggml_set_f32(b, 4.0)
+
+    gp = ggml.ggml_graph_plan(ctypes.pointer(gf), 1)
+    ggml.ggml_graph_compute(ctypes.pointer(gf), ctypes.pointer(gp))
+    output = ggml.ggml_get_f32_1d(f, 0)
+    assert output == 16.0
+    ggml.ggml_free(ctx)
+    ggml.ggml_allocr_free(alloc)
 
 
 def test_quantize():
