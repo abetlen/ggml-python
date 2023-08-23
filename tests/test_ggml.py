@@ -145,8 +145,9 @@ def test_ggml_alloc():
     overhead = ggml.ggml_tensor_overhead()
     max_overhead = overhead * 2 * ggml.GGML_MAX_NODES
     assert max_overhead < 16 * 1024 * 1024  # 16MB
+    ctx_buffer = ctypes.cast((ctypes.c_uint8 * max_overhead)(), ctypes.c_void_p)
     params = ggml.ggml_init_params(
-        mem_size=max_overhead, mem_buffer=None, no_alloc=True
+        mem_size=max_overhead, mem_buffer=ctx_buffer, no_alloc=True
     )
     ctx = ggml.ggml_init(params=params)
 
@@ -167,7 +168,7 @@ def test_ggml_alloc():
     ggml.ggml_allocr_free(alloc)
 
     params = ggml.ggml_init_params(
-        mem_size=max_overhead, mem_buffer=None, no_alloc=True
+        mem_size=max_overhead, mem_buffer=ctx_buffer, no_alloc=True
     )
     ctx = ggml.ggml_init(params=params)
     buffer = (ctypes.c_uint8 * alloc_size)()
