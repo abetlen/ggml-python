@@ -17,9 +17,8 @@ __pycache__/
 
 # C extensions
 *.so
-*.dylib
 *.dll
-*.lib
+*.dylib
 
 # Distribution / packaging
 .Python
