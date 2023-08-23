@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "ggml_python"
-version = "0.0.13"
+version = "0.0.14"
 description = "Python bindings for ggml"
 readme = "README.md"
 license = { text = "MIT" }
@@ -29,6 +29,9 @@ classifiers = [
 wheel.packages = ["ggml"]
 wheel.expand-macos-universal-tags = true
 cmake.verbose = true
+
+[tool.pytest.ini_options]
+addopts = "--ignore=vendor"
 
 [project.optional-dependencies]
 test = ["pytest"]
