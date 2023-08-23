@@ -111,12 +111,10 @@ backend_test.include("test_gather_")
 backend_test.exclude("test_gather_elements")
 
 backend_test.include("test_greater_")
-backend_test.exclude("test_greater_bcast")
 backend_test.exclude("test_greater_cuda")
 backend_test.exclude("test_greater_equal")
 
 backend_test.include("test_less_")
-backend_test.exclude("test_less_bcast")
 backend_test.exclude("test_less_cuda")
 backend_test.exclude("test_less_equal_")
 
@@ -126,38 +124,22 @@ backend_test.exclude("test_log_softmax_*")
 backend_test.include("test_matmul_")
 
 backend_test.include("test_max_")
-backend_test.exclude("test_max_one")
-backend_test.exclude("test_max_two")
-backend_test.exclude("test_max_float16")
-backend_test.exclude("test_max_float32")
+backend_test.exclude("test_max_float16")  # uint16 not supported
 backend_test.exclude("test_max_float64")
-backend_test.exclude("test_max_int8")
-backend_test.exclude("test_max_int16")
-backend_test.exclude("test_max_int32")
 backend_test.exclude("test_max_int64")
 backend_test.exclude("test_max_uint")
-backend_test.exclude("test_max_example")
 
 backend_test.include("test_min_")
-backend_test.exclude("test_min_one")
-backend_test.exclude("test_min_two")
 backend_test.exclude("test_min_float16")
-backend_test.exclude("test_min_float32")
 backend_test.exclude("test_min_float64")
-backend_test.exclude("test_min_int8")
-backend_test.exclude("test_min_int16")
-backend_test.exclude("test_min_int32")
 backend_test.exclude("test_min_int64")
 backend_test.exclude("test_min_uint")
-backend_test.exclude("test_min_example")
 
 backend_test.include("test_mul_")
 backend_test.exclude("test_mul_uint8")
 
 backend_test.include("test_pow_")
 backend_test.exclude("test_pow_bcast")
-backend_test.exclude("test_pow_types")
-backend_test.exclude("test_pow_types_int64")
 backend_test.exclude("test_pow_types_int64")
 
 backend_test.include("test_range_")
@@ -200,7 +182,7 @@ backend_test.exclude("test_sub_uint8_")  # not supported
 backend_test.include("test_transpose_")
 
 backend_test.include("test_unsqueeze_")
-# backend_test.exclude("test_unsqueeze_")
+backend_test.exclude("test_unsqueeze_")
 
 backend_test.include("test_where_")
 backend_test.exclude("test_where_long")

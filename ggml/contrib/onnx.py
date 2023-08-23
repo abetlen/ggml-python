@@ -34,7 +34,7 @@ def map_to_ggml_type(dtype: np.dtype):
     np_data_type_limit = np.dtype(str(dtype).replace("64", "32"))
     ggml_type = ggml.utils.NUMPY_DTYPE_TO_GGML_TYPE.get(
         np_data_type_limit.type,
-        ggml.utils.GGML_TYPE.I32,  # TODO: Add i64 but for now, use i32 if looking for i64 or f64
+        ggml.utils.GGML_TYPE.F32,  # TODO: Add i64 but for now, use i32 if looking for i64 or f64
     )
 
     return ggml_type
@@ -758,20 +758,6 @@ def ggml_operator_mat_mul(
     return mul_mat_result
 
 
-@ggml.ggml_custom2_op_t
-def custom_max(
-    tensor_out: ggml.ggml_tensor_p,
-    tensor_in_1: ggml.ggml_tensor_p,
-    tensor_in_2: ggml.ggml_tensor_p,
-    ith: int,
-    nth: int,
-    userdata: Optional[ctypes.c_void_p],
-):
-    a = ggml.utils.to_numpy(tensor_in_2)
-    x = np.max(a)
-    set_tensor_out(tensor_out, np.array(x))
-
-
 @ggml_operator("Max")
 def ggml_operator_max(
     backend: "GgmlBackendRep",
@@ -782,15 +768,21 @@ def ggml_operator_max(
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
-    if len(node_inputs) != 1:
+    if len(node_inputs) < 1:
         raise ValueError(
-            f'Error for node "{node.name}": Operation "Max" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+            f'Error for node "{node.name}": Operation "Max" requires at least one input. Actual number of inputs: {len(node_inputs)}'
         )
 
     a_dtype = get_tensor_dtype(node_inputs[0])
-
-    output_shape = ()
     ggml_type = map_to_ggml_type(a_dtype)
+
+    input_shapes = [get_tensor_shape(node_input) for node_input in node_inputs]
+    output_shape = input_shapes[0]
+
+    for shape in input_shapes[1:]:
+        output_shape = np.maximum(output_shape, shape)
+
+    output_shape = tuple(reversed(output_shape))
 
     x_t = ggml.ggml_new_tensor(
         context,
@@ -799,30 +791,29 @@ def ggml_operator_max(
         (ctypes.c_int64 * len(output_shape))(*output_shape),
     )
 
-    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+    @ggml.ggml_custom1_op_t
+    def custom_max(
+        tensor_out: ggml.ggml_tensor_p,
+        tensor_in_1: ggml.ggml_tensor_p,
+        ith: int,
+        nth: int,
+        userdata: Optional[ctypes.c_void_p],
+    ):
+        tensors = [ggml.utils.to_numpy(node_input) for node_input in node_inputs]
+        x = np.max(tensors, axis=0)
+        set_tensor_out(tensor_out, np.array(x))
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom1_inplace(
         context,
         x_t,
-        node_inputs[0],
         custom_max,
         1,
         None,
     )
 
+    refs.append(custom_max)
+
     return new_tensor
-
-
-@ggml.ggml_custom2_op_t
-def custom_min(
-    tensor_out: ggml.ggml_tensor_p,
-    tensor_in_1: ggml.ggml_tensor_p,
-    tensor_in_2: ggml.ggml_tensor_p,
-    ith: int,
-    nth: int,
-    userdata: Optional[ctypes.c_void_p],
-):
-    a = ggml.utils.to_numpy(tensor_in_2)
-    x = np.min(a)
-    set_tensor_out(tensor_out, np.array(x))
 
 
 @ggml_operator("Min")
@@ -835,15 +826,21 @@ def ggml_operator_min(
 ):
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
-    if len(node_inputs) != 1:
+    if len(node_inputs) < 1:
         raise ValueError(
-            f'Error for node "{node.name}": Operation "Min" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+            f'Error for node "{node.name}": Operation "Min" requires at least one input. Actual number of inputs: {len(node_inputs)}'
         )
 
     a_dtype = get_tensor_dtype(node_inputs[0])
-
-    output_shape = ()
     ggml_type = map_to_ggml_type(a_dtype)
+
+    input_shapes = [get_tensor_shape(node_input) for node_input in node_inputs]
+    output_shape = input_shapes[0]
+
+    for shape in input_shapes[1:]:
+        output_shape = np.minimum(output_shape, shape)
+
+    output_shape = tuple(reversed(output_shape))
 
     x_t = ggml.ggml_new_tensor(
         context,
@@ -852,14 +849,27 @@ def ggml_operator_min(
         (ctypes.c_int64 * len(output_shape))(*output_shape),
     )
 
-    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+    @ggml.ggml_custom1_op_t
+    def custom_min(
+        tensor_out: ggml.ggml_tensor_p,
+        tensor_in_1: ggml.ggml_tensor_p,
+        ith: int,
+        nth: int,
+        userdata: Optional[ctypes.c_void_p],
+    ):
+        tensors = [ggml.utils.to_numpy(node_input) for node_input in node_inputs]
+        x = np.min(tensors, axis=0)
+        set_tensor_out(tensor_out, np.array(x))
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom1_inplace(
         context,
         x_t,
-        node_inputs[0],
         custom_min,
         1,
         None,
     )
+
+    refs.append(custom_min)
 
     return new_tensor
 
@@ -1336,7 +1346,10 @@ def custom_unsqueeze(
     x = ggml.utils.to_numpy(tensor_in_2)
     axes = ggml.utils.to_numpy(tensor_in_3)
 
-    for axis in np.nditer(axes):
+    axes_values = [ax if ax >= 0 else ax + x.ndim + 1 for ax in axes]
+    axes_values.sort()
+    axes_values = np.array(axes_values)
+    for axis in axes_values:
         x = np.expand_dims(x, axis=axis)
 
     set_tensor_out(tensor_out, x)
@@ -1357,23 +1370,43 @@ def ggml_operator_unsqueeze(
             f'Error for node "{node.name}": Operation "Unsqueeze" requires exactly two inputs, data and axes. Actual number of inputs: {len(node_inputs)}'
         )
 
-    x_shape = get_tensor_shape(node_inputs[0])
-    x_dtype = get_tensor_dtype(node_inputs[0])
-    axes = ggml.utils.to_numpy(node_inputs[1])
+    data = node_inputs[0]
+    axes_input = node_inputs[1]
 
-    for axis in np.nditer(axes):
-        x_shape = np.insert(x_shape, axis, 1)
+    x_shape = get_tensor_shape(data)
+    x_dtype = get_tensor_dtype(data)
+    x_ndims = ggml.utils.get_ndims(data)
 
-    x_shape = x_shape.astype(np.int32)
+    axes_eval = backend.eval_tensor(axes_input, context)
+    axes = ggml.utils.to_numpy(axes_eval).astype(dtype=np.int32)
 
-    x = np.empty(x_shape, dtype=x_dtype)
-    x_t = ggml.utils.from_numpy(x, context)
+    axes_values = [ax if ax >= 0 else ax + x_ndims + 1 for ax in axes]
+    axes_values.sort()
+
+    dummy_data = np.empty(x_shape)
+    for axis in axes_values:
+        dummy_data = np.expand_dims(dummy_data, axis=axis)
+
+    ggml_type = map_to_ggml_type(x_dtype)
+    new_shape = tuple(reversed(dummy_data.shape))
+
+    if len(new_shape) > 4:
+        raise ValueError(
+            f'Error for node "{node.name}": {len(new_shape)}D arrays are not allowed.'
+        )
+
+    x_t = ggml.ggml_new_tensor(
+        context,
+        ggml_type.value,
+        len(new_shape),
+        (ctypes.c_int64 * len(new_shape))(*new_shape),
+    )
 
     new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom3_inplace(
         context,
         x_t,
-        node_inputs[0],
-        node_inputs[1],
+        data,
+        axes_input,
         custom_unsqueeze,
         1,
         None,
