@@ -27,12 +27,12 @@ jobs:
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip pytest cmake scikit-build setuptools
-          python3 -m pip install --verbose --editable .
+          SKBUILD_CMAKE_VERBOSE=1 SKBUILD_CMAKE_BUILD_TYPE=Debug CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Debug" python3 -m pip install --verbose --editable .
       - name: Install gdb
         run: sudo apt-get install -y gdb
       - name: Test with pytest
         run: |
-          gdb --batch --quiet -ex r -ex "thread apply all bt" --args python3 -m pytest -vvvvs
+          gdb --batch -ex r -ex "thread apply all bt" --args python3 -m pytest -vvvvs
           python3 -m pytest
 
   build-windows:
