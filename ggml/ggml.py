@@ -7664,7 +7664,7 @@ if GGML_USE_METAL:
     lib.ggml_metal_get_concur_list.argtypes = [
         ggml_metal_context_p,
     ]
-    lib.ggml_metal_get_concur_list.restype = CIntPointer
+    lib.ggml_metal_get_concur_list.restype = ctypes.POINTER(ctypes.c_int)
 
 
 # // same as ggml_graph_compute but uses Metal
