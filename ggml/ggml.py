@@ -801,6 +801,8 @@ class ggml_compute_params(ctypes.Structure):
     ]
 
 
+ggml_compute_params_p: TypeAlias = "ctypes._Pointer[ggml_compute_params]"  # type: ignore
+
 # // misc
 
 
@@ -7263,6 +7265,16 @@ GGML_USE_CUBLAS = hasattr(lib, "ggml_init_cublas")
 GGML_CUDA_MAX_DEVICES = ctypes.c_int(16)
 
 
+# GGML_API void   ggml_init_cublas(void);
+def ggml_init_cublas():
+    return lib.ggml_init_cublas()
+
+
+if GGML_USE_CUBLAS:
+    lib.ggml_init_cublas.argtypes = []
+    lib.ggml_init_cublas.restype = None
+
+
 # void * ggml_cuda_host_malloc(size_t size);
 def ggml_cuda_host_malloc(
     size: Union[ctypes.c_size_t, int],
@@ -7287,6 +7299,36 @@ if GGML_USE_CUBLAS:
     lib.ggml_cuda_host_free.restype = None
 
 
+# GGML_API bool   ggml_cuda_can_mul_mat(const struct ggml_tensor * src0, const struct ggml_tensor * src1, struct ggml_tensor * dst);
+def ggml_cuda_can_mul_mat(
+    src0: ggml_tensor_p,
+    src1: ggml_tensor_p,
+    dst: ggml_tensor_p,
+) -> bool:
+    return lib.ggml_cuda_can_mul_mat(src0, src1, dst)
+
+
+if GGML_USE_CUBLAS:
+    lib.ggml_cuda_can_mul_mat.argtypes = [
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+    ]
+    lib.ggml_cuda_can_mul_mat.restype = ctypes.c_bool
+
+
+# GGML_API void   ggml_cuda_set_tensor_split(const float * tensor_split);
+def ggml_cuda_set_tensor_split(
+    tensor_split: CFloatArray,
+):
+    return lib.ggml_cuda_set_tensor_split(tensor_split)
+
+
+if GGML_USE_CUBLAS:
+    lib.ggml_cuda_set_tensor_split.argtypes = [ctypes.POINTER(ctypes.c_float)]
+    lib.ggml_cuda_set_tensor_split.restype = None
+
+
 # void   ggml_cuda_transform_tensor(void * data, struct ggml_tensor * tensor);
 def ggml_cuda_transform_tensor(
     data: ctypes.c_void_p,
@@ -7301,18 +7343,6 @@ if GGML_USE_CUBLAS:
         ctypes.POINTER(ggml_tensor),
     ]
     lib.ggml_cuda_transform_tensor.restype = None
-
-
-# void   ggml_cuda_set_tensor_split(const float * tensor_split);
-def ggml_cuda_set_tensor_split(
-    tensor_split: CFloatArray,
-):
-    return lib.ggml_cuda_set_tensor_split(tensor_split)
-
-
-if GGML_USE_CUBLAS:
-    lib.ggml_cuda_set_tensor_split.argtypes = [ctypes.POINTER(ctypes.c_float)]
-    lib.ggml_cuda_set_tensor_split.restype = None
 
 
 # void   ggml_cuda_free_data(struct ggml_tensor * tensor);
@@ -7357,6 +7387,20 @@ if GGML_USE_CUBLAS:
     lib.ggml_cuda_assign_buffers_no_scratch.restype = None
 
 
+# GGML_API void   ggml_cuda_assign_buffers_force_inplace(struct ggml_tensor * tensor);
+def ggml_cuda_assign_buffers_force_inplace(
+    tensor: ggml_tensor_p,
+):
+    return lib.ggml_cuda_assign_buffers_force_inplace(tensor)
+
+
+if GGML_USE_CUBLAS:
+    lib.ggml_cuda_assign_buffers_force_inplace.argtypes = [
+        ctypes.POINTER(ggml_tensor),
+    ]
+    lib.ggml_cuda_assign_buffers_force_inplace.restype = None
+
+
 # void   ggml_cuda_set_main_device(int main_device);
 def ggml_cuda_set_main_device(
     main_device: Union[ctypes.c_int, int],
@@ -7369,6 +7413,20 @@ if GGML_USE_CUBLAS:
         ctypes.c_int,
     ]
     lib.ggml_cuda_set_main_device.restype = None
+
+
+# GGML_API void   ggml_cuda_set_mul_mat_q(bool mul_mat_q);
+def ggml_cuda_set_mul_mat_q(
+    mul_mat_q: Union[ctypes.c_bool, bool],
+):
+    return lib.ggml_cuda_set_mul_mat_q(mul_mat_q)
+
+
+if GGML_USE_CUBLAS:
+    lib.ggml_cuda_set_mul_mat_q.argtypes = [
+        ctypes.c_bool,
+    ]
+    lib.ggml_cuda_set_mul_mat_q.restype = None
 
 
 # void   ggml_cuda_set_scratch_size(size_t scratch_size);
@@ -7394,6 +7452,49 @@ if GGML_USE_CUBLAS:
     lib.ggml_cuda_free_scratch.argtypes = []
     lib.ggml_cuda_free_scratch.restype = None
 
+
+# GGML_API bool   ggml_cuda_compute_forward(struct ggml_compute_params * params, struct ggml_tensor * tensor);
+def ggml_cuda_compute_forward(
+    params: ggml_compute_params_p,
+    tensor: ggml_tensor_p,
+) -> bool:
+    return lib.ggml_cuda_compute_forward(params, tensor)
+
+
+if GGML_USE_CUBLAS:
+    lib.ggml_cuda_compute_forward.argtypes = [
+        ctypes.POINTER(ggml_compute_params),
+        ctypes.POINTER(ggml_tensor),
+    ]
+    lib.ggml_cuda_compute_forward.restype = ctypes.c_bool
+
+
+# GGML_API int    ggml_cuda_get_device_count(void);
+def ggml_cuda_get_device_count() -> int:
+    return lib.ggml_cuda_get_device_count()
+
+
+if GGML_USE_CUBLAS:
+    lib.ggml_cuda_get_device_count.argtypes = []
+    lib.ggml_cuda_get_device_count.restype = ctypes.c_int
+
+
+# GGML_API void   ggml_cuda_get_device_description(int device, char * description, size_t description_size);
+def ggml_cuda_get_device_description(
+    device: Union[ctypes.c_int, int],
+    description: bytes,
+    description_size: Union[ctypes.c_size_t, int],
+):
+    return lib.ggml_cuda_get_device_description(device, description, description_size)
+
+
+if GGML_USE_CUBLAS:
+    lib.ggml_cuda_get_device_description.argtypes = [
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_size_t,
+    ]
+    lib.ggml_cuda_get_device_description.restype = None
 
 #####################################################
 # GGML METAL API
@@ -7591,6 +7692,120 @@ if GGML_USE_METAL:
 
 
 GGML_USE_CLBLAST = hasattr(lib, "ggml_cl_init")
+
+
+# void ggml_cl_init(void);
+def ggml_cl_init():
+    return lib.ggml_cl_init()
+
+
+if GGML_USE_CLBLAST:
+    lib.ggml_cl_init.argtypes = []
+    lib.ggml_cl_init.restype = None
+
+
+# void   ggml_cl_mul(const struct ggml_tensor * src0, const struct ggml_tensor * src1, struct ggml_tensor * dst);
+def ggml_cl_mul(
+    src0: ggml_tensor_p,
+    src1: ggml_tensor_p,
+    dst: ggml_tensor_p,
+):
+    return lib.ggml_cl_mul(src0, src1, dst)
+
+
+if GGML_USE_CLBLAST:
+    lib.ggml_cl_mul.argtypes = [
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+    ]
+    lib.ggml_cl_mul.restype = None
+
+
+# bool   ggml_cl_can_mul_mat(const struct ggml_tensor * src0, const struct ggml_tensor * src1, struct ggml_tensor * dst);
+def ggml_cl_can_mul_mat(
+    src0: ggml_tensor_p,
+    src1: ggml_tensor_p,
+    dst: ggml_tensor_p,
+) -> bool:
+    return lib.ggml_cl_can_mul_mat(src0, src1, dst)
+
+
+if GGML_USE_CLBLAST:
+    lib.ggml_cl_can_mul_mat.argtypes = [
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+    ]
+    lib.ggml_cl_can_mul_mat.restype = ctypes.c_bool
+
+
+# size_t ggml_cl_mul_mat_get_wsize(const struct ggml_tensor * src0, const struct ggml_tensor * src1, struct ggml_tensor * dst);
+def ggml_cl_mul_mat_get_wsize(
+    src0: ggml_tensor_p,
+    src1: ggml_tensor_p,
+    dst: ggml_tensor_p,
+) -> int:
+    return lib.ggml_cl_mul_mat_get_wsize(src0, src1, dst)
+
+
+if GGML_USE_CLBLAST:
+    lib.ggml_cl_mul_mat_get_wsize.argtypes = [
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+    ]
+    lib.ggml_cl_mul_mat_get_wsize.restype = ctypes.c_size_t
+
+
+# void   ggml_cl_mul_mat(const struct ggml_tensor * src0, const struct ggml_tensor * src1, struct ggml_tensor * dst, void * wdata, size_t wsize);
+def ggml_cl_mul_mat(
+    src0: ggml_tensor_p,
+    src1: ggml_tensor_p,
+    dst: ggml_tensor_p,
+    wdata: ctypes.c_void_p,
+    wsize: Union[ctypes.c_size_t, int],
+):
+    return lib.ggml_cl_mul_mat(src0, src1, dst, wdata, wsize)
+
+
+if GGML_USE_CLBLAST:
+    lib.ggml_cl_mul_mat.argtypes = [
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_void_p,
+        ctypes.c_size_t,
+    ]
+    lib.ggml_cl_mul_mat.restype = None
+
+
+# void * ggml_cl_host_malloc(size_t size);
+def ggml_cl_host_malloc(
+    size: Union[ctypes.c_size_t, int],
+) -> Optional[ctypes.c_void_p]:
+    return lib.ggml_cl_host_malloc(size)
+
+
+if GGML_USE_CLBLAST:
+    lib.ggml_cl_host_malloc.argtypes = [
+        ctypes.c_size_t,
+    ]
+    lib.ggml_cl_host_malloc.restype = ctypes.c_void_p
+
+
+# void   ggml_cl_host_free(void * ptr);
+def ggml_cl_host_free(
+    ptr: ctypes.c_void_p,
+):
+    return lib.ggml_cl_host_free(ptr)
+
+
+if GGML_USE_CLBLAST:
+    lib.ggml_cl_host_free.argtypes = [
+        ctypes.c_void_p,
+    ]
+    lib.ggml_cl_host_free.restype = None
 
 
 # void ggml_cl_free_data(const struct ggml_tensor* tensor);
