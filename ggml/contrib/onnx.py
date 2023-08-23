@@ -1297,9 +1297,7 @@ def ggml_operator_sub(
         )
 
     output_name = node.output[0]
-    a = node_inputs[0]
-    b = node_inputs[1]
-
+    a, b  = node_inputs
     a, b = broadcast_shapes(context, a, b)
 
     sub_result = ggml.ggml_sub(
@@ -1668,7 +1666,7 @@ class GgmlRuntimeBackend(Backend):
         )
 
     @classmethod
-    def run_model(cls, model, inputs, device=None, **kwargs):
+    def run_model(cls, model: ModelProto, inputs: Any, device=None, **kwargs) -> Tuple[Any, ...]:
         """
         Compute the prediction.
 
@@ -1685,7 +1683,7 @@ class GgmlRuntimeBackend(Backend):
         return rep.run(inputs, **kwargs)
 
     @classmethod
-    def run_node(cls, node, inputs, device=None, outputs_info=None, **kwargs):
+    def run_node(cls, node: NodeProto, inputs: Any, device=None, outputs_info=None, **kwargs) -> Tuple[Any, ...]:
         """
         This method is not implemented as it is much more efficient
         to run a whole model than every node independently.

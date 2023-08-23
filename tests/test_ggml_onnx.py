@@ -91,35 +91,138 @@ def test_ggml_onnx_runtime_basic():
 pytest_plugins = ("onnx.backend.test.report",)
 
 backend_test = onnx.backend.test.BackendTest(GgmlRuntimeBackend, __name__)
+
 backend_test.include("test_abs_")
-# backend_test.include("test_add_")
-# backend_test.include("test_cast")
+
+backend_test.include("test_add_")
+backend_test.exclude("test_add_uint8_") # not supported
+
+backend_test.include("test_cast_")
+
 backend_test.include("test_concat_")
-# backend_test.include("test_constant_")
-# backend_test.include("test_div_")
-# backend_test.include("test_gather_")
-# backend_test.include("test_greater_")
-# backend_test.include("test_less_")
-# backend_test.include("test_log_")
-# backend_test.include("test_matmul_")
-# backend_test.include("test_max_")
-# backend_test.include("test_min_")
-# backend_test.include("test_mul_")
-# backend_test.include("test_pow_")
-# backend_test.include("test_range_")
-# backend_test.include("test_reduce_mean_")
 backend_test.include("test_relu_")
+
+backend_test.include("test_constant_")
+
+backend_test.include("test_div_")
+
+backend_test.exclude("test_div_uint8_") # not supported
+
+backend_test.include("test_gather_")
+backend_test.exclude("test_gather_2d")
+backend_test.exclude("test_gather_elements")
+backend_test.exclude("test_gather_negative")
+
+backend_test.include("test_greater_")
+backend_test.exclude("test_greater_bcast")
+backend_test.exclude("test_greater_equal")
+
+backend_test.include("test_less_")
+backend_test.exclude("test_less_")
+backend_test.exclude("test_less_bcast")
+backend_test.exclude("test_less_cuda")
+backend_test.exclude("test_less_equal_")
+
+backend_test.include("test_log_")
+backend_test.exclude("test_log_")
+
+backend_test.include("test_matmul_")
+backend_test.exclude("test_matmul_")
+
+backend_test.include("test_max_")
+backend_test.exclude("test_max_one")
+backend_test.exclude("test_max_two")
+backend_test.exclude("test_max_float16")
+backend_test.exclude("test_max_float32")
+backend_test.exclude("test_max_float64")
+backend_test.exclude("test_max_int8")
+backend_test.exclude("test_max_int16")
+backend_test.exclude("test_max_int32")
+backend_test.exclude("test_max_int64")
+backend_test.exclude("test_max_uint")
+backend_test.exclude("test_max_example")
+
+backend_test.include("test_min_")
+backend_test.exclude("test_min_one")
+backend_test.exclude("test_min_two")
+backend_test.exclude("test_min_float16")
+backend_test.exclude("test_min_float32")
+backend_test.exclude("test_min_float64")
+backend_test.exclude("test_min_int8")
+backend_test.exclude("test_min_int16")
+backend_test.exclude("test_min_int32")
+backend_test.exclude("test_min_int64")
+backend_test.exclude("test_min_uint")
+backend_test.exclude("test_min_example")
+
+backend_test.include("test_mul_")
+backend_test.exclude("test_mul_")
+backend_test.exclude("test_mul_bcast")
+backend_test.exclude("test_mul_example")
+backend_test.exclude("test_mul_uint8")
+
+backend_test.include("test_pow_")
+backend_test.exclude("test_pow_")
+backend_test.exclude("test_pow_types")
+backend_test.exclude("test_pow_types_int64")
+backend_test.exclude("test_pow_types_int64")
+
+backend_test.include("test_range_")
+backend_test.exclude("test_range_float")
+backend_test.exclude("test_range_int32")
+
+backend_test.include("test_reduce_mean_")
+backend_test.exclude("test_reduce_mean_default")
+backend_test.exclude("test_reduce_mean_do_not_keepdims")
+backend_test.exclude("test_reduce_mean_keepdims")
+backend_test.exclude("test_reduce_mean_negative_axes")
+
+backend_test.include("test_relu_")
+
 backend_test.include("test_reshape_")
 backend_test.exclude("test_reshape_allowzero_reordered_")
-# backend_test.include("test_shape")
-# backend_test.include("test_softmax_")
-backend_test.include("test_sqrt_")
-# backend_test.include("test_sub_")
-# backend_test.include("test_transpose_")
-# backend_test.include("test_unsqueeze_")
-# backend_test.include("test_where_")
 
-# backend_test.exclude(".*cuda.*")
+backend_test.include("test_shape_")
+backend_test.exclude("test_shape_cpu")
+backend_test.exclude("test_shape_cuda")
+backend_test.exclude("test_shape_clip")
+backend_test.exclude("test_shape_start")
+backend_test.exclude("test_shape_end")
+backend_test.exclude("test_shape_example")
+
+backend_test.include("test_softmax_")
+backend_test.exclude("test_softmax_axis")
+backend_test.exclude("test_softmax_default_axis")
+backend_test.exclude("test_softmax_example")
+backend_test.exclude("test_softmax_large_number")
+backend_test.exclude("test_softmax_negative_axis")
+backend_test.exclude("test_softmax_functional")
+backend_test.exclude("test_softmax_lastdim")
+
+>>>>>>> mrezanvari/main
+backend_test.include("test_sqrt_")
+backend_test.exclude("test_sqrt_cpu")
+backend_test.exclude("test_sqrt_cuda")
+backend_test.exclude("test_sqrt_example")
+
+backend_test.include("test_sub_")
+backend_test.exclude("test_sub_cpu")
+backend_test.exclude("test_sub_example") # not supported
+backend_test.exclude("test_sub_cuda") # not supported
+backend_test.exclude("test_sub_bcast_") # not supported
+backend_test.exclude("test_sub_uint8_") # not supported
+
+backend_test.include("test_transpose_")
+backend_test.exclude("test_transpose_")
+
+backend_test.include("test_unsqueeze_")
+backend_test.exclude("test_unsqueeze_")
+
+backend_test.include("test_where_")
+backend_test.exclude("test_where_long")
+backend_test.exclude("test_where_example")
+
+backend_test.exclude(".*cuda.*")
 
 # import all test cases at global scope to make them visible to python.unittest
 globals().update(backend_test.enable_report().test_cases)
