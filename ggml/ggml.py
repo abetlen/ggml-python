@@ -110,8 +110,8 @@ lib = load_shared_library(module_name, lib_base_name)
 
 CFloatArray: TypeAlias = "ctypes.Array[ctypes.c_float]"
 CInt64Array: TypeAlias = "ctypes.Array[ctypes.c_int64]"
-CIntPointer: TypeAlias = "ctypes._Pointer[ctypes.c_int]" # type: ignore
-CCharPointer: TypeAlias = "ctypes._Pointer[ctypes.c_char]" # type: ignore
+CIntPointer: TypeAlias = "ctypes._Pointer[ctypes.c_int]"  # type: ignore
+CCharPointer: TypeAlias = "ctypes._Pointer[ctypes.c_char]"  # type: ignore
 
 
 #####################################################
@@ -952,8 +952,10 @@ def ggml_nbytes_pad(
         number of bytes"""
     return lib.ggml_nbytes_pad(tensor)
 
+
 lib.ggml_nbytes_pad.argtypes = [ctypes.POINTER(ggml_tensor)]
 lib.ggml_nbytes_pad.restype = ctypes.c_size_t
+
 
 # GGML_API size_t  ggml_nbytes_split(const struct ggml_tensor * tensor, int nrows_split);
 def ggml_nbytes_split(
@@ -2952,12 +2954,14 @@ def ggml_group_norm(
         Pointer to ggml_tensor"""
     return lib.ggml_group_norm(ctx, a, n_groups)
 
+
 lib.ggml_group_norm.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_tensor),
     ctypes.c_int,
 ]
 lib.ggml_group_norm.restype = ctypes.POINTER(ggml_tensor)
+
 
 # GGML_API struct ggml_tensor * ggml_group_norm_inplace(
 #         struct ggml_context * ctx,
@@ -2979,12 +2983,14 @@ def ggml_group_norm_inplace(
         Pointer to ggml_tensor"""
     return lib.ggml_group_norm_inplace(ctx, a, n_groups)
 
+
 lib.ggml_group_norm_inplace.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_tensor),
     ctypes.c_int,
 ]
 lib.ggml_group_norm_inplace.restype = ctypes.POINTER(ggml_tensor)
+
 
 # // a - x
 # // b - dy
@@ -6283,6 +6289,7 @@ lib.gguf_get_data.argtypes = [
 ]
 lib.gguf_get_data.restype = ctypes.c_void_p
 
+
 # GGML_API int          gguf_get_n_kv(struct gguf_context * ctx);
 def gguf_get_n_kv(
     ctx: gguf_context_p,
@@ -7228,7 +7235,7 @@ def ggml_allocr_alloc(
     return lib.ggml_allocr_alloc(alloc, tensor)
 
 
-lib.ggml_allocr_alloc_graph.argtypes = [ggml_allocr_p, ctypes.POINTER(ggml_tensor)]
+lib.ggml_allocr_alloc.argtypes = [ggml_allocr_p, ctypes.POINTER(ggml_tensor)]
 lib.ggml_allocr_alloc.restype = None
 
 
@@ -7403,16 +7410,42 @@ GGML_METAL_MAX_BUFFERS = ctypes.c_int(16)
 ggml_metal_context_p = ctypes.c_void_p
 
 
-# struct ggml_metal_context * ggml_metal_init(void);
-def ggml_metal_init() -> ggml_metal_context_p:
-    return lib.ggml_metal_init()
+# struct ggml_metal_context * ggml_metal_init(int n_cb);
+def ggml_metal_init(
+    n_cb: Union[ctypes.c_int, int],
+) -> ggml_metal_context_p:
+    return lib.ggml_metal_init(n_cb)
 
 
 if GGML_USE_METAL:
-    lib.ggml_metal_init.argtypes = []
+    lib.ggml_metal_init.argtypes = [ctypes.c_int]
     lib.ggml_metal_init.restype = ggml_metal_context_p
 
+
 # void ggml_metal_free(struct ggml_metal_context * ctx);
+def ggml_metal_free(
+    ctx: ggml_metal_context_p,
+):
+    return lib.ggml_metal_free(ctx)
+
+
+if GGML_USE_METAL:
+    lib.ggml_metal_free.argtypes = [ggml_metal_context_p]
+    lib.ggml_metal_free.restype = None
+
+
+# // set the number of command buffers to use
+# void ggml_metal_set_n_cb(struct ggml_metal_context * ctx, int n_cb);
+def ggml_metal_set_n_cb(
+    ctx: ggml_metal_context_p,
+    n_cb: Union[ctypes.c_int, int],
+):
+    return lib.ggml_metal_set_n_cb(ctx, n_cb)
+
+
+if GGML_USE_METAL:
+    lib.ggml_metal_set_n_cb.argtypes = [ggml_metal_context_p, ctypes.c_int]
+    lib.ggml_metal_set_n_cb.restype = None
 
 
 # // creates a mapping between a host memory buffer and a device memory buffer
@@ -7430,11 +7463,11 @@ if GGML_USE_METAL:
 #                            size_t   max_size);
 def ggml_metal_add_buffer(
     ctx: ggml_metal_context_p,
-    name: ctypes.c_char_p,
+    name: bytes,
     data: ctypes.c_void_p,
     size: Union[ctypes.c_size_t, int],
     max_size: Union[ctypes.c_size_t, int],
-) -> ctypes.c_bool:
+) -> bool:
     return lib.ggml_metal_add_buffer(ctx, name, data, size, max_size)
 
 
@@ -7447,6 +7480,23 @@ if GGML_USE_METAL:
         ctypes.c_size_t,
     ]
     lib.ggml_metal_add_buffer.restype = ctypes.c_bool
+
+
+# // set data from host memory into the device
+# void ggml_metal_set_tensor(struct ggml_metal_context * ctx, struct ggml_tensor * t);
+def ggml_metal_set_tensor(
+    ctx: ggml_metal_context_p,
+    t: ggml_tensor_p,
+):
+    return lib.ggml_metal_set_tensor(ctx, t)
+
+
+if GGML_USE_METAL:
+    lib.ggml_metal_set_tensor.argtypes = [
+        ggml_metal_context_p,
+        ctypes.POINTER(ggml_tensor),
+    ]
+    lib.ggml_metal_set_tensor.restype = None
 
 
 # // get data from the device into host memory
@@ -7464,6 +7514,56 @@ if GGML_USE_METAL:
         ctypes.POINTER(ggml_tensor),
     ]
     lib.ggml_metal_get_tensor.restype = None
+
+
+# // try to find operations that can be run concurrently in the graph
+# // you should run it again if the topology of your graph changes
+# void ggml_metal_graph_find_concurrency(struct ggml_metal_context * ctx, struct ggml_cgraph * gf, bool check_mem);
+def ggml_metal_graph_find_concurrency(
+    ctx: ggml_metal_context_p,
+    gf: ggml_cgraph_p,
+    check_mem: Union[ctypes.c_bool, bool],
+):
+    return lib.ggml_metal_graph_find_concurrency(ctx, gf, check_mem)
+
+
+if GGML_USE_METAL:
+    lib.ggml_metal_graph_find_concurrency.argtypes = [
+        ggml_metal_context_p,
+        ctypes.POINTER(ggml_cgraph),
+        ctypes.c_bool,
+    ]
+    lib.ggml_metal_graph_find_concurrency.restype = None
+
+
+# // if the graph has been optimized for concurrently dispatch, return length of the concur_list if optimized
+# int ggml_metal_if_optimized(struct ggml_metal_context * ctx);
+def ggml_metal_if_optimized(
+    ctx: ggml_metal_context_p,
+) -> int:
+    return lib.ggml_metal_if_optimized(ctx)
+
+
+if GGML_USE_METAL:
+    lib.ggml_metal_if_optimized.argtypes = [
+        ggml_metal_context_p,
+    ]
+    lib.ggml_metal_if_optimized.restype = ctypes.c_int
+
+
+# // output the concur_list for ggml_alloc
+# int * ggml_metal_get_concur_list(struct ggml_metal_context * ctx);
+def ggml_metal_get_concur_list(
+    ctx: ggml_metal_context_p,
+) -> CIntPointer:
+    return lib.ggml_metal_get_concur_list(ctx)
+
+
+if GGML_USE_METAL:
+    lib.ggml_metal_get_concur_list.argtypes = [
+        ggml_metal_context_p,
+    ]
+    lib.ggml_metal_get_concur_list.restype = CIntPointer
 
 
 # // same as ggml_graph_compute but uses Metal
