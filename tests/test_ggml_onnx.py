@@ -130,7 +130,7 @@ backend_test.exclude("test_max_int64")
 backend_test.exclude("test_max_uint")
 
 backend_test.include("test_min_")
-backend_test.exclude("test_min_float16")
+backend_test.exclude("test_min_float16")  # uint16 not supported
 backend_test.exclude("test_min_float64")
 backend_test.exclude("test_min_int64")
 backend_test.exclude("test_min_uint")

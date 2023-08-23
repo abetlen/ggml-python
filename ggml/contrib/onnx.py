@@ -356,15 +356,14 @@ def ggml_operator_constant(
     value_attr = next(attr for attr in node_attributes if attr.name == "value")
     tensor = value_attr.t
     data_type = tensor.data_type
+
     np_data_type = tensor_dtype_to_np_dtype(data_type)
     np_data_type_limit = np.dtype(str(np_data_type).replace("64", "32"))
 
     if tensor.raw_data:
         data_value = np.frombuffer(tensor.raw_data, dtype=np_data_type)
-    elif tensor.float_data:
-        data_value = np.array(tensor.float_data, dtype=np_data_type)
     else:
-        raise ValueError("Data field not found.")
+        data_value = onnx.numpy_helper.to_array(tensor)
 
     data_tensor = ggml.utils.from_numpy(
         data_value.astype(np_data_type_limit),
