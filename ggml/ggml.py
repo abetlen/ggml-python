@@ -7228,7 +7228,7 @@ def ggml_allocr_alloc(
     return lib.ggml_allocr_alloc(alloc, tensor)
 
 
-lib.ggml_allocr_alloc_graph.argtypes = [ggml_allocr_p, ctypes.POINTER(ggml_tensor)]
+lib.ggml_allocr_alloc.argtypes = [ggml_allocr_p, ctypes.POINTER(ggml_tensor)]
 lib.ggml_allocr_alloc.restype = None
 
 

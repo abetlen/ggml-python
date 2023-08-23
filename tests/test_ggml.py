@@ -1,5 +1,3 @@
-import pytest
-
 import ctypes
 from typing import Optional
 import ggml
@@ -114,7 +112,6 @@ def test_ggml_min_alloc():
     ggml.ggml_free(ctx)
 
 
-@pytest.mark.skip(reason="ggml_allocr_alloc causes segfault on some platforms")
 def test_ggml_alloc():
     def build_graph(ctx: ggml.ggml_context_p, alloc: ggml.ggml_allocr_p):
         # inputs
@@ -129,14 +126,11 @@ def test_ggml_alloc():
         ggml.ggml_allocr_alloc(alloc, b)
 
         x2 = ggml.ggml_mul(ctx, x, x)
-        ggml.ggml_allocr_alloc(alloc, x2)
         tmp = ggml.ggml_mul(ctx, a, x2)
-        ggml.ggml_allocr_alloc(alloc, tmp)
 
         # outputs
         f = ggml.ggml_add(ctx, tmp, b)
         ggml.ggml_set_name(f, b"f")
-        ggml.ggml_allocr_alloc(alloc, f)
 
         # build graph
         gf = ggml.ggml_build_forward(f)
