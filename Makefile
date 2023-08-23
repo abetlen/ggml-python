@@ -20,6 +20,9 @@ build.cublas: ${submodules} update-pip
 build.clblast: ${submodules} update-pip
 	CMAKE_ARGS="-DGGML_CLBLAST=On" python3 -m pip install --verbose --editable .
 
+build.metal: ${submodules} update-pip
+	CMAKE_ARGS="-DGGML_METAL=On" python3 -m pip install --verbose --editable .
+
 sdist:
 	python3 -m build --sdist
 
