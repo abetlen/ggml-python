@@ -30,6 +30,7 @@ jobs:
           python3 -m pip install --verbose --editable .
       - name: Test with pytest
         run: |
+          gdb --batch --quiet -ex r -ex "thread apply all bt" --args python3 -m pytest -vvvvs
           python3 -m pytest
 
   build-windows:
