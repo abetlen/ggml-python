@@ -282,12 +282,22 @@ def ggml_operator_castlike(
         raise ValueError(
             f'Error for node "{node.name}": Operation "CastLike" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
         )
-    dtype = get_tensor_dtype(node_inputs[1])
-    onnx_type = np_dtype_to_tensor_dtype(dtype)
+    a = node_inputs[0]
+    b = node_inputs[1]
+
+    np_data_dtype = get_tensor_dtype(b)
+    np_data_type_limit = np.dtype(str(np_data_dtype).replace("64", "32"))
+
+    onnx_type = np_dtype_to_tensor_dtype(np_data_dtype)
     onnx_type_c = ctypes.c_int(onnx_type)
-    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom1_inplace(
+
+    x = np.empty(get_tensor_shape(b), dtype=np_data_type_limit)
+    x_t = ggml.utils.from_numpy(x, context)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
         context,
-        node_inputs[0],
+        x_t,
+        a,
         custom_cast,
         1,
         ctypes.pointer(onnx_type_c),
