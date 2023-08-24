@@ -742,6 +742,31 @@ def ggml_operator_log(
     return log_result
 
 
+@ggml_operator("LogSoftmax")
+def ggml_operator_log(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "LogSoftmax" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    output_name = node.output[0]
+    a = node_inputs[0]
+    soft_max_result = ggml.ggml_soft_max(context,a)
+    log_result = ggml.ggml_log(
+        context,
+        soft_max_result,
+    )
+    tensors_dict[output_name] = log_result
+    return log_result
+
 @ggml_operator("MatMul")
 def ggml_operator_mat_mul(
     backend: "GgmlBackendRep",
