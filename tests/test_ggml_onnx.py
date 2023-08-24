@@ -167,15 +167,14 @@ backend_test.exclude("test_sub_uint8_")  # not supported
 backend_test.include("test_transpose_")
 
 backend_test.include("test_unsqueeze_")
-backend_test.exclude("test_unsqueeze_negative_axes_cpu")  # 5D Array not supported
-backend_test.exclude("test_unsqueeze_three_axes_cpu")  # 6D Array not supported
-backend_test.exclude("test_unsqueeze_two_axes_cpu")  # 5D Array not supported
-backend_test.exclude("test_unsqueeze_unsorted_axes_cpu")  # 5D Array not supported
+backend_test.exclude("test_unsqueeze_negative_axes")  # 5D Array not supported
+backend_test.exclude("test_unsqueeze_three_axes")  # 6D Array not supported
+backend_test.exclude("test_unsqueeze_two_axes")  # 5D Array not supported
+backend_test.exclude("test_unsqueeze_unsorted_axes")  # 5D Array not supported
 
 backend_test.include("test_where_")
 backend_test.exclude("test_where_long")  # not supported
 
-backend_test.exclude(".*cuda.*")
 backend_test.exclude(".*pad.*")
 backend_test.exclude(".*FLOAT*E*M*.*")
 
