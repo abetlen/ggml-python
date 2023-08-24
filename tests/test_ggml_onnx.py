@@ -138,8 +138,8 @@ backend_test.exclude("test_pow_bcast")  # not supported
 backend_test.exclude("test_pow_types_int64")  # not supported
 
 backend_test.include("test_range_")
-backend_test.exclude("test_range_float")
-backend_test.exclude("test_range_int32")
+backend_test.exclude("test_range_float")  # segfault
+backend_test.exclude("test_range_int32")  # segfault
 
 backend_test.include("test_reduce_mean_")
 
@@ -156,7 +156,6 @@ backend_test.exclude("test_softmax_axis_0")  # not supported
 backend_test.exclude("test_softmax_axis_1")  # not supported
 backend_test.exclude("test_softmax_large_number")  # not supported
 backend_test.exclude("test_softmax_lastdim")  # Out of tolerance
-
 
 backend_test.include("test_sqrt_")
 

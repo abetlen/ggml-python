@@ -366,7 +366,6 @@ def ggml_operator_concat(
 
     return new_tensor
 
-
 @ggml.ggml_custom2_op_t
 def custom_constant(
     tensor_out: ggml.ggml_tensor_p,
