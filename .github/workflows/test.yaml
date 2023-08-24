@@ -23,14 +23,27 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+
       - name: Install dependencies
+        if: ${{ !startsWith(matrix.python-version, 'pypy') }}
         run: |
           python3 -m pip install --upgrade pip cmake scikit-build setuptools
-
           python3 -m pip install --verbose --editable .[test,onnx,onnx-tests,convert]
+
+      - name: Install dependencies [pypy]
+        if: ${{ startsWith(matrix.python-version, 'pypy') }}
+        run: |
+          python3 -m pip install --upgrade pip cmake scikit-build setuptools
+          python3 -m pip install --verbose --editable .[test,convert]
+
       - name: Test with pytest
+        if: ${{ !startsWith(matrix.python-version, 'pypy') }}
         run: |
           python3 -m pytest
+
+      - name: Test with pytest [pypy]
+        if: ${{ startsWith(matrix.python-version, 'pypy') }}
+          python3 -m pytest -k 'not ggml_test_onnx'
 
   build-windows:
     runs-on: windows-latest
