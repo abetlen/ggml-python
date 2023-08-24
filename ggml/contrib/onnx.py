@@ -535,6 +535,7 @@ def ggml_operator_div(
     tensors_dict[output_name] = div_result
     return div_result
 
+
 @ggml.ggml_custom3_op_t
 def custom_equal(
     tensor_out: ggml.ggml_tensor_p,
@@ -565,7 +566,7 @@ def ggml_operator_equal(
 
     if len(node_inputs) != 2:
         raise ValueError(
-            f'Error for node "{node.name}": Operation "Less" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+            f'Error for node "{node.name}": Operation "Equal" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
         )
 
     a_shape = get_tensor_shape(node_inputs[0])
@@ -589,6 +590,51 @@ def ggml_operator_equal(
     )
 
     ggml.ggml_set_name(new_tensor, (name + f"<bool>").encode())
+
+    return new_tensor
+
+
+@ggml_operator("Exp")
+def ggml_operator_exp(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) < 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Exp" requires at least one input. Actual number of inputs: {len(node_inputs)}'
+        )
+    a = node_inputs[0]
+    np_dtype = get_tensor_dtype(a)
+
+    x = np.empty(get_tensor_shape(a), dtype=np_dtype)
+    x_t = ggml.utils.from_numpy(x, context)
+
+    @ggml.ggml_custom1_op_t
+    def custom_exp(
+        tensor_out: ggml.ggml_tensor_p,
+        tensor_in_1: ggml.ggml_tensor_p,
+        ith: int,
+        nth: int,
+        userdata: Optional[ctypes.c_void_p],
+    ):
+        tensor = ggml.utils.to_numpy(tensor_in_1)
+        x = np.exp(tensor)
+        set_tensor_out(tensor_out, np.array(x))
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom1_inplace(
+        context,
+        x_t,
+        custom_exp,
+        1,
+        None,
+    )
+
+    refs.append(custom_exp)
 
     return new_tensor
 
@@ -714,6 +760,7 @@ def ggml_operator_greater(
 
     return new_tensor
 
+
 @ggml.ggml_custom3_op_t
 def custom_greater_equal(
     tensor_out: ggml.ggml_tensor_p,
@@ -744,7 +791,7 @@ def ggml_operator_greater_or_equal(
 
     if len(node_inputs) != 2:
         raise ValueError(
-            f'Error for node "{node.name}": Operation "Less" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+            f'Error for node "{node.name}": Operation "GreaterOrEqual" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
         )
 
     a_shape = get_tensor_shape(node_inputs[0])
@@ -770,6 +817,7 @@ def ggml_operator_greater_or_equal(
     ggml.ggml_set_name(new_tensor, (name + f"<bool>").encode())
 
     return new_tensor
+
 
 @ggml.ggml_custom3_op_t
 def custom_less(
@@ -828,6 +876,7 @@ def ggml_operator_less(
 
     return new_tensor
 
+
 @ggml.ggml_custom3_op_t
 def custom_less_equal(
     tensor_out: ggml.ggml_tensor_p,
@@ -858,7 +907,7 @@ def ggml_operator_less_or_equal(
 
     if len(node_inputs) != 2:
         raise ValueError(
-            f'Error for node "{node.name}": Operation "Less" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+            f'Error for node "{node.name}": Operation "LessOrEqual" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
         )
 
     a_shape = get_tensor_shape(node_inputs[0])
@@ -929,13 +978,14 @@ def ggml_operator_log_soft_max(
 
     output_name = node.output[0]
     a = node_inputs[0]
-    soft_max_result = ggml.ggml_soft_max(context,a)
+    soft_max_result = ggml.ggml_soft_max(context, a)
     log_result = ggml.ggml_log(
         context,
         soft_max_result,
     )
     tensors_dict[output_name] = log_result
     return log_result
+
 
 @ggml_operator("MatMul")
 def ggml_operator_mat_mul(
@@ -1156,6 +1206,7 @@ def custom_pow(
 
     set_tensor_out(tensor_out, new_tensor)
 
+
 @ggml.ggml_custom3_op_t
 def custom_or(
     tensor_out: ggml.ggml_tensor_p,
@@ -1186,7 +1237,7 @@ def ggml_operator_or(
 
     if len(node_inputs) != 2:
         raise ValueError(
-            f'Error for node "{node.name}": Operation "Less" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+            f'Error for node "{node.name}": Operation "Or" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
         )
 
     a_shape = get_tensor_shape(node_inputs[0])
@@ -1212,6 +1263,7 @@ def ggml_operator_or(
     ggml.ggml_set_name(new_tensor, (name + f"<bool>").encode())
 
     return new_tensor
+
 
 @ggml_operator("Pow")
 def ggml_operator_pow(
@@ -1297,7 +1349,111 @@ def ggml_operator_range(
     return new_tensor
 
 
-class RedueMeanUserData(ctypes.Structure):
+class ReduceMaxUserData(ctypes.Structure):
+    _fields_ = [
+        ("axes", ctypes.POINTER(ctypes.c_int)),
+        ("axes_length", ctypes.c_int),
+        ("keepdims", ctypes.c_int),
+    ]
+
+    def __init__(self, axes, keepdims):
+        if isinstance(axes, list):
+            self.axes_length = len(axes)
+            self.axes = (ctypes.c_int * self.axes_length)(*axes)
+        else:
+            raise ValueError("axes should be a list of integers")
+
+        self.keepdims = keepdims
+
+
+@ggml.ggml_custom2_op_t
+def custom_reduce_max(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    userdata_data_ptr = ctypes.cast(userdata, ctypes.POINTER(ReduceMaxUserData))
+    userdata_data = userdata_data_ptr.contents
+
+    tensor = ggml.utils.to_numpy(tensor_in_2)
+    axes = [userdata_data.axes[i] for i in range(userdata_data.axes_length)]
+    keepdims = userdata_data.keepdims
+
+    axes = tuple(axes) if len(axes) else None
+    rmean_result = np.max(tensor, axis=axes, keepdims=keepdims)
+
+    set_tensor_out(tensor_out, rmean_result)
+
+
+@ggml_operator("ReduceMax")
+def ggml_operator_reduce_max(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) > 2 or len(node_inputs) < 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "ReduceMax" requires at least one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    input_tensor = node_inputs[0]
+
+    tensor_shape = get_tensor_shape(input_tensor)
+    tensor_dtype = get_tensor_dtype(input_tensor)
+
+    axes = next((attr.ints for attr in node.attribute if attr.name == "axes"), None)
+    if not axes:
+        if len(node_inputs) != 2:
+            raise ValueError(
+                f'Error for node "{node.name}": Operation "ReduceMean" requires an axis.'
+            )
+
+        axes_eval = backend.eval_tensor(node_inputs[1], context)
+        axes = ggml.utils.to_numpy(axes_eval)
+
+    keepdims = next((attr.i for attr in node.attribute if attr.name == "keepdims"), 0)
+
+    rmean_userdata = ReduceMeanUserData(list(axes), keepdims)
+    userdata_p = ctypes.cast(ctypes.pointer(rmean_userdata), ctypes.c_void_p)
+
+    output_shape = tuple([1] * len(tensor_shape)) if keepdims else ()
+
+    if len(axes):
+        output_shape = list(tensor_shape)
+        sorted_axes = sorted(axes, reverse=True)
+
+        for axis in sorted_axes:
+            if keepdims:
+                output_shape[axis] = 1
+            else:
+                output_shape.pop(axis)
+
+    output_shape = tuple(output_shape)
+    x = np.empty(output_shape, dtype=tensor_dtype)
+    x_t = ggml.utils.from_numpy(x, context)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+        context,
+        x_t,
+        input_tensor,
+        custom_reduce_max,
+        1,
+        userdata_p,
+    )
+
+    refs.append(rmean_userdata)
+
+    return new_tensor
+
+
+class ReduceMeanUserData(ctypes.Structure):
     _fields_ = [
         ("axes", ctypes.POINTER(ctypes.c_int)),
         ("axes_length", ctypes.c_int),
@@ -1323,7 +1479,7 @@ def custom_reduce_mean(
     nth: int,
     userdata: Optional[ctypes.c_void_p],
 ):
-    userdata_data_ptr = ctypes.cast(userdata, ctypes.POINTER(RedueMeanUserData))
+    userdata_data_ptr = ctypes.cast(userdata, ctypes.POINTER(ReduceMeanUserData))
     userdata_data = userdata_data_ptr.contents
 
     tensor = ggml.utils.to_numpy(tensor_in_2)
@@ -1368,7 +1524,7 @@ def ggml_operator_reduce_mean(
 
     keepdims = next((attr.i for attr in node.attribute if attr.name == "keepdims"), 0)
 
-    rmean_userdata = RedueMeanUserData(list(axes), keepdims)
+    rmean_userdata = ReduceMeanUserData(list(axes), keepdims)
     userdata_p = ctypes.cast(ctypes.pointer(rmean_userdata), ctypes.c_void_p)
 
     output_shape = tuple([1] * len(tensor_shape)) if keepdims else ()
@@ -1392,6 +1548,110 @@ def ggml_operator_reduce_mean(
         x_t,
         input_tensor,
         custom_reduce_mean,
+        1,
+        userdata_p,
+    )
+
+    refs.append(rmean_userdata)
+
+    return new_tensor
+
+
+class ReduceSumUserData(ctypes.Structure):
+    _fields_ = [
+        ("axes", ctypes.POINTER(ctypes.c_int)),
+        ("axes_length", ctypes.c_int),
+        ("keepdims", ctypes.c_int),
+    ]
+
+    def __init__(self, axes, keepdims):
+        if isinstance(axes, list):
+            self.axes_length = len(axes)
+            self.axes = (ctypes.c_int * self.axes_length)(*axes)
+        else:
+            raise ValueError("axes should be a list of integers")
+
+        self.keepdims = keepdims
+
+
+@ggml.ggml_custom2_op_t
+def custom_reduce_sum(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    userdata_data_ptr = ctypes.cast(userdata, ctypes.POINTER(ReduceSumUserData))
+    userdata_data = userdata_data_ptr.contents
+
+    tensor = ggml.utils.to_numpy(tensor_in_2)
+    axes = [userdata_data.axes[i] for i in range(userdata_data.axes_length)]
+    keepdims = userdata_data.keepdims
+
+    axes = tuple(axes) if len(axes) else None
+    result = np.sum(tensor, axis=axes, keepdims=keepdims)
+
+    set_tensor_out(tensor_out, result)
+
+
+@ggml_operator("ReduceSum")
+def ggml_operator_reduce_sum(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) > 2 or len(node_inputs) < 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "ReduceSum" requires at least one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    input_tensor = node_inputs[0]
+
+    tensor_shape = get_tensor_shape(input_tensor)
+    tensor_dtype = get_tensor_dtype(input_tensor)
+
+    axes = next((attr.ints for attr in node.attribute if attr.name == "axes"), None)
+    if not axes:
+        if len(node_inputs) != 2:
+            raise ValueError(
+                f'Error for node "{node.name}": Operation "ReduceMean" requires an axis.'
+            )
+
+        axes_eval = backend.eval_tensor(node_inputs[1], context)
+        axes = ggml.utils.to_numpy(axes_eval)
+
+    keepdims = next((attr.i for attr in node.attribute if attr.name == "keepdims"), 0)
+
+    rmean_userdata = ReduceSumUserData(list(axes), keepdims)
+    userdata_p = ctypes.cast(ctypes.pointer(rmean_userdata), ctypes.c_void_p)
+
+    output_shape = tuple([1] * len(tensor_shape)) if keepdims else ()
+
+    if len(axes):
+        output_shape = list(tensor_shape)
+        sorted_axes = sorted(axes, reverse=True)
+
+        for axis in sorted_axes:
+            if keepdims:
+                output_shape[axis] = 1
+            else:
+                output_shape.pop(axis)
+
+    output_shape = tuple(output_shape)
+    x = np.empty(output_shape, dtype=tensor_dtype)
+    x_t = ggml.utils.from_numpy(x, context)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+        context,
+        x_t,
+        input_tensor,
+        custom_reduce_sum,
         1,
         userdata_p,
     )

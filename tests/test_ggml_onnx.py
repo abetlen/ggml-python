@@ -152,19 +152,15 @@ backend_test.exclude("test_reshape_allowzero")  # not supported
 backend_test.include("test_shape_")
 
 backend_test.include("test_softmax_")
-backend_test.exclude("test_softmax_axis")
-backend_test.exclude("test_softmax_default_axis")
-backend_test.exclude("test_softmax_example")
-backend_test.exclude("test_softmax_large_number")
-backend_test.exclude("test_softmax_negative_axis")
-backend_test.exclude("test_softmax_functional")
-backend_test.exclude("test_softmax_lastdim")
+backend_test.exclude("test_softmax_axis_0")  # not supported
+backend_test.exclude("test_softmax_axis_1")  # not supported
+backend_test.exclude("test_softmax_large_number")  # not supported
+backend_test.exclude("test_softmax_lastdim")  # Out of tolerance
+
 
 backend_test.include("test_sqrt_")
-backend_test.exclude("test_sqrt_cuda")
 
 backend_test.include("test_sub_")
-backend_test.exclude("test_sub_cuda")  # not supported
 backend_test.exclude("test_sub_bcast_")  # not supported
 backend_test.exclude("test_sub_uint8_")  # not supported
 
