@@ -44,7 +44,7 @@ jobs:
       - name: Test with pytest [pypy]
         if: ${{ startsWith(matrix.python-version, 'pypy') }}
         run: |
-          python3 -m pytest -k 'not ggml_test_onnx'
+          python3 -m pytest --ignore-glob='*onnx*'
 
   build-windows:
     runs-on: windows-latest
