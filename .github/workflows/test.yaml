@@ -61,14 +61,27 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
-
       - name: Install dependencies
+        if: ${{ !startsWith(matrix.python-version, 'pypy') }}
         run: |
           python3 -m pip install --upgrade pip cmake scikit-build setuptools
           python3 -m pip install --verbose --editable .[test,onnx,onnx-tests,convert]
+
+      - name: Install dependencies [pypy]
+        if: ${{ startsWith(matrix.python-version, 'pypy') }}
+        run: |
+          python3 -m pip install --upgrade pip cmake scikit-build setuptools
+          python3 -m pip install --verbose --editable .[test]
+
       - name: Test with pytest
+        if: ${{ !startsWith(matrix.python-version, 'pypy') }}
         run: |
           python3 -m pytest
+
+      - name: Test with pytest [pypy]
+        if: ${{ startsWith(matrix.python-version, 'pypy') }}
+        run: |
+          python3 -m pytest --ignore-glob='*onnx*'
 
   build-macos:
     runs-on: macos-latest
@@ -84,10 +97,25 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+
       - name: Install dependencies
+        if: ${{ !startsWith(matrix.python-version, 'pypy') }}
         run: |
           python3 -m pip install --upgrade pip cmake scikit-build setuptools
           python3 -m pip install --verbose --editable .[test,onnx,onnx-tests,convert]
+
+      - name: Install dependencies [pypy]
+        if: ${{ startsWith(matrix.python-version, 'pypy') }}
+        run: |
+          python3 -m pip install --upgrade pip cmake scikit-build setuptools
+          python3 -m pip install --verbose --editable .[test]
+
       - name: Test with pytest
+        if: ${{ !startsWith(matrix.python-version, 'pypy') }}
         run: |
           python3 -m pytest
+
+      - name: Test with pytest [pypy]
+        if: ${{ startsWith(matrix.python-version, 'pypy') }}
+        run: |
+          python3 -m pytest --ignore-glob='*onnx*'
