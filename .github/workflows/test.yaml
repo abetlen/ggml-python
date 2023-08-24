@@ -34,7 +34,7 @@ jobs:
         if: ${{ startsWith(matrix.python-version, 'pypy') }}
         run: |
           python3 -m pip install --upgrade pip cmake scikit-build setuptools
-          python3 -m pip install --verbose --editable .[test,convert]
+          python3 -m pip install --verbose --editable .[test]
 
       - name: Test with pytest
         if: ${{ !startsWith(matrix.python-version, 'pypy') }}
