@@ -743,7 +743,7 @@ def ggml_operator_log(
 
 
 @ggml_operator("LogSoftmax")
-def ggml_operator_log(
+def ggml_operator_log_soft_max(
     backend: "GgmlBackendRep",
     node: NodeProto,
     tensors_dict: Dict[str, ggml.ggml_tensor_p],
