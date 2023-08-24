@@ -108,15 +108,11 @@ backend_test.include("test_div_")
 backend_test.exclude("test_div_uint8_")  # not supported
 
 backend_test.include("test_gather_")
-backend_test.exclude("test_gather_elements")
+backend_test.exclude("test_gather_elements")  # not supported
 
 backend_test.include("test_greater_")
-backend_test.exclude("test_greater_cuda")
-backend_test.exclude("test_greater_equal")
 
 backend_test.include("test_less_")
-backend_test.exclude("test_less_cuda")
-backend_test.exclude("test_less_equal_")
 
 backend_test.include("test_log_")
 
@@ -138,8 +134,8 @@ backend_test.include("test_mul_")
 backend_test.exclude("test_mul_uint8")  # not supported
 
 backend_test.include("test_pow_")
-backend_test.exclude("test_pow_bcast")
-backend_test.exclude("test_pow_types_int64")
+backend_test.exclude("test_pow_bcast")  # not supported
+backend_test.exclude("test_pow_types_int64")  # not supported
 
 backend_test.include("test_range_")
 backend_test.exclude("test_range_float")

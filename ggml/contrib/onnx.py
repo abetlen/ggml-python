@@ -535,6 +535,63 @@ def ggml_operator_div(
     tensors_dict[output_name] = div_result
     return div_result
 
+@ggml.ggml_custom3_op_t
+def custom_equal(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    tensor_in_3: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    a = ggml.utils.to_numpy(tensor_in_2)
+    b = ggml.utils.to_numpy(tensor_in_3)
+
+    x = np.equal(a, b)
+
+    set_tensor_out(tensor_out, x)
+
+
+@ggml_operator("Equal")
+def ggml_operator_equal(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Less" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    a_shape = get_tensor_shape(node_inputs[0])
+    a_dtype = get_tensor_dtype(node_inputs[0])
+    b_shape = get_tensor_shape(node_inputs[1])
+    name = node.output[0]
+
+    output_shape = np.broadcast(np.empty(a_shape), np.empty(b_shape)).shape
+
+    x = np.empty(output_shape, dtype=a_dtype)
+    x_t = ggml.utils.from_numpy(x, context)
+
+    new_tensor = tensors_dict[name] = ggml.ggml_map_custom3_inplace(
+        context,
+        x_t,
+        node_inputs[0],
+        node_inputs[1],
+        custom_equal,
+        1,
+        None,
+    )
+
+    ggml.ggml_set_name(new_tensor, (name + f"<bool>").encode())
+
+    return new_tensor
+
 
 @ggml.ggml_custom3_op_t
 def custom_gather(
@@ -657,6 +714,62 @@ def ggml_operator_greater(
 
     return new_tensor
 
+@ggml.ggml_custom3_op_t
+def custom_greater_equal(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    tensor_in_3: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    a = ggml.utils.to_numpy(tensor_in_2)
+    b = ggml.utils.to_numpy(tensor_in_3)
+
+    x = np.greater_equal(a, b)
+
+    set_tensor_out(tensor_out, x)
+
+
+@ggml_operator("GreaterOrEqual")
+def ggml_operator_greater_or_equal(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Less" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    a_shape = get_tensor_shape(node_inputs[0])
+    a_dtype = get_tensor_dtype(node_inputs[0])
+    b_shape = get_tensor_shape(node_inputs[1])
+    name = node.output[0]
+
+    output_shape = np.broadcast(np.empty(a_shape), np.empty(b_shape)).shape
+
+    x = np.empty(output_shape, dtype=a_dtype)
+    x_t = ggml.utils.from_numpy(x, context)
+
+    new_tensor = tensors_dict[name] = ggml.ggml_map_custom3_inplace(
+        context,
+        x_t,
+        node_inputs[0],
+        node_inputs[1],
+        custom_greater_equal,
+        1,
+        None,
+    )
+
+    ggml.ggml_set_name(new_tensor, (name + f"<bool>").encode())
+
+    return new_tensor
 
 @ggml.ggml_custom3_op_t
 def custom_less(
@@ -707,6 +820,63 @@ def ggml_operator_less(
         node_inputs[0],
         node_inputs[1],
         custom_less,
+        1,
+        None,
+    )
+
+    ggml.ggml_set_name(new_tensor, (name + f"<bool>").encode())
+
+    return new_tensor
+
+@ggml.ggml_custom3_op_t
+def custom_less_equal(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    tensor_in_3: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    a = ggml.utils.to_numpy(tensor_in_2)
+    b = ggml.utils.to_numpy(tensor_in_3)
+
+    x = np.less_equal(a, b)
+
+    set_tensor_out(tensor_out, x)
+
+
+@ggml_operator("LessOrEqual")
+def ggml_operator_less_or_equal(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Less" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    a_shape = get_tensor_shape(node_inputs[0])
+    a_dtype = get_tensor_dtype(node_inputs[0])
+    b_shape = get_tensor_shape(node_inputs[1])
+    name = node.output[0]
+
+    output_shape = np.broadcast(np.empty(a_shape), np.empty(b_shape)).shape
+
+    x = np.empty(output_shape, dtype=a_dtype)
+    x_t = ggml.utils.from_numpy(x, context)
+
+    new_tensor = tensors_dict[name] = ggml.ggml_map_custom3_inplace(
+        context,
+        x_t,
+        node_inputs[0],
+        node_inputs[1],
+        custom_less_equal,
         1,
         None,
     )
@@ -986,6 +1156,62 @@ def custom_pow(
 
     set_tensor_out(tensor_out, new_tensor)
 
+@ggml.ggml_custom3_op_t
+def custom_or(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    tensor_in_3: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    a = ggml.utils.to_numpy(tensor_in_2)
+    b = ggml.utils.to_numpy(tensor_in_3)
+
+    x = np.logical_or(a, b)
+
+    set_tensor_out(tensor_out, x)
+
+
+@ggml_operator("Or")
+def ggml_operator_or(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Less" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    a_shape = get_tensor_shape(node_inputs[0])
+    a_dtype = get_tensor_dtype(node_inputs[0])
+    b_shape = get_tensor_shape(node_inputs[1])
+    name = node.output[0]
+
+    output_shape = np.broadcast(np.empty(a_shape), np.empty(b_shape)).shape
+
+    x = np.empty(output_shape, dtype=a_dtype)
+    x_t = ggml.utils.from_numpy(x, context)
+
+    new_tensor = tensors_dict[name] = ggml.ggml_map_custom3_inplace(
+        context,
+        x_t,
+        node_inputs[0],
+        node_inputs[1],
+        custom_or,
+        1,
+        None,
+    )
+
+    ggml.ggml_set_name(new_tensor, (name + f"<bool>").encode())
+
+    return new_tensor
 
 @ggml_operator("Pow")
 def ggml_operator_pow(
