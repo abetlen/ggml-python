@@ -33,7 +33,7 @@
 | [GlobalMaxPool](https://github.com/onnx/onnx/blob/main/docs/Operators.md#GlobalMaxPool)           |                    |                  |
 | [Greater](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Greater)                       | :white_check_mark: |                  |
 | [HardSigmoid](https://github.com/onnx/onnx/blob/main/docs/Operators.md#HardSigmoid)               | :white_check_mark: |                  |
-| [Hardmax](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Hardmax)                       |                    |                  |
+| [Hardmax](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Hardmax)                       | :white_check_mark: |                  |
 | [Identity](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Identity)                     |                    |                  |
 | [If](https://github.com/onnx/onnx/blob/main/docs/Operators.md#If)                                 |                    |                  |
 | [InstanceNormaliza](https://github.com/onnx/onnx/blob/main/docs/Operators.md#InstanceNormaliza)   |                    |                  |

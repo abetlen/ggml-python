@@ -929,6 +929,56 @@ def ggml_operator_size(
     return new_tensor
 
 
+@ggml.ggml_custom1_op_t
+def custom_hardmax(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    axis = ctypes.cast(userdata, ctypes.POINTER(ctypes.c_int)).contents.value
+    x = ggml.utils.to_numpy(tensor_in_1)
+
+    max_indices = np.argmax(x, axis=axis, keepdims=True)
+    y = np.zeros_like(x)
+    np.put_along_axis(y, max_indices, 1, axis=axis)
+
+    set_tensor_out(tensor_out, y)
+
+
+@ggml_operator("Hardmax")
+def ggml_operator_hardmax(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Hardmax" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    x = node_inputs[0]
+    axis = next((attr.i for attr in node.attribute if attr.name == "axis"), -1)
+    axis_c = ctypes.c_int(axis)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom1_inplace(
+        context,
+        x,
+        custom_hardmax,
+        1,
+        ctypes.pointer(axis_c),
+    )
+
+    refs.append(axis_c)
+
+    return new_tensor
+
+
 @ggml.ggml_custom3_op_t
 def custom_greater_equal(
     tensor_out: ggml.ggml_tensor_p,
