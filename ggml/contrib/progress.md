@@ -2,7 +2,7 @@
 
 
 | ONNX Operators | Implemented | ggml Equivalent |
-|:----------------------|:---------------:|:------------------------:|
+|:--------------------------------------------------------------------------------------------------|:------------------:|:----------------:|
 | [Abs](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Abs)                               | :white_check_mark: | `ggml_abs`       |
 | [Add](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Add)                               | :white_check_mark: | `ggml_add`       |
 | [And](https://github.com/onnx/onnx/blob/main/docs/Operators.md#And)                               |                    |                  |
@@ -20,7 +20,7 @@
 | [DepthToSpace](https://github.com/onnx/onnx/blob/main/docs/Operators.md#DepthToSpace)             |                    |                  |
 | [Div](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Div)                               | :white_check_mark: | `ggml_div`       |
 | [Dropout](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Dropout)                       |                    |                  |
-| [Elu](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Elu)                               |                    | `ggml_elu`       |
+| [Elu](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Elu)                               | :white_check_mark: | `ggml_elu`       |
 | [Equal](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Equal)                           | :white_check_mark: |                  |
 | [Exp](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Exp)                               | :white_check_mark: |                  |
 | [Flatten](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Flatten)                       |                    |                  |
@@ -50,10 +50,10 @@
 | [Max](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Max)                               | :white_check_mark: | `ggml_max`       |
 | [MaxPool](https://github.com/onnx/onnx/blob/main/docs/Operators.md#MaxPool)                       |                    |                  |
 | [MaxRoiPool](https://github.com/onnx/onnx/blob/main/docs/Operators.md#MaxRoiPool)                 |                    |                  |
-| [Mean](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Mean)                             |                    | `ggml_mean`      |
+| [Mean](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Mean)                             | :white_check_mark: |~~`ggml_mean`~~<br />`ggml_add` + `ggml_div`|
 | [Min](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Min)                               | :white_check_mark: |                  |
 | [Mul](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Mul)                               | :white_check_mark: | `ggml_mul`       |
-| [Neg](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Neg)                               |                    | `ggml_neg`       |
+| [Neg](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Neg)                               | :white_check_mark: | `ggml_neg`       |
 | [Not](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Not)                               |                    |                  |
 | [Or](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Or)                                 | :white_check_mark: |                  |
 | [PRelu](https://github.com/onnx/onnx/blob/main/docs/Operators.md#PRelu)                           |                    |                  |

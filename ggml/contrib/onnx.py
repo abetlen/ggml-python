@@ -366,6 +366,7 @@ def ggml_operator_concat(
 
     return new_tensor
 
+
 @ggml.ggml_custom2_op_t
 def custom_constant(
     tensor_out: ggml.ggml_tensor_p,
@@ -393,24 +394,38 @@ def ggml_operator_constant(
     node_attributes = node.attribute
     name = node.output[0]
 
-    value_attr = next(attr for attr in node_attributes if attr.name == "value")
-    tensor = value_attr.t
-    data_type = tensor.data_type
+    value_attr = next(attr for attr in node_attributes if "value" in attr.name)
 
-    np_data_type = tensor_dtype_to_np_dtype(data_type)
-    np_data_type_limit = np.dtype(str(np_data_type).replace("64", "32"))
+    if value_attr.HasField("t"):
+        tensor = value_attr.t
+        data_type = tensor.data_type
+        np_data_type = tensor_dtype_to_np_dtype(data_type)
+        np_data_type_limit = np.dtype(str(np_data_type).replace("64", "32"))
 
-    if tensor.raw_data:
-        data_value = np.frombuffer(tensor.raw_data, dtype=np_data_type)
+        if tensor.raw_data:
+            data_value = np.frombuffer(tensor.raw_data, dtype=np_data_type)
+        else:
+            data_value = onnx.numpy_helper.to_array(tensor)
+
     else:
-        data_value = onnx.numpy_helper.to_array(tensor)
+        data_type = value_attr.type
+        np_data_type = tensor_dtype_to_np_dtype(data_type)
+        np_data_type_limit = np.dtype(str(np_data_type).replace("64", "32"))
+        if np.issubdtype(np_data_type, np.floating):
+            data_value = np.array(value_attr.f)
+        elif np.issubdtype(np_data_type, np.integer):
+            data_value = np.array(value_attr.i)
+        else:
+            raise ValueError(
+                f'Error for node "{node.name}": Constant node not set correctly or incomplete implantation.'
+            )
 
     data_tensor = ggml.utils.from_numpy(
         data_value.astype(np_data_type_limit),
         context,
     )
 
-    tensor_shape = tensor.dims or ()
+    tensor_shape = data_value.shape
 
     x = np.empty(tensor_shape, dtype=np_data_type_limit)
     x_t = None
@@ -533,6 +548,41 @@ def ggml_operator_div(
     )
     tensors_dict[output_name] = div_result
     return div_result
+
+
+@ggml_operator("Elu")
+def ggml_operator_elu(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Elu" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    output_name = node.output[0]
+    x = node_inputs[0]
+    alpha = next((attr.f for attr in node.attribute if attr.name == "alpha"), 1.0)
+
+    Y = ggml.ggml_elu(
+        context,
+        x,
+    )
+
+    if alpha != 1.0:
+        Y_eval = backend.eval_tensor(Y, context)
+        Y_np = ggml.utils.to_numpy(Y_eval)
+        Y_alpha = np.where(Y_np < 0, alpha * Y_np, Y_np)
+
+        Y = ggml.utils.from_numpy(Y_alpha, context)
+
+    tensors_dict[output_name] = Y
+    return Y
 
 
 @ggml.ggml_custom3_op_t
@@ -1100,6 +1150,40 @@ def ggml_operator_max(
     return new_tensor
 
 
+@ggml_operator("Mean")
+def ggml_operator_mean(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) < 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Mean" requires at least one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    output_name = node.output[0]
+    sums = node_inputs[0]
+
+    for tensor in node_inputs[1:]:
+        sums = ggml.ggml_add(context, sums, tensor)
+
+    coef_np = np.full(get_tensor_shape(sums), len(node_inputs), dtype=np.float32)
+    coef_t = ggml.utils.from_numpy(coef_np, context)
+
+    mean = ggml.ggml_div(
+        context,
+        sums,
+        coef_t,
+    )
+
+    tensors_dict[output_name] = mean
+    return mean
+
+
 @ggml_operator("Min")
 def ggml_operator_min(
     backend: "GgmlBackendRep",
@@ -1187,6 +1271,32 @@ def ggml_operator_mul(
 
     tensors_dict[output_name] = mul_result
     return mul_result
+
+
+@ggml_operator("Neg")
+def ggml_operator_neg(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Neg" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    x = node_inputs[0]
+    output_name = node.output[0]
+
+    x_neg = ggml.ggml_neg(
+        context,
+        x,
+    )
+    tensors_dict[output_name] = x_neg
+    return x_neg
 
 
 @ggml.ggml_custom2_op_t

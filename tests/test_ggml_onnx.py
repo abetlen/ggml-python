@@ -174,6 +174,13 @@ backend_test.exclude("test_unsqueeze_unsorted_axes")  # 5D Array not supported
 backend_test.include("test_where_")
 backend_test.exclude("test_where_long")  # not supported
 
+backend_test.include("test_elu_")
+backend_test.exclude(".*elu.*.*ver18.*")
+
+backend_test.include("test_mean_")
+backend_test.include("test_neg_")
+
+
 backend_test.exclude(".*pad.*")
 backend_test.exclude(".*FLOAT*E*M*.*")
 
