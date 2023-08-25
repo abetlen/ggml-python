@@ -868,6 +868,67 @@ def ggml_operator_greater(
     return new_tensor
 
 
+class HardSigmoidUserData(ctypes.Structure):
+    _fields_ = [
+        ("alpha", ctypes.c_float),
+        ("beta", ctypes.c_float),
+    ]
+
+
+@ggml.ggml_custom1_op_t
+def custom_hard_sigmoid(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    userdata_data_ptr = ctypes.cast(userdata, ctypes.POINTER(HardSigmoidUserData))
+    userdata_data = userdata_data_ptr.contents
+    x = ggml.utils.to_numpy(tensor_in_1)
+    alpha = userdata_data.alpha
+    beta = userdata_data.beta
+
+    y = np.clip((x * alpha) + beta, 0, 1)
+
+    set_tensor_out(tensor_out, y)
+
+
+@ggml_operator("HardSigmoid")
+def ggml_operator_size(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Sigmoid" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    x = node_inputs[0]
+    alpha = next((attr.f for attr in node.attribute if attr.name == "alpha"), 0.2)
+    beta = next((attr.f for attr in node.attribute if attr.name == "beta"), 0.5)
+
+    hsig_userdata = HardSigmoidUserData(alpha, beta)
+    userdata_p = ctypes.cast(ctypes.pointer(hsig_userdata), ctypes.c_void_p)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom1_inplace(
+        context,
+        x,
+        custom_hard_sigmoid,
+        1,
+        userdata_p,
+    )
+
+    refs.append(userdata_p)
+
+    return new_tensor
+
+
 @ggml.ggml_custom3_op_t
 def custom_greater_equal(
     tensor_out: ggml.ggml_tensor_p,
@@ -1989,6 +2050,102 @@ def ggml_operator_shape(
     ggml.ggml_set_name(new_tensor, (name + f"<int64>").encode())
 
     return new_tensor
+
+
+@ggml.ggml_custom1_op_t
+def custom_sigmoid(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    x = ggml.utils.to_numpy(tensor_in_1)
+
+    y = 1.0 / (1.0 + np.exp(np.negative(x)))
+
+    set_tensor_out(tensor_out, y)
+
+
+@ggml_operator("Sigmoid")
+def ggml_operator_size(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Sigmoid" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    x = node_inputs[0]
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom1_inplace(
+        context,
+        x,
+        custom_sigmoid,
+        1,
+        None,
+    )
+
+    return new_tensor
+
+
+@ggml.ggml_custom2_op_t
+def custom_size(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    tensor = ggml.utils.to_numpy(tensor_in_2)
+    set_tensor_out(tensor_out, tensor)
+
+
+@ggml_operator("Size")
+def ggml_operator_size(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Size" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    tensor_shape = np.array(get_tensor_shape(node_inputs[0]), dtype=np.int32)
+    name = node.output[0]
+    tensor_size_np = np.prod(tensor_shape).astype(np.int32)
+    tensor_size_np = np.array(
+        [tensor_size_np]
+    )  # Add a rank so ggml doesnt break the value, inside the custom reshape to scalar as expected
+    tensor_size_t = ggml.utils.from_numpy(np.array([tensor_size_np]), context)
+
+    ggml_type = map_to_ggml_type(tensor_size_np.dtype).value
+    x_t = ggml.ggml_new_tensor(context, ggml_type, 0, (ctypes.c_int64 * 0)(*()))
+
+    new_tensor = tensors_dict[name] = ggml.ggml_map_custom2_inplace(
+        context,
+        x_t,
+        tensor_size_t,
+        custom_size,
+        1,
+        None,
+    )
+
+    ggml.ggml_set_name(new_tensor, (name + f"<int64>").encode())
+
+    return new_tensor
+
 
 @ggml_operator("Softmax")
 def ggml_operator_softmax(

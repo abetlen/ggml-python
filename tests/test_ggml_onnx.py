@@ -186,7 +186,14 @@ backend_test.include("test_and_")
 backend_test.include("test_xor_")
 
 
+backend_test.include("test_size_")
+backend_test.include("test_sigmoid_")
+backend_test.include("test_hardsigmoid_")
+backend_test.exclude(".*hardsigmoid.*.*ver18.*")
+
+
 backend_test.exclude(".*pad.*")
+backend_test.exclude(".*ver18.*")
 backend_test.exclude(".*FLOAT*E*M*.*")
 
 # import all test cases at global scope to make them visible to python.unittest

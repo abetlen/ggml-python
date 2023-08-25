@@ -31,8 +31,8 @@
 | [GlobalAveragePool](https://github.com/onnx/onnx/blob/main/docs/Operators.md#GlobalAveragePool)   |                    |                  |
 | [GlobalLpPool](https://github.com/onnx/onnx/blob/main/docs/Operators.md#GlobalLpPool)             |                    |                  |
 | [GlobalMaxPool](https://github.com/onnx/onnx/blob/main/docs/Operators.md#GlobalMaxPool)           |                    |                  |
-| [Greater](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Greater)                       |                    |                  |
-| [HardSigmoid](https://github.com/onnx/onnx/blob/main/docs/Operators.md#HardSigmoid)               |                    |                  |
+| [Greater](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Greater)                       | :white_check_mark: |                  |
+| [HardSigmoid](https://github.com/onnx/onnx/blob/main/docs/Operators.md#HardSigmoid)               | :white_check_mark: |                  |
 | [Hardmax](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Hardmax)                       |                    |                  |
 | [Identity](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Identity)                     |                    |                  |
 | [If](https://github.com/onnx/onnx/blob/main/docs/Operators.md#If)                                 |                    |                  |
@@ -79,8 +79,8 @@
 | [Reshape](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Reshape)                       | :white_check_mark: | `ggml_reshape`   |
 | [Selu](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Selu)                             |                    |                  |
 | [Shape](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Shape)                           | :white_check_mark: |                  |
-| [Sigmoid](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Sigmoid)                       |                    |                  |
-| [Size](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Size)                             |                    |                  |
+| [Sigmoid](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Sigmoid)                       | :white_check_mark: |                  |
+| [Size](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Size)                             | :white_check_mark: |                  |
 | [Slice](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Slice)                           |                    |                  |
 | [Softmax](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Softmax)                       | :white_check_mark: | `ggml_soft_max`  |
 | [Softplus](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Softplus)                     |                    |                  |
