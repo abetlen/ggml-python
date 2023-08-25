@@ -5,7 +5,7 @@
 |:--------------------------------------------------------------------------------------------------|:------------------:|:----------------:|
 | [Abs](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Abs)                               | :white_check_mark: | `ggml_abs`       |
 | [Add](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Add)                               | :white_check_mark: | `ggml_add`       |
-| [And](https://github.com/onnx/onnx/blob/main/docs/Operators.md#And)                               |                    |                  |
+| [And](https://github.com/onnx/onnx/blob/main/docs/Operators.md#And)                               | :white_check_mark: |                  |
 | [ArgMax](https://github.com/onnx/onnx/blob/main/docs/Operators.md#ArgMax)                         |                    |                  |
 | [ArgMin](https://github.com/onnx/onnx/blob/main/docs/Operators.md#ArgMin)                         |                    |                  |
 | [AveragePool](https://github.com/onnx/onnx/blob/main/docs/Operators.md#AveragePool)               |                    |                  |
@@ -54,7 +54,7 @@
 | [Min](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Min)                               | :white_check_mark: |                  |
 | [Mul](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Mul)                               | :white_check_mark: | `ggml_mul`       |
 | [Neg](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Neg)                               | :white_check_mark: | `ggml_neg`       |
-| [Not](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Not)                               |                    |                  |
+| [Not](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Not)                               | :white_check_mark: |                  |
 | [Or](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Or)                                 | :white_check_mark: |                  |
 | [PRelu](https://github.com/onnx/onnx/blob/main/docs/Operators.md#PRelu)                           |                    |                  |
 | [Pad](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Pad)                               |                    |                  |
@@ -97,4 +97,4 @@
 | [Transpose](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Transpose)                   | :white_check_mark: | `ggml_transpose` |
 | [Unsqueeze](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Unsqueeze)                   | :white_check_mark: |                  |
 | [Upsample](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Upsample)                     |                    |                  |
-| [Xor](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Xor)                               |                    |                  |
+| [Xor](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Xor)                               | :white_check_mark: |                  |

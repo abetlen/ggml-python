@@ -212,6 +212,64 @@ def ggml_operator_add(
     return add_result
 
 
+@ggml.ggml_custom3_op_t
+def custom_and(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    tensor_in_3: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    a = ggml.utils.to_numpy(tensor_in_2)
+    b = ggml.utils.to_numpy(tensor_in_3)
+
+    x = np.logical_and(a, b)
+
+    set_tensor_out(tensor_out, x)
+
+
+@ggml_operator("And")
+def ggml_operator_and(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "And" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    a_shape = get_tensor_shape(node_inputs[0])
+    a_dtype = get_tensor_dtype(node_inputs[0])
+    b_shape = get_tensor_shape(node_inputs[1])
+    name = node.output[0]
+
+    output_shape = np.broadcast(np.empty(a_shape), np.empty(b_shape)).shape
+
+    x = np.empty(output_shape, dtype=a_dtype)
+    x_t = ggml.utils.from_numpy(x, context)
+
+    new_tensor = tensors_dict[name] = ggml.ggml_map_custom3_inplace(
+        context,
+        x_t,
+        node_inputs[0],
+        node_inputs[1],
+        custom_and,
+        1,
+        None,
+    )
+
+    ggml.ggml_set_name(new_tensor, (name + f"<bool>").encode())
+
+    return new_tensor
+
+
 @ggml.ggml_custom2_op_t
 def custom_cast(
     tensor_out: ggml.ggml_tensor_p,
@@ -1299,21 +1357,47 @@ def ggml_operator_neg(
     return x_neg
 
 
-@ggml.ggml_custom2_op_t
-def custom_pow(
+@ggml.ggml_custom1_op_t
+def custom_not(
     tensor_out: ggml.ggml_tensor_p,
     tensor_in_1: ggml.ggml_tensor_p,
-    tensor_in_2: ggml.ggml_tensor_p,
     ith: int,
     nth: int,
     userdata: Optional[ctypes.c_void_p],
 ):
-    x1 = ggml.utils.to_numpy(tensor_in_1)
-    x2 = ggml.utils.to_numpy(tensor_in_2)
+    a = ggml.utils.to_numpy(tensor_in_1)
+    x = np.logical_not(a)
 
-    new_tensor = np.power(x1, x2)
+    set_tensor_out(tensor_out, x)
 
-    set_tensor_out(tensor_out, new_tensor)
+
+@ggml_operator("Not")
+def ggml_operator_not(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Not" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+    name = node.output[0]
+
+    new_tensor = tensors_dict[name] = ggml.ggml_map_custom1_inplace(
+        context,
+        node_inputs[0],
+        custom_not,
+        1,
+        None,
+    )
+
+    ggml.ggml_set_name(new_tensor, (name + f"<bool>").encode())
+
+    return new_tensor
 
 
 @ggml.ggml_custom3_op_t
@@ -1372,6 +1456,23 @@ def ggml_operator_or(
     ggml.ggml_set_name(new_tensor, (name + f"<bool>").encode())
 
     return new_tensor
+
+
+@ggml.ggml_custom2_op_t
+def custom_pow(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    x1 = ggml.utils.to_numpy(tensor_in_1)
+    x2 = ggml.utils.to_numpy(tensor_in_2)
+
+    new_tensor = np.power(x1, x2)
+
+    set_tensor_out(tensor_out, new_tensor)
 
 
 @ggml_operator("Pow")
@@ -1889,7 +1990,6 @@ def ggml_operator_shape(
 
     return new_tensor
 
-
 @ggml_operator("Softmax")
 def ggml_operator_softmax(
     backend: "GgmlBackendRep",
@@ -2144,6 +2244,64 @@ def ggml_operator_where(
         1,
         None,
     )
+
+    return new_tensor
+
+
+@ggml.ggml_custom3_op_t
+def custom_xor(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    tensor_in_3: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    a = ggml.utils.to_numpy(tensor_in_2)
+    b = ggml.utils.to_numpy(tensor_in_3)
+
+    x = np.logical_xor(a, b)
+
+    set_tensor_out(tensor_out, x)
+
+
+@ggml_operator("Xor")
+def ggml_operator_xor(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Xor" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    a_shape = get_tensor_shape(node_inputs[0])
+    a_dtype = get_tensor_dtype(node_inputs[0])
+    b_shape = get_tensor_shape(node_inputs[1])
+    name = node.output[0]
+
+    output_shape = np.broadcast(np.empty(a_shape), np.empty(b_shape)).shape
+
+    x = np.empty(output_shape, dtype=a_dtype)
+    x_t = ggml.utils.from_numpy(x, context)
+
+    new_tensor = tensors_dict[name] = ggml.ggml_map_custom3_inplace(
+        context,
+        x_t,
+        node_inputs[0],
+        node_inputs[1],
+        custom_xor,
+        1,
+        None,
+    )
+
+    ggml.ggml_set_name(new_tensor, (name + f"<bool>").encode())
 
     return new_tensor
 

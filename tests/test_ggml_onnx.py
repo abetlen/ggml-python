@@ -180,6 +180,11 @@ backend_test.exclude(".*elu.*.*ver18.*")
 backend_test.include("test_mean_")
 backend_test.include("test_neg_")
 
+backend_test.include("test_or_")
+backend_test.include("test_not_")
+backend_test.include("test_and_")
+backend_test.include("test_xor_")
+
 
 backend_test.exclude(".*pad.*")
 backend_test.exclude(".*FLOAT*E*M*.*")
