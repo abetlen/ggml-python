@@ -485,7 +485,7 @@ class ReplitModel:
             # // lctx.use_buf(ctx0, 0)
 
             # // a = self.ln_1(x)
-            cur = ggml.ggml_norm(ctx0, inpL)
+            cur = ggml.ggml_norm(ctx0, inpL, eps=1e-5)
             # offload_func(cur)
             ggml.ggml_set_name(cur, b"norm_0")
             cur = ggml.ggml_mul(
@@ -750,7 +750,7 @@ class ReplitModel:
             ggml.ggml_set_name(cur, b"inpFF")
 
             # // m = self.ln_2(x)
-            cur = ggml.ggml_norm(ctx0, inpL)
+            cur = ggml.ggml_norm(ctx0, inpL, eps=1e-5)
             # offload_func(cur)
             ggml.ggml_set_name(cur, b"norm_1")
             cur = ggml.ggml_mul(
@@ -799,7 +799,7 @@ class ReplitModel:
         # // lctx.use_buf(ctx0, 0)
 
         # // norm
-        inpL = ggml.ggml_norm(ctx0, inpL)
+        inpL = ggml.ggml_norm(ctx0, inpL, eps=1e-5)
         # offload_func_nr(inpL)
         ggml.ggml_set_name(inpL, b"norm_f")
 
