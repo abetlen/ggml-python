@@ -148,17 +148,30 @@ backend_test.include("test_reduce_mean_")
 backend_test.include("test_reduce_min_")
 backend_test.include("test_reduce_prod_")
 backend_test.include("test_reduce_sum_")
+backend_test.include("test_reduce_log_sum_")
+backend_test.exclude("test_reduce_log_sum_exp")
 
 backend_test.include("test_relu_")
+backend_test.include("test_relu_example")
 backend_test.include("test_ReLU_")
 backend_test.exclude(".*relu.*.*ver18.*")
 
+# backend_test.include("test_leakyrelu")
+# backend_test.exclude(".*leakyrelu.*.*ver18.*")
+
 backend_test.include("test_elu_")
 backend_test.include("test_ELU_")
+backend_test.include("test_elu_example")
 backend_test.exclude(".*elu.*.*ver18.*")
 
 backend_test.include("test_selu_")
+backend_test.include("test_selu_example")
 backend_test.exclude(".*selu.*.*ver18.*")
+
+backend_test.include("test_prelu")
+backend_test.include("test_PRelu_")
+backend_test.include("test_prelu_example")
+backend_test.exclude(".*prelu.*.*ver18.*")
 
 backend_test.include("test_reshape_")
 backend_test.exclude("test_reshape_allowzero")  # not supported

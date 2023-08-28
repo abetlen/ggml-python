@@ -1333,6 +1333,54 @@ def ggml_operator_hardmax(
     return new_tensor
 
 
+@ggml.ggml_custom1_op_t
+def custom_leaky_relu(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    alpha = ctypes.cast(userdata, ctypes.POINTER(ctypes.c_double)).contents.value
+    x = ggml.utils.to_numpy(tensor_in_1)
+    y = np.clip(x, 0, np.inf) + np.clip(x, -np.inf, 0) * alpha
+
+    set_tensor_out(tensor_out, y)
+
+
+@ggml_operator("LeakyRelu")
+def ggml_operator_leaky_relu(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "LeakyRelu" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    x = node_inputs[0]
+    alpha = next((attr.f for attr in node.attribute if attr.name == "alpha"), 0.01)
+
+    axis_c = ctypes.c_double(alpha)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom1_inplace(
+        context,
+        x,
+        custom_leaky_relu,
+        1,
+        ctypes.pointer(axis_c),
+    )
+
+    refs.append(axis_c)
+
+    return new_tensor
+
+
 @ggml.ggml_custom3_op_t
 def custom_greater_equal(
     tensor_out: ggml.ggml_tensor_p,
@@ -1919,6 +1967,51 @@ def ggml_operator_or(
     )
 
     ggml.ggml_set_name(new_tensor, (name + f"<bool>").encode())
+
+    return new_tensor
+
+
+@ggml.ggml_custom2_op_t
+def custom_leaky_prelu(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    x = ggml.utils.to_numpy(tensor_in_1)
+    slope = ggml.utils.to_numpy(tensor_in_2)
+
+    y = np.clip(x, 0, np.inf) + np.clip(x, -np.inf, 0) * slope
+
+    set_tensor_out(tensor_out, y)
+
+
+@ggml_operator("PRelu")
+def ggml_operator_leaky_relu(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "PRelu" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    x, slope = node_inputs
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+        context,
+        x,
+        slope,
+        custom_leaky_prelu,
+        1,
+        None,
+    )
 
     return new_tensor
 
