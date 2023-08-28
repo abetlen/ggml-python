@@ -145,6 +145,15 @@ GGML_MAX_OP_PARAMS = 32
 # #define GGML_DEFAULT_N_THREADS 4
 GGML_DEFAULT_N_THREADS = 4
 
+# #if UINTPTR_MAX == 0XFFFFFFFF
+#     #define GGML_MEMALIGN 4
+# #else
+#     # define GGML_MEMALIGN 16
+# #endif
+GGML_MEMALIGN = (
+    16 if ctypes.sizeof(ctypes.c_void_p) == 4 else 32
+)  # FIXME: Check if this is correct
+
 # #define GGML_EXIT_SUCCESS 0
 GGML_EXIT_SUCCESS = 0
 # #define GGML_EXIT_ABORTED 1
@@ -152,8 +161,8 @@ GGML_EXIT_ABORTED = 1
 
 # #define GGUF_MAGIC   0x46554747 // "GGUF"
 GGUF_MAGIC = int("0x46554747", 16)
-# #define GGUF_VERSION 1
-GGUF_VERSION = 1
+# #define GGUF_VERSION 2
+GGUF_VERSION = 2
 
 # #define GGUF_DEFAULT_ALIGNMENT 32
 GGUF_DEFAULT_ALIGNMENT = 32
@@ -2834,53 +2843,61 @@ lib.ggml_silu_back.restype = ctypes.POINTER(ggml_tensor)
 
 
 # // normalize along rows
-# // TODO: eps is hardcoded to 1e-5 for now
 # GGML_API struct ggml_tensor * ggml_norm(
 #         struct ggml_context * ctx,
-#         struct ggml_tensor  * a);
-def ggml_norm(ctx: ggml_context_p, a: ggml_tensor_p) -> ggml_tensor_p:
+#         struct ggml_tensor  * a
+#         float                eps);
+def ggml_norm(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    eps: Union[ctypes.c_float, float],
+) -> ggml_tensor_p:
     """Normalize all elements in a tensor along the first axis and return the result.
 
     normalize along rows.
 
-    NOTE: eps is hardcoded to 1e-5 for now
-
     Parameters:
         ctx: ggml context
         a: tensor
+        eps: minimum value to avoid division by zero
 
     Returns:
         Pointer to ggml_tensor"""
-    return lib.ggml_norm(ctx, a)
+    return lib.ggml_norm(ctx, a, eps)
 
 
-lib.ggml_norm.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
+lib.ggml_norm.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor), ctypes.c_float]
 lib.ggml_norm.restype = ctypes.POINTER(ggml_tensor)
 
 
 # GGML_API struct ggml_tensor * ggml_norm_inplace(
 #         struct ggml_context * ctx,
-#         struct ggml_tensor  * a);
+#         struct ggml_tensor  * a
+#         float                eps);
 def ggml_norm_inplace(
     ctx: ggml_context_p,
     a: ggml_tensor_p,
+    eps: Union[ctypes.c_float, float],
 ) -> ggml_tensor_p:
     """Normalize all elements in a tensor along the first axis and store the result in the first tensor.
 
     normalize along rows.
 
-    NOTE: eps is hardcoded to 1e-5 for now
-
     Parameters:
         ctx: ggml context
         a: tensor
+        eps: minimum value to avoid division by zero
 
     Returns:
         Pointer to ggml_tensor"""
-    return lib.ggml_norm_inplace(ctx, a)
+    return lib.ggml_norm_inplace(ctx, a, eps)
 
 
-lib.ggml_norm_inplace.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
+lib.ggml_norm_inplace.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.c_float,
+]
 lib.ggml_norm_inplace.restype = ctypes.POINTER(ggml_tensor)
 
 
@@ -6157,6 +6174,9 @@ lib.ggml_quantize_chunk.restype = ctypes.c_size_t
 #     GGUF_TYPE_BOOL    = 7,
 #     GGUF_TYPE_STRING  = 8,
 #     GGUF_TYPE_ARRAY   = 9,
+#     GGUF_TYPE_UINT64  = 10,
+#     GGUF_TYPE_INT64   = 11,
+#     GGUF_TYPE_FLOAT64 = 12,
 #     GGUF_TYPE_COUNT,       // marks the end of the enum
 # };
 GGUF_TYPE_UINT8 = 0
@@ -6470,6 +6490,47 @@ lib.gguf_get_val_f32.argtypes = [
 ]
 lib.gguf_get_val_f32.restype = ctypes.c_float
 
+# GGML_API uint64_t     gguf_get_val_u64 (struct gguf_context * ctx, int i);
+def gguf_get_val_u64(
+    ctx: gguf_context_p,
+    i: Union[ctypes.c_int, int],
+) -> int:
+    return lib.gguf_get_val_u64(ctx, i)
+
+
+lib.gguf_get_val_u64.argtypes = [
+    gguf_context_p,
+    ctypes.c_int,
+]
+lib.gguf_get_val_u64.restype = ctypes.c_uint64
+
+# GGML_API int64_t      gguf_get_val_i64 (struct gguf_context * ctx, int i);
+def gguf_get_val_i64(
+    ctx: gguf_context_p,
+    i: Union[ctypes.c_int, int],
+) -> int:
+    return lib.gguf_get_val_i64(ctx, i)
+
+
+lib.gguf_get_val_i64.argtypes = [
+    gguf_context_p,
+    ctypes.c_int,
+]
+lib.gguf_get_val_i64.restype = ctypes.c_int64
+
+# GGML_API double       gguf_get_val_f64 (struct gguf_context * ctx, int i);
+def gguf_get_val_f64(
+    ctx: gguf_context_p,
+    i: Union[ctypes.c_int, int],
+) -> float:
+    return lib.gguf_get_val_f64(ctx, i)
+
+
+lib.gguf_get_val_f64.argtypes = [
+    gguf_context_p,
+    ctypes.c_int,
+]
+lib.gguf_get_val_f64.restype = ctypes.c_double
 
 # GGML_API bool         gguf_get_val_bool(struct gguf_context * ctx, int i);
 def gguf_get_val_bool(
@@ -6725,6 +6786,53 @@ lib.gguf_set_val_f32.argtypes = [
 ]
 lib.gguf_set_val_f32.restype = None
 
+# GGML_API void gguf_set_val_u64 (struct gguf_context * ctx, const char * key, uint64_t val);
+def gguf_set_val_u64(
+    ctx: gguf_context_p,
+    key: bytes,
+    val: Union[ctypes.c_uint64, int],
+):
+    return lib.gguf_set_val_u64(ctx, key, val)
+
+
+lib.gguf_set_val_u64.argtypes = [
+    gguf_context_p,
+    ctypes.c_char_p,
+    ctypes.c_uint64,
+]
+lib.gguf_set_val_u64.restype = None
+
+# GGML_API void gguf_set_val_i64 (struct gguf_context * ctx, const char * key, int64_t  val);
+def gguf_set_val_i64(
+    ctx: gguf_context_p,
+    key: bytes,
+    val: Union[ctypes.c_int64, int],
+):
+    return lib.gguf_set_val_i64(ctx, key, val)
+
+
+lib.gguf_set_val_i64.argtypes = [
+    gguf_context_p,
+    ctypes.c_char_p,
+    ctypes.c_int64,
+]
+lib.gguf_set_val_i64.restype = None
+
+# GGML_API void gguf_set_val_f64 (struct gguf_context * ctx, const char * key, double   val);
+def gguf_set_val_f64(
+    ctx: gguf_context_p,
+    key: bytes,
+    val: Union[ctypes.c_double, float],
+):
+    return lib.gguf_set_val_f64(ctx, key, val)
+
+
+lib.gguf_set_val_f64.argtypes = [
+    gguf_context_p,
+    ctypes.c_char_p,
+    ctypes.c_double,
+]
+lib.gguf_set_val_f64.restype = None
 
 # GGML_API void gguf_set_val_bool(struct gguf_context * ctx, const char * key, bool     val);
 def gguf_set_val_bool(
@@ -7081,6 +7189,14 @@ def ggml_cpu_has_sse3() -> int:
 lib.ggml_cpu_has_sse3.argtypes = []
 lib.ggml_cpu_has_sse3.restype = ctypes.c_int
 
+# GGML_API int ggml_cpu_has_ssse3      (void);
+def ggml_cpu_has_ssse3() -> int:
+    return lib.ggml_cpu_has_ssse3()
+
+
+lib.ggml_cpu_has_ssse3.argtypes = []
+lib.ggml_cpu_has_ssse3.restype = ctypes.c_int
+
 
 # GGML_API int ggml_cpu_has_vsx        (void);
 def ggml_cpu_has_vsx() -> int:
@@ -7179,7 +7295,7 @@ lib.ggml_allocr_new_measure.restype = ggml_allocr_p
 
 # // tell the allocator to parse nodes following the order described in the list
 # // you should call this if your graph are optimized to execute out-of-order
-# GGML_API void   ggml_allocr_set_parse_seq(struct ggml_allocr * alloc, int * list, int n);
+# GGML_API void   ggml_allocr_set_parse_seq(struct ggml_allocr * alloc, const int * list, int n);
 def ggml_allocr_set_parse_seq(
     alloc: ggml_allocr_p,
     list: CIntPointer,
@@ -7262,7 +7378,7 @@ lib.ggml_allocr_alloc_graph.restype = ctypes.c_size_t
 GGML_USE_CUBLAS = hasattr(lib, "ggml_init_cublas")
 
 
-GGML_CUDA_MAX_DEVICES = ctypes.c_int(16)
+GGML_CUDA_MAX_DEVICES = 16
 
 
 # GGML_API void   ggml_init_cublas(void);
@@ -7400,6 +7516,31 @@ if GGML_USE_CUBLAS:
     ]
     lib.ggml_cuda_assign_buffers_force_inplace.restype = None
 
+# GGML_API void   ggml_cuda_assign_buffers_no_alloc(struct ggml_tensor * tensor);
+def ggml_cuda_assign_buffers_no_alloc(
+    tensor: ggml_tensor_p,
+):
+    return lib.ggml_cuda_assign_buffers_no_alloc(tensor)
+
+if GGML_USE_CUBLAS:
+    lib.ggml_cuda_assign_buffers_no_alloc.argtypes = [
+        ctypes.POINTER(ggml_tensor),
+    ]
+    lib.ggml_cuda_assign_buffers_no_alloc.restype = None
+
+# GGML_API void   ggml_cuda_assign_scratch_offset(struct ggml_tensor * tensor, size_t offset);
+def ggml_cuda_assign_scratch_offset(
+    tensor: ggml_tensor_p,
+    offset: Union[ctypes.c_size_t, int],
+):
+    return lib.ggml_cuda_assign_scratch_offset(tensor, offset)
+
+if GGML_USE_CUBLAS:
+    lib.ggml_cuda_assign_scratch_offset.argtypes = [
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_size_t,
+    ]
+    lib.ggml_cuda_assign_scratch_offset.restype = None
 
 # void   ggml_cuda_set_main_device(int main_device);
 def ggml_cuda_set_main_device(
@@ -7505,7 +7646,11 @@ if GGML_USE_CUBLAS:
 GGML_USE_METAL = hasattr(lib, "ggml_metal_init")
 
 
-GGML_METAL_MAX_BUFFERS = ctypes.c_int(16)
+# // max memory buffers that can be mapped to the device
+# #define GGML_METAL_MAX_BUFFERS 16
+GGML_METAL_MAX_BUFFERS = 16
+# #define GGML_METAL_MAX_COMMAND_BUFFERS 32
+GGML_METAL_MAX_COMMAND_BUFFERS = 32
 
 # struct ggml_metal_context;
 ggml_metal_context_p = ctypes.c_void_p
