@@ -1,6 +1,6 @@
 # Operator Implementation Progress
 
-
+This table is generated from [`operator_sets.h`](https://github.com/onnx/onnx/blob/main/onnx/defs/operator_sets.h) and may not include all ONNX operators. These are core operators available in all versions starting from ai.onnx version 1.
 | ONNX Operators | Implemented | ggml Equivalent |
 |:--------------------------------------------------------------------------------------------------|:------------------:|:----------------:|
 | [Abs](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Abs)                               | :white_check_mark: | `ggml_abs`       |
@@ -98,3 +98,4 @@
 | [Unsqueeze](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Unsqueeze)                   | :white_check_mark: |                  |
 | [Upsample](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Upsample)                     |                    |                  |
 | [Xor](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Xor)                               | :white_check_mark: |                  |
+
