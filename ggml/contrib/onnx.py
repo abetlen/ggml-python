@@ -2167,23 +2167,20 @@ class GgmlBackendRep(BackendRep):
 
 class GgmlRuntimeBackend(Backend):
     @classmethod
-    def is_opset_supported(cls, model):  # pylint: disable=unused-argument
+    def is_opset_supported(cls, model: ModelProto):
         return True, ""
 
     @classmethod
-    def prepare(cls, model: ModelProto, device="CPU", **kwargs):
-        """
-        Load the model and creates a :class:`onnxruntime.InferenceSession`
-        ready to be used as a backend.
+    def prepare(cls, model: ModelProto, device: str="CPU", **kwargs):
+        """Load the model and creates the ggml runtime backend representation
+        for the onnx graph.
 
-        :param model: ModelProto (returned by `onnx.load`),
-            string for a filename or bytes for a serialized model
-        :param device: requested device for the computation,
-            None means the default one which depends on
-            the compilation settings
-        :param kwargs: see :class:`onnxruntime.SessionOptions`
-        :return: :class:`onnxruntime.InferenceSession`
-        """
+        Parameters:
+            model: ModelProto (returned by `onnx.load`),
+            device: requested device for the computation
+
+        Returns:
+            GGML Backend Representation"""
 
         super(GgmlRuntimeBackend, cls).prepare(model, device, **kwargs)
         graph = model.graph
@@ -2263,26 +2260,16 @@ class GgmlRuntimeBackend(Backend):
 
     @classmethod
     def run_model(
-        cls, model: ModelProto, inputs: Any, device=None, **kwargs
+        cls, model: ModelProto, inputs: Any, device: Optional[str]=None, **kwargs
     ) -> Tuple[Any, ...]:
-        """
-        Compute the prediction.
-
-        :param model: :class:`onnxruntime.InferenceSession` returned
-            by function *prepare*
-        :param inputs: inputs
-        :param device: requested device for the computation,
-            None means the default one which depends on
-            the compilation settings
-        :param kwargs: see :class:`onnxruntime.RunOptions`
-        :return: predictions
+        """Compute the prediction.
         """
         rep = cls.prepare(model, device, **kwargs)
         return rep.run(inputs, **kwargs)
 
     @classmethod
     def run_node(
-        cls, node: NodeProto, inputs: Any, device=None, outputs_info=None, **kwargs
+        cls, node: NodeProto, inputs: Any, device: Optional[str]=None, outputs_info=None, **kwargs
     ) -> Tuple[Any, ...]:
         """
         This method is not implemented as it is much more efficient
