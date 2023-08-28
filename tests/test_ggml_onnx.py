@@ -101,7 +101,9 @@ backend_test.include("test_cast_")
 
 backend_test.include("test_concat_")
 
+
 backend_test.include("test_constant_")
+backend_test.exclude(".*constant.*.*pad.*")
 
 backend_test.include("test_div_")
 
@@ -141,10 +143,22 @@ backend_test.include("test_range_")
 backend_test.exclude("test_range_float")  # segfault
 backend_test.exclude("test_range_int32")  # segfault
 
+backend_test.include("test_reduce_max_")
 backend_test.include("test_reduce_mean_")
+backend_test.include("test_reduce_min_")
+backend_test.include("test_reduce_prod_")
+backend_test.include("test_reduce_sum_")
 
 backend_test.include("test_relu_")
-backend_test.exclude("test_relu_expanded")  # not supported
+backend_test.include("test_ReLU_")
+backend_test.exclude(".*relu.*.*ver18.*")
+
+backend_test.include("test_elu_")
+backend_test.include("test_ELU_")
+backend_test.exclude(".*elu.*.*ver18.*")
+
+backend_test.include("test_selu_")
+backend_test.exclude(".*selu.*.*ver18.*")
 
 backend_test.include("test_reshape_")
 backend_test.exclude("test_reshape_allowzero")  # not supported
@@ -174,9 +188,6 @@ backend_test.exclude("test_unsqueeze_unsorted_axes")  # 5D Array not supported
 backend_test.include("test_where_")
 backend_test.exclude("test_where_long")  # not supported
 
-backend_test.include("test_elu_")
-backend_test.exclude(".*elu.*.*ver18.*")
-
 backend_test.include("test_mean_")
 backend_test.include("test_neg_")
 
@@ -191,10 +202,9 @@ backend_test.include("test_sigmoid_")
 backend_test.include("test_hardsigmoid_")
 backend_test.exclude(".*hardsigmoid.*.*ver18.*")
 
+
 backend_test.include("test_hardmax_")
 
-
-backend_test.exclude(".*pad.*")
 backend_test.exclude(".*FLOAT*E*M*.*")
 
 # import all test cases at global scope to make them visible to python.unittest

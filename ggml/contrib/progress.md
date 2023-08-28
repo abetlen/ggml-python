@@ -71,10 +71,10 @@
 | [ReduceLogSumExp](https://github.com/onnx/onnx/blob/main/docs/Operators.md#ReduceLogSumExp)       |                    |                  |
 | [ReduceMax](https://github.com/onnx/onnx/blob/main/docs/Operators.md#ReduceMax)                   | :white_check_mark: |                  |
 | [ReduceMean](https://github.com/onnx/onnx/blob/main/docs/Operators.md#ReduceMean)                 | :white_check_mark: |                  |
-| [ReduceMin](https://github.com/onnx/onnx/blob/main/docs/Operators.md#ReduceMin)                   |                    |                  |
-| [ReduceProd](https://github.com/onnx/onnx/blob/main/docs/Operators.md#ReduceProd)                 |                    |                  |
-| [ReduceSum](https://github.com/onnx/onnx/blob/main/docs/Operators.md#ReduceSum)                   | :white_check_mark: | `ggml_sum`?      |
-| [ReduceSumSquare](https://github.com/onnx/onnx/blob/main/docs/Operators.md#ReduceSumSquare)       |                    |                  |
+| [ReduceMin](https://github.com/onnx/onnx/blob/main/docs/Operators.md#ReduceMin)                   | :white_check_mark: |                  |
+| [ReduceProd](https://github.com/onnx/onnx/blob/main/docs/Operators.md#ReduceProd)                 | :white_check_mark: |                  |
+| [ReduceSum](https://github.com/onnx/onnx/blob/main/docs/Operators.md#ReduceSum)                   | :white_check_mark: |                  |
+| [ReduceSumSquare](https://github.com/onnx/onnx/blob/main/docs/Operators.md#ReduceSumSquare)       | :white_check_mark: |                  |
 | [Relu](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Relu)                             | :white_check_mark: | `ggml_relu`      |
 | [Reshape](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Reshape)                       | :white_check_mark: | `ggml_reshape`   |
 | [Selu](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Selu)                             |                    |                  |
