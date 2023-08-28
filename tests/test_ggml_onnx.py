@@ -202,8 +202,12 @@ backend_test.include("test_sigmoid_")
 backend_test.include("test_hardsigmoid_")
 backend_test.exclude(".*hardsigmoid.*.*ver18.*")
 
-
 backend_test.include("test_hardmax_")
+backend_test.include("test_floor_")
+backend_test.include("test_flatten_")
+backend_test.include("test_argmax_")
+backend_test.include("test_argmin_")
+backend_test.include("test_ceil_")
 
 backend_test.exclude(".*FLOAT*E*M*.*")
 
