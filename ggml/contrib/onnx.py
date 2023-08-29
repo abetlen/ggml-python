@@ -4125,7 +4125,7 @@ class GgmlBackendRep(BackendRep):
         ggml_tensors = self.weights
 
         # Define context
-        params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
+        params = ggml.ggml_init_params(mem_size=16000 * 1024 * 1024, mem_buffer=None)
         context = ggml.ggml_init(params=params)
 
         refs: List[Any] = []
@@ -4175,13 +4175,17 @@ class GgmlBackendRep(BackendRep):
         for key, value in inputs.items():
             set_tensor_out(ggml_tensors[key], value)
 
+        gf = ggml.ggml_cgraph()
+        gf_p = ctypes.pointer(gf)
+        output_names = [output.name for output in model_graph.output]
+
         # Build layers
         for node in model_graph.node:
             operator_func = ggml_operators.get(node.op_type)
             if operator_func is None:
                 raise NotImplementedError(f'Operator "{node.op_type}" not implemented')
 
-            node_output = operator_func(
+            operator_func(
                 self,
                 node,
                 ggml_tensors,
@@ -4189,45 +4193,45 @@ class GgmlBackendRep(BackendRep):
                 refs,
             )
 
-            if node.output[-1] == self.graph.output[-1].name:
-                exit_node = node_output
-
-        # Build graph
-        gf = ggml.ggml_build_forward(exit_node)
+            for output in node.output:
+                if output in output_names:
+                    ggml.ggml_build_forward_expand(gf_p, ggml_tensors[output])
 
         # Compute graph
-        ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
-        graph_output = ggml.utils.to_numpy(
-            exit_node
-        )  # TODO: Add checks to convert values back to bool or etc types
-        graph_output = graph_output.astype(
-            get_final_dtype(exit_node)
-        )  # TODO: add a second dict to keep track of types and use that instead
+        ggml.ggml_graph_compute_with_ctx(context, gf_p, 1)
+
+        graph_outputs = []
+        for output in self.outputs:
+            exit_node = ggml_tensors[output.name]
+            graph_output = ggml.utils.to_numpy(
+                exit_node
+            )  # TODO: Add checks to convert values back to bool or etc types
+            graph_output = graph_output.astype(
+                get_final_dtype(exit_node)
+            )  # TODO: add a second dict to keep track of types and use that instead
+            graph_outputs.append(graph_output)
 
         ggml.ggml_free(context)
 
-        return [graph_output]
+        return graph_outputs
 
 
 class GgmlRuntimeBackend(Backend):
     @classmethod
-    def is_opset_supported(cls, model):  # pylint: disable=unused-argument
+    def is_opset_supported(cls, model: ModelProto):
         return True, ""
 
     @classmethod
-    def prepare(cls, model: ModelProto, device="CPU", **kwargs):
-        """
-        Load the model and creates a :class:`onnxruntime.InferenceSession`
-        ready to be used as a backend.
+    def prepare(cls, model: ModelProto, device: str = "CPU", **kwargs):
+        """Load the model and creates the ggml runtime backend representation
+        for the onnx graph.
 
-        :param model: ModelProto (returned by `onnx.load`),
-            string for a filename or bytes for a serialized model
-        :param device: requested device for the computation,
-            None means the default one which depends on
-            the compilation settings
-        :param kwargs: see :class:`onnxruntime.SessionOptions`
-        :return: :class:`onnxruntime.InferenceSession`
-        """
+        Parameters:
+            model: ModelProto (returned by `onnx.load`),
+            device: requested device for the computation
+
+        Returns:
+            GGML Backend Representation"""
 
         super(GgmlRuntimeBackend, cls).prepare(model, device, **kwargs)
         graph = model.graph
@@ -4261,7 +4265,7 @@ class GgmlRuntimeBackend(Backend):
                 tensor = ggml.utils.from_numpy(x=np_array, ctx=context)
 
             ggml.ggml_set_name(tensor=tensor, name=name.encode())
-            total_nbytes += ggml.ggml_nbytes(tensor)
+            total_nbytes += ggml.ggml_nbytes_pad(tensor)
             weights[name] = tensor
             pairs.append((tensor, initializer))
 
@@ -4269,7 +4273,7 @@ class GgmlRuntimeBackend(Backend):
         offset = 0
 
         for tensor, initializer in pairs:
-            nbytes = ggml.ggml_nbytes(tensor)
+            nbytes = ggml.ggml_nbytes_pad(tensor)
             tensor.contents.data = ctypes.cast(
                 ctypes.addressof(buffer) + offset, ctypes.c_void_p
             )
@@ -4307,26 +4311,20 @@ class GgmlRuntimeBackend(Backend):
 
     @classmethod
     def run_model(
-        cls, model: ModelProto, inputs: Any, device=None, **kwargs
+        cls, model: ModelProto, inputs: Any, device: Optional[str] = None, **kwargs
     ) -> Tuple[Any, ...]:
-        """
-        Compute the prediction.
-
-        :param model: :class:`onnxruntime.InferenceSession` returned
-            by function *prepare*
-        :param inputs: inputs
-        :param device: requested device for the computation,
-            None means the default one which depends on
-            the compilation settings
-        :param kwargs: see :class:`onnxruntime.RunOptions`
-        :return: predictions
-        """
+        """Compute the prediction."""
         rep = cls.prepare(model, device, **kwargs)
         return rep.run(inputs, **kwargs)
 
     @classmethod
     def run_node(
-        cls, node: NodeProto, inputs: Any, device=None, outputs_info=None, **kwargs
+        cls,
+        node: NodeProto,
+        inputs: Any,
+        device: Optional[str] = None,
+        outputs_info=None,
+        **kwargs,
     ) -> Tuple[Any, ...]:
         """
         This method is not implemented as it is much more efficient
@@ -4335,3 +4333,39 @@ class GgmlRuntimeBackend(Backend):
         raise NotImplementedError(
             "It is much more efficient to run a whole model than every node independently."
         )
+
+
+class GgmlOnnxGraphOptimizerRule:
+    """Base class for a graph optimization rule."""
+
+    def __init__(self, name: str):
+        self.name = name
+
+    def apply(self, model: ModelProto) -> Optional[ModelProto]:
+        """Apply the optimization rule to the given ONNX model."""
+        raise NotImplementedError()
+
+
+class GgmlOnnxGraphOptimizer:
+    """Optimize an ONNX graph for the GGML runtime."""
+
+    def __init__(self, model: ModelProto, rules: List[GgmlOnnxGraphOptimizerRule]):
+        self.model = model
+        self.rules = rules
+
+    def optimize(self) -> ModelProto:
+        """Apply the optimization rules to the ONNX model until there are no
+        more optimizations left to perform.
+
+        NOTE: This is a naive implementation that applies the rules in order until
+        no more rules can be applied."""
+        model = self.model
+        while True:
+            for rule in self.rules:
+                new_model = rule.apply(model)
+                if new_model is not None:
+                    model = new_model
+                    break
+            else:
+                break
+        return model
