@@ -2221,7 +2221,7 @@ class GgmlRuntimeBackend(Backend):
                 tensor = ggml.utils.from_numpy(x=np_array, ctx=context)
 
             ggml.ggml_set_name(tensor=tensor, name=name.encode())
-            total_nbytes += ggml.ggml_nbytes(tensor)
+            total_nbytes += ggml.ggml_nbytes_pad(tensor)
             weights[name] = tensor
             pairs.append((tensor, initializer))
 
@@ -2229,7 +2229,7 @@ class GgmlRuntimeBackend(Backend):
         offset = 0
 
         for tensor, initializer in pairs:
-            nbytes = ggml.ggml_nbytes(tensor)
+            nbytes = ggml.ggml_nbytes_pad(tensor)
             tensor.contents.data = ctypes.cast(
                 ctypes.addressof(buffer) + offset, ctypes.c_void_p
             )
@@ -2285,3 +2285,36 @@ class GgmlRuntimeBackend(Backend):
         raise NotImplementedError(
             "It is much more efficient to run a whole model than every node independently."
         )
+
+class GgmlOnnxGraphOptimizerRule:
+    """Base class for a graph optimization rule."""
+
+    def __init__(self, name: str):
+        self.name = name
+
+    def apply(self, model: ModelProto) -> Optional[ModelProto]:
+        """Apply the optimization rule to the given ONNX model."""
+        raise NotImplementedError()
+
+class GgmlOnnxGraphOptimizer:
+    """Optimize an ONNX graph for the GGML runtime."""
+    def __init__(self, model: ModelProto, rules: List[GgmlOnnxGraphOptimizerRule]):
+        self.model = model
+        self.rules = rules
+
+    def optimize(self) -> ModelProto:
+        """Apply the optimization rules to the ONNX model until there are no
+        more optimizations left to perform.
+        
+        NOTE: This is a naive implementation that applies the rules in order until
+        no more rules can be applied."""
+        model = self.model
+        while True:
+            for rule in self.rules:
+                new_model = rule.apply(model)
+                if new_model is not None:
+                    model = new_model
+                    break
+            else:
+                break
+        return model
