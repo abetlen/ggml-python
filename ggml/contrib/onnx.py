@@ -3577,7 +3577,8 @@ def ggml_operator_softsign(
     x_abs = ggml.ggml_abs(context, x)
     one_plus_abs = ggml.ggml_add(context, one_t, x_abs)
     y = ggml.ggml_div(context, x, one_plus_abs)
-
+    tensors_dict[node.output[0]] = y
+    
     return y
 
 

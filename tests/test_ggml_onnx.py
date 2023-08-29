@@ -86,6 +86,7 @@ def test_ggml_onnx_runtime_basic():
     ggml_result = ggml_dummy_model.run(input_data)
     assert ggml_result == runtime_result
 
+
 def test_ggml_onnx_graph_optimization():
     # Construct an onnx graph and optimize it
     # The graph is of the form y = (A^T)^T * x + b
@@ -93,7 +94,7 @@ def test_ggml_onnx_graph_optimization():
 
     # The name of the input tensor
     input_name = "x"
-    
+
     # The name of the weights tensor
     weight_name_a = "A"
     weight_name_b = "b"
@@ -195,12 +196,12 @@ def test_ggml_onnx_runtime_quantized():
     node2 = helper.make_node(
         "Add", ["x_times_A", weight_name_b], [output_name], name="node2"
     )  # x * A + b
-    
+
     # Define the tensors (values) in our graph
     X_value_info = helper.make_tensor_value_info(
         input_name, TensorProto.FLOAT, [None, 32]
     )
-    
+
     output_value_info = helper.make_tensor_value_info(
         output_name, TensorProto.FLOAT, [None, 32]
     )
@@ -243,14 +244,13 @@ def test_ggml_onnx_runtime_quantized():
 
     f = io.BytesIO()
     onnx.save(model_def, f)
-    
+
     runtime_result = InferenceSession(f.getvalue()).run(None, input_data)
-    
+
     ggml_dummy_model = GgmlRuntimeBackend.prepare(model_def)
     ggml_result = ggml_dummy_model.run(input_data)
 
     assert np.allclose(ggml_result[0], runtime_result[0], rtol=1e-03, atol=1e-05)
-
 
 
 backend_test = onnx.backend.test.BackendTest(GgmlRuntimeBackend, __name__)
@@ -272,7 +272,7 @@ backend_test.include("test_ceil_")
 backend_test.include("test_concat_")
 
 backend_test.include("test_constant_")
-# backend_test.exclude(".*constant.*.*pad.*")
+backend_test.exclude(".*constant.*.*pad.*")
 
 # backend_test.include("test_clip_")
 
