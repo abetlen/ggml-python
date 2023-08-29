@@ -4222,7 +4222,7 @@ class GgmlRuntimeBackend(Backend):
         return True, ""
 
     @classmethod
-    def prepare(cls, model: ModelProto, device: str = "CPU", **kwargs):
+    def prepare(cls, model: ModelProto, device: str="CPU", **kwargs):
         """Load the model and creates the ggml runtime backend representation
         for the onnx graph.
 
@@ -4311,20 +4311,16 @@ class GgmlRuntimeBackend(Backend):
 
     @classmethod
     def run_model(
-        cls, model: ModelProto, inputs: Any, device: Optional[str] = None, **kwargs
+        cls, model: ModelProto, inputs: Any, device: Optional[str]=None, **kwargs
     ) -> Tuple[Any, ...]:
-        """Compute the prediction."""
+        """Compute the prediction.
+        """
         rep = cls.prepare(model, device, **kwargs)
         return rep.run(inputs, **kwargs)
 
     @classmethod
     def run_node(
-        cls,
-        node: NodeProto,
-        inputs: Any,
-        device: Optional[str] = None,
-        outputs_info=None,
-        **kwargs,
+        cls, node: NodeProto, inputs: Any, device: Optional[str]=None, outputs_info=None, **kwargs
     ) -> Tuple[Any, ...]:
         """
         This method is not implemented as it is much more efficient
@@ -4333,7 +4329,6 @@ class GgmlRuntimeBackend(Backend):
         raise NotImplementedError(
             "It is much more efficient to run a whole model than every node independently."
         )
-
 
 class GgmlOnnxGraphOptimizerRule:
     """Base class for a graph optimization rule."""
@@ -4345,10 +4340,8 @@ class GgmlOnnxGraphOptimizerRule:
         """Apply the optimization rule to the given ONNX model."""
         raise NotImplementedError()
 
-
 class GgmlOnnxGraphOptimizer:
     """Optimize an ONNX graph for the GGML runtime."""
-
     def __init__(self, model: ModelProto, rules: List[GgmlOnnxGraphOptimizerRule]):
         self.model = model
         self.rules = rules
@@ -4356,7 +4349,7 @@ class GgmlOnnxGraphOptimizer:
     def optimize(self) -> ModelProto:
         """Apply the optimization rules to the ONNX model until there are no
         more optimizations left to perform.
-
+        
         NOTE: This is a naive implementation that applies the rules in order until
         no more rules can be applied."""
         model = self.model
