@@ -2131,13 +2131,17 @@ class GgmlBackendRep(BackendRep):
         for key, value in inputs.items():
             set_tensor_out(ggml_tensors[key], value)
 
+        gf = ggml.ggml_cgraph()
+        gf_p = ctypes.pointer(gf)
+        output_names = [output.name for output in model_graph.output]
+
         # Build layers
         for node in model_graph.node:
             operator_func = ggml_operators.get(node.op_type)
             if operator_func is None:
                 raise NotImplementedError(f'Operator "{node.op_type}" not implemented')
 
-            node_output = operator_func(
+            operator_func(
                 self,
                 node,
                 ggml_tensors,
@@ -2145,24 +2149,27 @@ class GgmlBackendRep(BackendRep):
                 refs,
             )
 
-            if node.output[-1] == self.graph.output[-1].name:
-                exit_node = node_output
-
-        # Build graph
-        gf = ggml.ggml_build_forward(exit_node)
+            for output in node.output:
+                if output in output_names:
+                    ggml.ggml_build_forward_expand(gf_p, ggml_tensors[output])
 
         # Compute graph
-        ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
-        graph_output = ggml.utils.to_numpy(
-            exit_node
-        )  # TODO: Add checks to convert values back to bool or etc types
-        graph_output = graph_output.astype(
-            get_final_dtype(exit_node)
-        )  # TODO: add a second dict to keep track of types and use that instead
+        ggml.ggml_graph_compute_with_ctx(context, gf_p, 1)
+
+        graph_outputs = []
+        for output in self.outputs:
+            exit_node = ggml_tensors[output.name]
+            graph_output = ggml.utils.to_numpy(
+                exit_node
+            )  # TODO: Add checks to convert values back to bool or etc types
+            graph_output = graph_output.astype(
+                get_final_dtype(exit_node)
+            )  # TODO: add a second dict to keep track of types and use that instead
+            graph_outputs.append(graph_output)
 
         ggml.ggml_free(context)
 
-        return [graph_output]
+        return graph_outputs
 
 
 class GgmlRuntimeBackend(Backend):
