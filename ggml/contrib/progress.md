@@ -9,7 +9,7 @@ This table is generated from [`operator_sets.h`](https://github.com/onnx/onnx/bl
 | [ArgMax](https://github.com/onnx/onnx/blob/main/docs/Operators.md#ArgMax)                         | :white_check_mark: |                  |
 | [ArgMin](https://github.com/onnx/onnx/blob/main/docs/Operators.md#ArgMin)                         | :white_check_mark: |                  |
 | [AveragePool](https://github.com/onnx/onnx/blob/main/docs/Operators.md#AveragePool)               |                    |                  |
-| [BatchNormalizatio](https://github.com/onnx/onnx/blob/main/docs/Operators.md#BatchNormalizatio)   |                    |                  |
+| [BatchNormalization](https://github.com/onnx/onnx/blob/main/docs/Operators.md#BatchNormalization) |                    |                  |
 | [Cast](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Cast)                             | :white_check_mark: |                  |
 | [Ceil](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Ceil)                             | :white_check_mark: |                  |
 | [Clip](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Clip)                             |                    |                  |
@@ -83,12 +83,12 @@ This table is generated from [`operator_sets.h`](https://github.com/onnx/onnx/bl
 | [Size](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Size)                             | :white_check_mark: |                  |
 | [Slice](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Slice)                           |                    |                  |
 | [Softmax](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Softmax)                       | :white_check_mark: | `ggml_soft_max`  |
-| [Softplus](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Softplus)                     |                    |                  |
-| [Softsign](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Softsign)                     |                    |                  |
+| [Softplus](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Softplus)                     | :white_check_mark: |                  |
+| [Softsign](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Softsign)                     | :white_check_mark: |                  |
 | [SpaceToDepth](https://github.com/onnx/onnx/blob/main/docs/Operators.md#SpaceToDepth)             |                    |                  |
 | [Split](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Split)                           |                    |                  |
 | [Sqrt](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Sqrt)                             | :white_check_mark: | `ggml_sqrt`      |
-| [Squeeze](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Squeeze)                       |                    |                  |
+| [Squeeze](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Squeeze)                       | :white_check_mark: |                  |
 | [Sub](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Sub)                               | :white_check_mark: | `ggml_sub`       |
 | [Sum](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Sum)                               | :white_check_mark: | `ggml_sum`       |
 | [Tanh](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Tanh)                             | :white_check_mark: | `ggml_tanh`      |
@@ -96,6 +96,6 @@ This table is generated from [`operator_sets.h`](https://github.com/onnx/onnx/bl
 | [TopK](https://github.com/onnx/onnx/blob/main/docs/Operators.md#TopK)                             |                    |                  |
 | [Transpose](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Transpose)                   | :white_check_mark: | `ggml_transpose` |
 | [Unsqueeze](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Unsqueeze)                   | :white_check_mark: |                  |
-| [Upsample](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Upsample)                     |                    |                  |
+| ~~[Upsample](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Upsample)~~ (Deprecated)    |  :x:               |                  |
 | [Xor](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Xor)                               | :white_check_mark: |                  |
 

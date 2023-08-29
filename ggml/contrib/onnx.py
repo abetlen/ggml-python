@@ -3147,7 +3147,7 @@ def ggml_operator_size(
     tensor_size_np = np.prod(tensor_shape).astype(np.int32)
     tensor_size_np = np.array(
         [tensor_size_np]
-    )  # Add a rank so ggml doesnt break the value, inside the custom reshape to scalar as expected
+    )  # Add a rank so ggml doesnt break the value, inside the custom reshape to scalar as expected TODO: Fix the ranking, ggml skalars or make sure broadcasting works fine
     tensor_size_t = ggml.utils.from_numpy(np.array([tensor_size_np]), context)
 
     ggml_type = map_to_ggml_type(tensor_size_np.dtype).value
@@ -3165,6 +3165,76 @@ def ggml_operator_size(
     ggml.ggml_set_name(new_tensor, (name + f"<int64>").encode())
 
     return new_tensor
+
+
+@ggml.ggml_custom1_op_t
+def custom_softplus(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    x = ggml.utils.to_numpy(tensor_in_1)
+    y = np.log(np.exp(x) + 1)
+    set_tensor_out(tensor_out, y)
+
+
+@ggml_operator("Softplus")
+def ggml_operator_softplus(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Softplus" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    x = node_inputs[0]
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom1_inplace(
+        context,
+        x,
+        custom_softplus,
+        1,
+        None,
+    )
+
+    return new_tensor
+
+
+@ggml_operator("Softsign")
+def ggml_operator_softsign(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Softsign" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    x = node_inputs[0]
+    x_shape = get_tensor_shape(x)
+    x_dtype = get_tensor_dtype(x)
+
+    # y = x / (1 + abs(x))
+    one_np = np.full(x_shape, 1, dtype=x_dtype)
+    one_t = ggml.utils.from_numpy(one_np, context)
+    x_abs = ggml.ggml_abs(context, x)
+    one_plus_abs = ggml.ggml_add(context, one_t, x_abs)
+    y = ggml.ggml_div(context, x, one_plus_abs)
+
+    return y
 
 
 @ggml_operator("Softmax")
@@ -3217,6 +3287,70 @@ def ggml_operator_sqrt(
     )
     tensors_dict[output_name] = sqrt_result
     return sqrt_result
+
+
+@ggml.ggml_custom3_op_t
+def custom_squeeze(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    tensor_in_3: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    x = ggml.utils.to_numpy(tensor_in_2)
+    axes = ggml.utils.to_numpy(tensor_in_3)
+
+    y = np.squeeze(x, axis=axes[0])
+
+    set_tensor_out(tensor_out, y)
+
+
+@ggml_operator("Squeeze")
+def ggml_operator_squeeze(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Squeeze" requires exactly two inputs, data and axes. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    data, axes_input = node_inputs
+
+    x_shape = get_tensor_shape(data)
+    x_dtype = get_tensor_dtype(data)
+
+    axes_eval = backend.eval_tensor(axes_input, context)
+    axes = ggml.utils.to_numpy(axes_eval).astype(dtype=np.int32)
+
+    dummy_data = np.empty(x_shape, dtype=x_dtype)
+    dummy_data = np.squeeze(dummy_data, axis=axes[0])
+
+    if len(dummy_data.shape) > 4:
+        raise ValueError(
+            f'Error for node "{node.name}": {len(dummy_data.shape)}D arrays are not allowed.'
+        )
+
+    x_t = ggml.utils.from_numpy(dummy_data, context)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom3_inplace(
+        context,
+        x_t,
+        data,
+        axes_input,
+        custom_squeeze,
+        1,
+        None,
+    )
+
+    return new_tensor
 
 
 @ggml_operator("Sub")
