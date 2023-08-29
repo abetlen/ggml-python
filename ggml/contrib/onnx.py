@@ -3578,7 +3578,7 @@ def ggml_operator_softsign(
     one_plus_abs = ggml.ggml_add(context, one_t, x_abs)
     y = ggml.ggml_div(context, x, one_plus_abs)
     tensors_dict[node.output[0]] = y
-    
+
     return y
 
 
@@ -3845,6 +3845,145 @@ def ggml_operator_tile(
     )
 
     return new_tensor
+
+
+class TopKUserData(ctypes.Structure):
+    _fields_ = [
+        ("axis", ctypes.c_int),
+        ("largest", ctypes.c_int),
+        ("sorted", ctypes.c_int),
+        ("k", ctypes.c_int),
+    ]
+
+
+@ggml.ggml_custom2_op_t
+def custom_top_k_indices(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    x = ggml.utils.to_numpy(tensor_in_2)
+
+    userdata_data_ptr = ctypes.cast(userdata, ctypes.POINTER(TopKUserData))
+    userdata_data = userdata_data_ptr.contents
+
+    axis = userdata_data.axis
+    largest = bool(userdata_data.largest)
+    sort = bool(userdata_data.sorted)
+
+    k = userdata_data.k
+
+    if largest:
+        sorted_indices = np.argsort(x, axis=axis)[:, ::-1]
+    else:
+        sorted_indices = np.argsort(x, axis=axis)
+
+    topk_indices = sorted_indices[:, :k]
+
+    set_tensor_out(tensor_out, topk_indices)
+
+
+@ggml.ggml_custom3_op_t
+def custom_top_k_values(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    tensor_in_3: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    x = ggml.utils.to_numpy(tensor_in_2)
+    topk_indices = ggml.utils.to_numpy(tensor_in_3).astype(np.int32)
+
+    userdata_data_ptr = ctypes.cast(userdata, ctypes.POINTER(TopKUserData))
+    userdata_data = userdata_data_ptr.contents
+
+    axis = userdata_data.axis
+    sorted_flag = bool(userdata_data.sorted)
+
+    topk_values = np.take_along_axis(x, topk_indices, axis=axis)
+    if sorted_flag:
+        topk_values_sorted = np.sort(topk_values, axis=axis)
+    else:
+        topk_values_sorted = topk_values
+
+    set_tensor_out(tensor_out, topk_values_sorted)
+
+
+@ggml_operator("TopK")
+def ggml_operator_top_k(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "TopK" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    x, k = node_inputs
+
+    input_shape = get_tensor_shape(x)
+
+    axis = next((attr.i for attr in node.attribute if attr.name == "axis"), -1)
+    largest = next((attr.i for attr in node.attribute if attr.name == "largest"), 1)
+    sorted_flag = next((attr.i for attr in node.attribute if attr.name == "sorted"), 0)
+
+    k_eval = backend.eval_tensor(k, context)
+    k_np = ggml.utils.to_numpy(k_eval)[0]
+
+    topk_userdata = TopKUserData(axis, largest, sorted_flag, k_np)
+    userdata_p = ctypes.cast(ctypes.pointer(topk_userdata), ctypes.c_void_p)
+
+    output_shape = list(input_shape)
+    output_shape[axis] = k_np
+    output_shape = tuple(output_shape)
+
+    indices_t = ggml.utils.from_numpy(
+        np.empty(output_shape, dtype=np.int32),
+        context,
+    )
+
+    values_t = ggml.utils.from_numpy(
+        np.empty(output_shape, dtype=get_tensor_dtype(x)),
+        context,
+    )
+
+    indices = ggml.ggml_map_custom2_inplace(
+        context,
+        indices_t,
+        x,
+        custom_top_k_indices,
+        1,
+        userdata_p,
+    )
+
+    values = ggml.ggml_map_custom3_inplace(
+        context,
+        values_t,
+        x,
+        indices,
+        custom_top_k_values,
+        1,
+        userdata_p,
+    )
+
+    tensors_dict[node.output[0]] = values
+    tensors_dict[node.output[1]] = indices
+
+    refs.append(topk_userdata)
+
+    ggml.ggml_set_name(indices, (node.output[1] + f"<int64>").encode())
+
+    return values, indices
 
 
 @ggml_operator("Transpose")

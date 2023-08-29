@@ -274,8 +274,6 @@ backend_test.include("test_concat_")
 backend_test.include("test_constant_")
 backend_test.exclude(".*constant.*.*pad.*")
 
-# backend_test.include("test_clip_")
-
 backend_test.include("test_div_")
 backend_test.exclude("test_div_uint8_")  # not supported
 
@@ -402,6 +400,8 @@ backend_test.include("test_sum_")
 
 backend_test.include("test_tanh_")
 backend_test.include("test_tile_")
+
+backend_test.include("test_top_k")
 
 backend_test.include("test_transpose_")
 
