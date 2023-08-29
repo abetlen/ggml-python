@@ -15,6 +15,7 @@ This table is generated from [`operator_sets.h`](https://github.com/onnx/onnx/bl
 | [Clip](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Clip)                             |                    |                  |
 | [Concat](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Concat)                         | :white_check_mark: | `ggml_concat`    |
 | [Constant](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Constant)                     | :white_check_mark: |                  |
+| [ConstantOfShape](https://github.com/onnx/onnx/blob/main/docs/Operators.md#ConstantOfShape)       | :white_check_mark: |                  |
 | [Conv](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Conv)                             |                    |                  |
 | [ConvTranspose](https://github.com/onnx/onnx/blob/main/docs/Operators.md#ConvTranspose)           |                    |                  |
 | [DepthToSpace](https://github.com/onnx/onnx/blob/main/docs/Operators.md#DepthToSpace)             |                    |                  |
@@ -92,7 +93,7 @@ This table is generated from [`operator_sets.h`](https://github.com/onnx/onnx/bl
 | [Sub](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Sub)                               | :white_check_mark: | `ggml_sub`       |
 | [Sum](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Sum)                               | :white_check_mark: | `ggml_sum`       |
 | [Tanh](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Tanh)                             | :white_check_mark: | `ggml_tanh`      |
-| [Tile](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Tile)                             |                    |                  |
+| [Tile](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Tile)                             | :white_check_mark: |                  |
 | [TopK](https://github.com/onnx/onnx/blob/main/docs/Operators.md#TopK)                             |                    |                  |
 | [Transpose](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Transpose)                   | :white_check_mark: | `ggml_transpose` |
 | [Unsqueeze](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Unsqueeze)                   | :white_check_mark: |                  |

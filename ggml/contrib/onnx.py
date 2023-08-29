@@ -822,7 +822,6 @@ def ggml_operator_constant_of_shape(
 
     return new_tensor
 
-
 @ggml_operator("Div")
 def ggml_operator_div(
     backend: "GgmlBackendRep",
@@ -3379,6 +3378,127 @@ def ggml_operator_sub(
     )
     tensors_dict[output_name] = sub_result
     return sub_result
+
+
+@ggml_operator("Sum")
+def ggml_operator_sum(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) < 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Sum" requires at least one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    output_name = node.output[0]
+    shape = get_tensor_shape(node_inputs[0])
+    dtype = get_tensor_dtype(node_inputs[0])
+
+    empty_np = np.full(shape, 0, dtype=dtype)
+    next_item = ggml.utils.from_numpy(empty_np, context)
+
+    for tensor in node_inputs:
+        tensor, next_item = broadcast_shapes(context, tensor, next_item)
+        next_item = ggml.ggml_add(
+            context,
+            tensor,
+            next_item,
+        )
+
+    tensors_dict[output_name] = next_item
+
+    return next_item
+
+
+@ggml_operator("Tanh")
+def ggml_operator_tanh(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Tanh" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    x = node_inputs[0]
+    tanh_result = ggml.ggml_tanh(
+        context,
+        x,
+    )
+
+    tensors_dict[node.output[0]] = tanh_result
+
+    return tanh_result
+
+
+@ggml.ggml_custom3_op_t
+def custom_tile(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    tensor_in_3: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    x = ggml.utils.to_numpy(tensor_in_2)
+    repeats = ggml.utils.to_numpy(tensor_in_3)
+
+    y = np.tile(x, repeats)
+
+    set_tensor_out(tensor_out, y)
+
+
+@ggml_operator("Tile")
+def ggml_operator_tile(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Tile" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    x, repeats = node_inputs
+
+    repeats_eval = backend.eval_tensor(repeats, context)
+    repeats_vals = ggml.utils.to_numpy(repeats_eval).astype(dtype=np.int32)
+
+    output_shape = list(get_tensor_shape(x))
+    for i in range(len(output_shape)):
+        output_shape[i] = output_shape[i] * repeats_vals[i]
+
+    x_t = ggml.utils.from_numpy(
+        np.empty(output_shape, dtype=get_tensor_dtype(x)),
+        context,
+    )
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom3_inplace(
+        context,
+        x_t,
+        x,
+        repeats,
+        custom_tile,
+        1,
+        None,
+    )
+
+    return new_tensor
 
 
 @ggml_operator("Transpose")
