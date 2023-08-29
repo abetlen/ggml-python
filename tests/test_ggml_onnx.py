@@ -86,9 +86,172 @@ def test_ggml_onnx_runtime_basic():
     ggml_result = ggml_dummy_model.run(input_data)
     assert ggml_result == runtime_result
 
+def test_ggml_onnx_graph_optimization():
+    # Construct an onnx graph and optimize it
+    # The graph is of the form y = (A^T)^T * x + b
+    # the optimization should remove the transpose operations
 
-# This is a pytest magic variable to load extra plugins
-pytest_plugins = ("onnx.backend.test.report",)
+    # The name of the input tensor
+    input_name = "x"
+    
+    # The name of the weights tensor
+    weight_name_a = "A"
+    weight_name_b = "b"
+
+    # The name of the output
+    output_name = "y"
+
+    # Create the nodes (operations) in our graph
+    node1 = helper.make_node(
+        "Transpose", [weight_name_a], ["A_transposed"], name="node1"
+    )  # A^T
+    node2 = helper.make_node(
+        "Transpose", ["A_transposed"], ["A_transposed_transposed"], name="node2"
+    )  # (A^T)^T
+    node3 = helper.make_node(
+        "MatMul", [input_name, "A_transposed_transposed"], ["x_times_A"], name="node3"
+    )  # x * (A^T)^T
+    node4 = helper.make_node(
+        "Add", ["x_times_A", weight_name_b], [output_name], name="node4"
+    )  # x * (A^T)^T + b
+
+    # Define the tensors (values) in our graph
+    X_value_info = helper.make_tensor_value_info(
+        input_name, TensorProto.FLOAT, [None, 32]
+    )
+
+    output_value_info = helper.make_tensor_value_info(
+        output_name, TensorProto.FLOAT, [None, 32]
+    )
+
+    # Set A and b as parameters/weights
+    weights_a = np.random.randn(32, 32).astype(np.float32)
+
+    weights_b = np.random.randn(32).astype(np.float32)
+
+    A_init = helper.make_tensor(
+        weight_name_a,
+        TensorProto.FLOAT,
+        [
+            32,
+            32,
+        ],
+        weights_a,
+    )
+    B_init = helper.make_tensor(
+        weight_name_b,
+        TensorProto.FLOAT,
+        [
+            32,
+        ],
+        weights_b,
+    )
+
+    # Create the graph (model).
+    graph_def = helper.make_graph(
+        [node1, node2, node3, node4],
+        "simple_expression_model",
+        [X_value_info],
+        [output_value_info],
+        [A_init, B_init],
+    )
+
+    model_def = helper.make_model(graph_def, producer_name="onnx-simple-expression")
+
+    input_data = {"x": np.random.randn(1, 32).astype(np.float32)}
+
+    f = io.BytesIO()
+    onnx.save(model_def, f)
+
+    runtime_result = InferenceSession(f.getvalue()).run(None, input_data)
+
+    ggml_dummy_model = GgmlRuntimeBackend.prepare(model_def)
+    ggml_result = ggml_dummy_model.run(input_data)
+    assert np.allclose(ggml_result[0], runtime_result[0], rtol=1e-03, atol=1e-05)
+
+
+def test_ggml_onnx_runtime_quantized():
+    # Construct an onnx graph of the form y = Ax + b
+    # where A and b are weights, x is the input, and y is the output
+    # A is a 32x32 matrix of normally distributed random numbers
+    # b is a vector of 32 normally distributed random numbers
+    # x is a vector of 32 normally distributed random numbers
+    # y is the output
+
+    # The name of the input tensor
+    input_name = "x"
+
+    # The name of the weights tensor
+    weight_name_a = "A"
+    weight_name_b = "b"
+
+    # The name of the output
+    output_name = "y"
+
+    # Create the nodes (operations) in our graph
+    node1 = helper.make_node(
+        "MatMul", [input_name, weight_name_a], ["x_times_A"], name="node1"
+    )  # x * A
+    node2 = helper.make_node(
+        "Add", ["x_times_A", weight_name_b], [output_name], name="node2"
+    )  # x * A + b
+    
+    # Define the tensors (values) in our graph
+    X_value_info = helper.make_tensor_value_info(
+        input_name, TensorProto.FLOAT, [None, 32]
+    )
+    
+    output_value_info = helper.make_tensor_value_info(
+        output_name, TensorProto.FLOAT, [None, 32]
+    )
+
+    # Set A and b as parameters/weights
+    weights_a = np.random.randn(32, 32).astype(np.float32)
+
+    weights_b = np.random.randn(32).astype(np.float32)
+
+    A_init = helper.make_tensor(
+        weight_name_a,
+        TensorProto.FLOAT,
+        [
+            32,
+            32,
+        ],
+        weights_a,
+    )
+    B_init = helper.make_tensor(
+        weight_name_b,
+        TensorProto.FLOAT,
+        [
+            32,
+        ],
+        weights_b,
+    )
+
+    # Create the graph (model).
+    graph_def = helper.make_graph(
+        [node1, node2],
+        "simple_expression_model",
+        [X_value_info],
+        [output_value_info],
+        [A_init, B_init],
+    )
+
+    model_def = helper.make_model(graph_def, producer_name="onnx-simple-expression")
+
+    input_data = {"x": np.random.randn(1, 32).astype(np.float32)}
+
+    f = io.BytesIO()
+    onnx.save(model_def, f)
+    
+    runtime_result = InferenceSession(f.getvalue()).run(None, input_data)
+    
+    ggml_dummy_model = GgmlRuntimeBackend.prepare(model_def)
+    ggml_result = ggml_dummy_model.run(input_data)
+
+    assert np.allclose(ggml_result[0], runtime_result[0], rtol=1e-03, atol=1e-05)
+
+
 
 backend_test = onnx.backend.test.BackendTest(GgmlRuntimeBackend, __name__)
 
@@ -176,6 +339,9 @@ backend_test.exclude("test_where_long")  # not supported
 
 backend_test.exclude(".*pad.*")
 backend_test.exclude(".*FLOAT*E*M*.*")
+
+# This is a pytest magic variable to load extra plugins
+pytest_plugins = ("onnx.backend.test.report",)
 
 # import all test cases at global scope to make them visible to python.unittest
 globals().update(backend_test.enable_report().test_cases)
