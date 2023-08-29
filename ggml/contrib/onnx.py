@@ -540,8 +540,7 @@ def ggml_operator_castlike(
         raise ValueError(
             f'Error for node "{node.name}": Operation "CastLike" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
         )
-    a = node_inputs[0]
-    b = node_inputs[1]
+    a, b = node_inputs
 
     np_data_dtype = get_tensor_dtype(b)
     np_data_type_limit = np.dtype(str(np_data_dtype).replace("64", "32"))
@@ -549,7 +548,7 @@ def ggml_operator_castlike(
     onnx_type = np_dtype_to_tensor_dtype(np_data_dtype)
     onnx_type_c = ctypes.c_int(onnx_type)
 
-    x = np.empty(get_tensor_shape(b), dtype=np_data_type_limit)
+    x = np.empty(get_tensor_shape(a), dtype=np_data_type_limit)
     x_t = ggml.utils.from_numpy(x, context)
 
     new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
@@ -1350,7 +1349,9 @@ def ggml_operator_floor(
 
     x = node_inputs[0]
     output_name = node.output[0]
-    y = ggml.ggml_dup(context, x)
+    y = ggml.ggml_dup(
+        context, x
+    )  # NOTE: This will freeze the tensor in time, may not be expected.
     ggml.ggml_set_name(y, output_name.encode())
 
     tensors_dict[output_name] = y
@@ -1411,7 +1412,6 @@ def ggml_operator_leaky_relu(
     context: ggml.ggml_context_p,
     refs: List[Any],
 ):
-
     node_inputs = [tensors_dict[inp] for inp in node.input]
 
     if len(node_inputs) != 1:
@@ -2175,6 +2175,7 @@ def ggml_operator_pow(
 
     return new_tensor
 
+
 @ggml.ggml_custom1_op_t
 def custom_reciprocal(
     tensor_out: ggml.ggml_tensor_p,
@@ -2214,6 +2215,7 @@ def ggml_operator_reciprocal(
     )
 
     return new_tensor
+
 
 @ggml.ggml_custom2_op_t
 def custom_range(
@@ -2284,6 +2286,196 @@ class ReduceOpsUserData(ctypes.Structure):
             raise ValueError("axes should be a list of integers")
 
         self.keepdims = keepdims
+
+
+@ggml.ggml_custom2_op_t
+def custom_reduce_l1(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    userdata_data_ptr = ctypes.cast(userdata, ctypes.POINTER(ReduceOpsUserData))
+    userdata_data = userdata_data_ptr.contents
+
+    tensor = ggml.utils.to_numpy(tensor_in_2)
+    axes = [userdata_data.axes[i] for i in range(userdata_data.axes_length)]
+    keepdims = userdata_data.keepdims
+
+    axes = tuple(axes) if len(axes) else None
+
+    shape = tensor.shape
+    data = np.reshape(np.arange(1, np.prod(shape) + 1, dtype=np.float32), shape)
+    rl1_result = np.sum(a=np.abs(tensor), axis=axes, keepdims=keepdims)
+
+    set_tensor_out(tensor_out, rl1_result)
+
+
+@ggml_operator("ReduceL1")
+def ggml_operator_reduce_l1(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) > 2 or len(node_inputs) < 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "ReduceL1" requires at least one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    input_tensor = node_inputs[0]
+
+    noop_with_empty_axes = next(
+        (attr.i for attr in node.attribute if attr.name == "noop_with_empty_axes"), None
+    )
+
+    if noop_with_empty_axes == 1:
+        tensors_dict[node.output[0]] = input_tensor
+        return input_tensor
+
+    tensor_shape = get_tensor_shape(input_tensor)
+    tensor_dtype = get_tensor_dtype(input_tensor)
+
+    axes = next((attr.ints for attr in node.attribute if attr.name == "axes"), None)
+    if not axes:
+        if len(node_inputs) > 1:
+            axes_eval = backend.eval_tensor(node_inputs[1], context)
+            axes = ggml.utils.to_numpy(axes_eval)
+        else:
+            axes = []
+
+    keepdims = next((attr.i for attr in node.attribute if attr.name == "keepdims"), 1)
+
+    rmean_userdata = ReduceOpsUserData(list(axes), keepdims)
+    userdata_p = ctypes.cast(ctypes.pointer(rmean_userdata), ctypes.c_void_p)
+
+    output_shape = tuple([1] * len(tensor_shape)) if keepdims else ()
+
+    if len(axes):
+        output_shape = list(tensor_shape)
+        sorted_axes = sorted(axes, reverse=True)
+
+        for axis in sorted_axes:
+            if keepdims:
+                output_shape[axis] = 1
+            else:
+                output_shape.pop(axis)
+
+    output_shape = tuple(output_shape)
+    x = np.empty(output_shape, dtype=tensor_dtype)
+    x_t = ggml.utils.from_numpy(x, context)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+        context,
+        x_t,
+        input_tensor,
+        custom_reduce_l1,
+        1,
+        userdata_p,
+    )
+
+    refs.append(rmean_userdata)
+
+    return new_tensor
+
+
+@ggml.ggml_custom2_op_t
+def custom_reduce_l2(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    userdata_data_ptr = ctypes.cast(userdata, ctypes.POINTER(ReduceOpsUserData))
+    userdata_data = userdata_data_ptr.contents
+
+    tensor = ggml.utils.to_numpy(tensor_in_2)
+    axes = [userdata_data.axes[i] for i in range(userdata_data.axes_length)]
+    keepdims = userdata_data.keepdims
+
+    axes = tuple(axes) if len(axes) else None
+
+    rl2_result = np.sqrt(np.sum(a=np.square(tensor), axis=axes, keepdims=keepdims))
+
+    set_tensor_out(tensor_out, rl2_result)
+
+
+@ggml_operator("ReduceL2")
+def ggml_operator_reduce_l2(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) > 2 or len(node_inputs) < 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "ReduceL2" requires at least one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    input_tensor = node_inputs[0]
+
+    noop_with_empty_axes = next(
+        (attr.i for attr in node.attribute if attr.name == "noop_with_empty_axes"), None
+    )
+
+    if noop_with_empty_axes == 1:
+        tensors_dict[node.output[0]] = input_tensor
+        return input_tensor
+
+    tensor_shape = get_tensor_shape(input_tensor)
+    tensor_dtype = get_tensor_dtype(input_tensor)
+
+    axes = next((attr.ints for attr in node.attribute if attr.name == "axes"), None)
+    if not axes:
+        if len(node_inputs) > 1:
+            axes_eval = backend.eval_tensor(node_inputs[1], context)
+            axes = ggml.utils.to_numpy(axes_eval)
+        else:
+            axes = []
+
+    keepdims = next((attr.i for attr in node.attribute if attr.name == "keepdims"), 1)
+
+    rmean_userdata = ReduceOpsUserData(list(axes), keepdims)
+    userdata_p = ctypes.cast(ctypes.pointer(rmean_userdata), ctypes.c_void_p)
+
+    output_shape = tuple([1] * len(tensor_shape)) if keepdims else ()
+
+    if len(axes):
+        output_shape = list(tensor_shape)
+        sorted_axes = sorted(axes, reverse=True)
+
+        for axis in sorted_axes:
+            if keepdims:
+                output_shape[axis] = 1
+            else:
+                output_shape.pop(axis)
+
+    output_shape = tuple(output_shape)
+    x = np.empty(output_shape, dtype=tensor_dtype)
+    x_t = ggml.utils.from_numpy(x, context)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+        context,
+        x_t,
+        input_tensor,
+        custom_reduce_l2,
+        1,
+        userdata_p,
+    )
+
+    refs.append(rmean_userdata)
+
+    return new_tensor
 
 
 @ggml.ggml_custom2_op_t

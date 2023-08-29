@@ -151,6 +151,9 @@ backend_test.include("test_reduce_sum_")
 backend_test.include("test_reduce_log_sum_")
 backend_test.exclude("test_reduce_log_sum_exp")
 
+backend_test.include("test_reduce_l1_")
+backend_test.include("test_reduce_l2_")
+
 backend_test.include("test_relu_")
 backend_test.include("test_relu_example")
 backend_test.include("test_ReLU_")
