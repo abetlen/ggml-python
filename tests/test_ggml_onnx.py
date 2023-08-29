@@ -97,26 +97,60 @@ backend_test.include("test_abs_")
 backend_test.include("test_add_")
 backend_test.exclude("test_add_uint8_")  # not supported
 
+backend_test.include("test_and_")
+
+backend_test.include("test_argmax_")
+backend_test.include("test_argmin_")
+
 backend_test.include("test_cast_")
 
-backend_test.include("test_concat_")
+backend_test.include("test_ceil_")
 
+backend_test.include("test_concat_")
 
 backend_test.include("test_constant_")
 backend_test.exclude(".*constant.*.*pad.*")
 
 backend_test.include("test_div_")
-
 backend_test.exclude("test_div_uint8_")  # not supported
+
+backend_test.include("test_elu_")
+backend_test.include("test_ELU_")
+backend_test.include("test_elu_example")
+
+backend_test.include("test_eq_")
+
+backend_test.include("test_equal_")
+backend_test.exclude(".*equal.*.*string.*")
+
+backend_test.include("test_exp_")
+
+backend_test.include("test_flatten_")
+
+backend_test.include("test_floor_")
+
+backend_test.include("test_greater_")
 
 backend_test.include("test_gather_")
 backend_test.exclude("test_gather_elements")  # not supported
 
 backend_test.include("test_greater_")
 
+backend_test.include("test_hardsigmoid_")
+
+backend_test.include("test_hardmax_")
+
+backend_test.include("test_identity_")
+backend_test.exclude("test_identity_opt")  # test case not correct: ONNX issue
+backend_test.exclude("test_identity_sequence")  # test case not correct: ONNX issue
+
+# backend_test.include("test_leakyrelu")
+
 backend_test.include("test_less_")
 
 backend_test.include("test_log_")
+
+backend_test.include("test_lrn")
 
 backend_test.include("test_matmul_")
 
@@ -125,6 +159,8 @@ backend_test.exclude("test_max_float16")  # not supported
 backend_test.exclude("test_max_float64")  # not supported
 backend_test.exclude("test_max_int64")  # not supported
 backend_test.exclude("test_max_uint")  # not supported
+
+backend_test.include("test_mean_")
 
 backend_test.include("test_min_")
 backend_test.exclude("test_min_float16")  # not supported
@@ -135,6 +171,16 @@ backend_test.exclude("test_min_uint")  # not supported
 backend_test.include("test_mul_")
 backend_test.exclude("test_mul_uint8")  # not supported
 
+backend_test.include("test_neg_")
+
+backend_test.include("test_not_")
+
+backend_test.include("test_or_")
+
+backend_test.include("test_prelu")
+backend_test.include("test_PRelu_")
+backend_test.include("test_prelu_example")
+
 backend_test.include("test_pow_")
 backend_test.exclude("test_pow_bcast")  # not supported
 backend_test.exclude("test_pow_types_int64")  # not supported
@@ -142,6 +188,8 @@ backend_test.exclude("test_pow_types_int64")  # not supported
 backend_test.include("test_range_")
 backend_test.exclude("test_range_float")  # segfault
 backend_test.exclude("test_range_int32")  # segfault
+
+backend_test.include("test_reciprocal")
 
 backend_test.include("test_reduce_max_")
 backend_test.include("test_reduce_mean_")
@@ -158,23 +206,17 @@ backend_test.include("test_relu_")
 backend_test.include("test_relu_example")
 backend_test.include("test_ReLU_")
 
-# backend_test.include("test_leakyrelu")
-
-backend_test.include("test_elu_")
-backend_test.include("test_ELU_")
-backend_test.include("test_elu_example")
+backend_test.include("test_reshape_")
+backend_test.exclude("test_reshape_allowzero")  # not supported
 
 backend_test.include("test_selu_")
 backend_test.include("test_selu_example")
 
-backend_test.include("test_prelu")
-backend_test.include("test_PRelu_")
-backend_test.include("test_prelu_example")
-
-backend_test.include("test_reshape_")
-backend_test.exclude("test_reshape_allowzero")  # not supported
-
 backend_test.include("test_shape_")
+
+backend_test.include("test_sigmoid_")
+
+backend_test.include("test_size_")
 
 backend_test.include("test_softmax_")
 backend_test.exclude("test_softmax_axis_0")  # not supported
@@ -182,11 +224,19 @@ backend_test.exclude("test_softmax_axis_1")  # not supported
 backend_test.exclude("test_softmax_large_number")  # not supported
 backend_test.exclude("test_softmax_lastdim")  # Out of tolerance
 
+backend_test.include("test_softplus_")
+backend_test.include("test_softsign_")
+
 backend_test.include("test_sqrt_")
 
 backend_test.include("test_sub_")
 backend_test.exclude("test_sub_bcast_")  # not supported
 backend_test.exclude("test_sub_uint8_")  # not supported
+
+backend_test.include("test_sum_")
+
+backend_test.include("test_tanh_")
+backend_test.include("test_tile_")
 
 backend_test.include("test_transpose_")
 
@@ -199,36 +249,7 @@ backend_test.exclude("test_unsqueeze_unsorted_axes")  # 5D Array not supported
 backend_test.include("test_where_")
 backend_test.exclude("test_where_long")  # not supported
 
-backend_test.include("test_mean_")
-backend_test.include("test_neg_")
-
-backend_test.include("test_or_")
-backend_test.include("test_not_")
-backend_test.include("test_and_")
 backend_test.include("test_xor_")
-
-backend_test.include("test_size_")
-backend_test.include("test_sigmoid_")
-backend_test.include("test_hardsigmoid_")
-
-backend_test.include("test_hardmax_")
-backend_test.include("test_floor_")
-backend_test.include("test_flatten_")
-backend_test.include("test_argmax_")
-backend_test.include("test_argmin_")
-backend_test.include("test_ceil_")
-
-backend_test.include("test_softsign_")
-backend_test.include("test_softplus_")
-backend_test.include("test_squeeze_")
-backend_test.include("test_sum_")
-backend_test.include("test_tanh_")
-backend_test.include("test_tile_")
-backend_test.include("test_identity_")
-backend_test.exclude("test_identity_opt")  # test case not correct: ONNX issue
-backend_test.exclude("test_identity_sequence")  # test case not correct: ONNX issue
-backend_test.include("test_lrn")
-backend_test.include("test_reciprocal")
 
 backend_test.exclude(".*FLOAT*E*M*.*")
 backend_test.exclude(".*ver18.*")
