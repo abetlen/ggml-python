@@ -158,6 +158,43 @@ def test_ggml_onnx_graph_optimization():
 
     model_def = helper.make_model(graph_def, producer_name="onnx-simple-expression")
 
+    from typing import Optional
+    from ggml.contrib.onnx import GgmlOnnxGraphOptimizer, GgmlOnnxGraphOptimizerRule
+    from onnx.onnx_ml_pb2 import GraphProto, ModelProto, NodeProto
+
+    class TransposeTransposeRule(GgmlOnnxGraphOptimizerRule):
+        def __init__(self):
+            super().__init__()
+
+        def apply(self, model: onnx.ModelProto) -> Optional[ModelProto]:
+            # find first transpose node
+            transpose_node: Optional[NodeProto] = None
+            for node in model.graph.node:
+                if node.op_type == "Transpose":
+                    transpose_node = node
+                    break
+            else:
+                return None
+            
+            # find a transpose node that transposes the output of the first transpose node
+            transpose_transpose_node: Optional[NodeProto] = None
+            for node in model.graph.node:
+                if node.op_type == "Transpose" and node.input[0] == transpose_node.output[0]:
+                    transpose_transpose_node = node
+                    break
+            else:
+                return None
+
+            # remove the transpose nodes
+            model.graph.node.remove(transpose_node)
+            model.graph.node.remove(transpose_transpose_node)
+
+            # update the connections
+            transpose_transpose_node.output[0] = transpose_node.input[0]
+
+            return model
+
+
     input_data = {"x": np.random.randn(1, 32).astype(np.float32)}
 
     f = io.BytesIO()
