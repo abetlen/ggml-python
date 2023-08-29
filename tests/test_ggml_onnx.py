@@ -221,6 +221,11 @@ backend_test.include("test_squeeze_")
 backend_test.include("test_sum_")
 backend_test.include("test_tanh_")
 backend_test.include("test_tile_")
+backend_test.include("test_identity_")
+backend_test.exclude("test_identity_opt")  # test case not correct: ONNX issue
+backend_test.exclude("test_identity_sequence")  # test case not correct: ONNX issue
+backend_test.include("test_lrn")
+backend_test.include("test_reciprocal")
 
 backend_test.exclude(".*FLOAT*E*M*.*")
 backend_test.exclude(".*ver18.*")

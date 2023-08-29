@@ -3,14 +3,14 @@
 This module implements a GGML backend for ONNX models and operators.
 """
 import ctypes
+import math
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import onnx
 from onnx.backend.base import Backend, BackendRep
-
-from onnx.helper import tensor_dtype_to_np_dtype, np_dtype_to_tensor_dtype
+from onnx.helper import np_dtype_to_tensor_dtype, tensor_dtype_to_np_dtype
 from onnx.onnx_ml_pb2 import GraphProto, ModelProto, NodeProto
 
 import ggml
@@ -822,6 +822,7 @@ def ggml_operator_constant_of_shape(
 
     return new_tensor
 
+
 @ggml_operator("Div")
 def ggml_operator_div(
     backend: "GgmlBackendRep",
@@ -1328,6 +1329,119 @@ def ggml_operator_hardmax(
     )
 
     refs.append(axis_c)
+
+    return new_tensor
+
+
+@ggml_operator("Identity")
+def ggml_operator_floor(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Identity" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    x = node_inputs[0]
+    output_name = node.output[0]
+    y = ggml.ggml_dup(context, x)
+    ggml.ggml_set_name(y, output_name.encode())
+
+    tensors_dict[output_name] = y
+
+    return y
+
+
+class LRNUserData(ctypes.Structure):
+    _fields_ = [
+        ("alpha", ctypes.c_double),
+        ("beta", ctypes.c_double),
+        ("bias", ctypes.c_double),
+        ("size", ctypes.c_int),
+    ]
+
+
+@ggml.ggml_custom1_op_t
+def custom_leaky_lrn(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    userdata_data_ptr = ctypes.cast(userdata, ctypes.POINTER(LRNUserData))
+    userdata_data = userdata_data_ptr.contents
+
+    alpha = userdata_data.alpha
+    beta = userdata_data.beta
+    bias = userdata_data.bias
+    size = userdata_data.size
+
+    x = ggml.utils.to_numpy(tensor_in_1)
+
+    square_sum = np.zeros(x.shape).astype(x.dtype)
+    for n, c, h, w in np.ndindex(x.shape):
+        square_sum[n, c, h, w] = sum(
+            x[
+                n,
+                max(0, c - int(math.floor((size - 1) / 2))) : min(
+                    5, c + int(math.ceil((size - 1) / 2)) + 1
+                ),
+                h,
+                w,
+            ]
+            ** 2
+        )
+    y = x / ((bias + (alpha / size) * square_sum) ** beta)
+
+    set_tensor_out(tensor_out, y)
+
+
+@ggml_operator("LRN")
+def ggml_operator_leaky_relu(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "LRN" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    x = node_inputs[0]
+    alpha = next((attr.f for attr in node.attribute if attr.name == "alpha"), 0.0001)
+    beta = next((attr.f for attr in node.attribute if attr.name == "beta"), 0.75)
+    bias = next((attr.f for attr in node.attribute if attr.name == "bias"), 1.0)
+    size = next((attr.i for attr in node.attribute if attr.name == "size"), None)
+
+    if size is None:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "LRN" requires "size" attibute.'
+        )
+
+    lrn_userdata = LRNUserData(alpha, beta, bias, size)
+    userdata_p = ctypes.cast(ctypes.pointer(lrn_userdata), ctypes.c_void_p)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom1_inplace(
+        context,
+        x,
+        custom_leaky_lrn,
+        1,
+        userdata_p,
+    )
+
+    refs.append(lrn_userdata)
 
     return new_tensor
 
@@ -2061,6 +2175,45 @@ def ggml_operator_pow(
 
     return new_tensor
 
+@ggml.ggml_custom1_op_t
+def custom_reciprocal(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    x = ggml.utils.to_numpy(tensor_in_1)
+    y = np.reciprocal(x)
+
+    set_tensor_out(tensor_out, y)
+
+
+@ggml_operator("Reciprocal")
+def ggml_operator_reciprocal(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Reciprocal" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    x = node_inputs[0]
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom1_inplace(
+        context,
+        x,
+        custom_reciprocal,
+        1,
+        None,
+    )
+
+    return new_tensor
 
 @ggml.ggml_custom2_op_t
 def custom_range(
