@@ -36,7 +36,7 @@ This table is generated from [`operator_sets.h`](https://github.com/onnx/onnx/bl
 | [HardSigmoid](https://github.com/onnx/onnx/blob/main/docs/Operators.md#HardSigmoid)               | :white_check_mark: |                  |
 | [Hardmax](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Hardmax)                       | :white_check_mark: |                  |
 | [Identity](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Identity)                     | :white_check_mark: |                  |
-| [If](https://github.com/onnx/onnx/blob/main/docs/Operators.md#If)                                 |                    |                  |
+| [If](https://github.com/onnx/onnx/blob/main/docs/Operators.md#If)                                 |       :x:          |                  |
 | [InstanceNormalization](https://github.com/onnx/onnx/blob/main/docs/Operators.md#InstanceNormalization)|               |                  |
 | [LRN](https://github.com/onnx/onnx/blob/main/docs/Operators.md#LRN)                               | :white_check_mark: |                  |
 | [LSTM](https://github.com/onnx/onnx/blob/main/docs/Operators.md#LSTM)                             |                    |                  |
@@ -44,7 +44,7 @@ This table is generated from [`operator_sets.h`](https://github.com/onnx/onnx/bl
 | [Less](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Less)                             | :white_check_mark: |                  |
 | [Log](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Log)                               | :white_check_mark: | `ggml_log`       |
 | [LogSoftmax](https://github.com/onnx/onnx/blob/main/docs/Operators.md#LogSoftmax)                 | :white_check_mark: |                  |
-| [Loop](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Loop)                             |                    |                  |
+| [Loop](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Loop)                             |       :x:          |                  |
 | [LpNormalization](https://github.com/onnx/onnx/blob/main/docs/Operators.md#LpNormalization)       |:x: (Test case not provided)|                  |
 | [LpPool](https://github.com/onnx/onnx/blob/main/docs/Operators.md#LpPool)                         |                    |                  |
 | [MatMul](https://github.com/onnx/onnx/blob/main/docs/Operators.md#MatMul)                         | :white_check_mark: | `ggml_mul_mat`   |
@@ -61,10 +61,10 @@ This table is generated from [`operator_sets.h`](https://github.com/onnx/onnx/bl
 | [Pad](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Pad)                               |                    |                  |
 | [Pow](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Pow)                               | :white_check_mark: |                  |
 | [RNN](https://github.com/onnx/onnx/blob/main/docs/Operators.md#RNN)                               |                    |                  |
-| [RandomNormal](https://github.com/onnx/onnx/blob/main/docs/Operators.md#RandomNormal)             |                    |                  |
-| [RandomNormalLike](https://github.com/onnx/onnx/blob/main/docs/Operators.md#RandomNormalLike)     |                    |                  |
-| [RandomUniform](https://github.com/onnx/onnx/blob/main/docs/Operators.md#RandomUniform)           |                    |                  |
-| [RandomUniformLike](https://github.com/onnx/onnx/blob/main/docs/Operators.md#RandomUniformLike)   |                    |                  |
+| [RandomNormal](https://github.com/onnx/onnx/blob/main/docs/Operators.md#RandomNormal)             |:x: (Test case not provided)|                  |
+| [RandomNormalLike](https://github.com/onnx/onnx/blob/main/docs/Operators.md#RandomNormalLike)     |:x: (Test case not provided)|                  |
+| [RandomUniform](https://github.com/onnx/onnx/blob/main/docs/Operators.md#RandomUniform)           |:x: (Test case not provided)|                  |
+| [RandomUniformLike](https://github.com/onnx/onnx/blob/main/docs/Operators.md#RandomUniformLike)   |:x: (Test case not provided)|                  |
 | [Reciprocal](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Reciprocal)                 | :white_check_mark: |                  |
 | [ReduceL1](https://github.com/onnx/onnx/blob/main/docs/Operators.md#ReduceL1)                     | :white_check_mark: |                  |
 | [ReduceL2](https://github.com/onnx/onnx/blob/main/docs/Operators.md#ReduceL2)                     | :white_check_mark: |                  |
