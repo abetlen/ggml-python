@@ -60,7 +60,7 @@ This table is generated from [`operator_sets.h`](https://github.com/onnx/onnx/bl
 | [ConstantOfShape](https://github.com/onnx/onnx/blob/main/docs/Operators.md#ConstantOfShape)       | :white_check_mark: |                  |
 | [Conv](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Conv)                             |                    |                  |
 | [ConvTranspose](https://github.com/onnx/onnx/blob/main/docs/Operators.md#ConvTranspose)           |                    |                  |
-| [DepthToSpace](https://github.com/onnx/onnx/blob/main/docs/Operators.md#DepthToSpace)             |                    |                  |
+| [DepthToSpace](https://github.com/onnx/onnx/blob/main/docs/Operators.md#DepthToSpace)             | :white_check_mark: |                  |
 | [Div](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Div)                               | :white_check_mark: | `ggml_div`       |
 | [Dropout](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Dropout) -> [code ref](https://github.com/onnx/onnx/blob/main/onnx/backend/test/case/node/dropout.py)                      |                    |                  |
 | [Elu](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Elu)                               | :white_check_mark: | `ggml_elu`       |
@@ -81,7 +81,7 @@ This table is generated from [`operator_sets.h`](https://github.com/onnx/onnx/bl
 | [If](https://github.com/onnx/onnx/blob/main/docs/Operators.md#If)                                 |       :x:          |                  |
 | [InstanceNormalization](https://github.com/onnx/onnx/blob/main/docs/Operators.md#InstanceNormalization)|               |                  |
 | [LRN](https://github.com/onnx/onnx/blob/main/docs/Operators.md#LRN)                               | :white_check_mark: |                  |
-| [LSTM](https://github.com/onnx/onnx/blob/main/docs/Operators.md#LSTM)                             |                    |                  |
+| [LSTM](https://github.com/onnx/onnx/blob/main/docs/Operators.md#LSTM)                             |       :x:          |                  |
 | [LeakyRelu](https://github.com/onnx/onnx/blob/main/docs/Operators.md#LeakyRelu)                   |         ⚙️          |                  |
 | [Less](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Less)                             | :white_check_mark: |                  |
 | [Log](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Log)                               | :white_check_mark: | `ggml_log`       |

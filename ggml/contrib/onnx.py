@@ -790,15 +790,31 @@ def ggml_operator_constant_of_shape(
         )
 
     node_attributes = node.attribute
+    value_attr = next(attr for attr in node_attributes if "value" in attr.name)
 
-    value_attr = next(attr for attr in node_attributes if attr.name == "value")
-    tensor = value_attr.t
-    data_type = tensor.data_type
-    np_data_type = tensor_dtype_to_np_dtype(data_type)
+    if value_attr.HasField("t"):
+        tensor = value_attr.t
+        data_type = tensor.data_type
+        np_data_type = tensor_dtype_to_np_dtype(data_type)
+        np_data_type_limit = np.dtype(str(np_data_type).replace("64", "32"))
 
-    np_data_type_limit = np.dtype(str(np_data_type).replace("64", "32"))
+        if tensor.raw_data:
+            data_value = np.frombuffer(tensor.raw_data, dtype=np_data_type)
+        else:
+            data_value = onnx.numpy_helper.to_array(tensor)
 
-    data_value = np.frombuffer(tensor.raw_data, dtype=np_data_type)
+    else:
+        data_type = value_attr.type
+        np_data_type = tensor_dtype_to_np_dtype(data_type)
+        np_data_type_limit = np.dtype(str(np_data_type).replace("64", "32"))
+        if np.issubdtype(np_data_type, np.floating):
+            data_value = np.array(value_attr.f)
+        elif np.issubdtype(np_data_type, np.integer):
+            data_value = np.array(value_attr.i)
+        else:
+            raise ValueError(
+                f'Error for node "{node.name}": Constant node not set correctly or incomplete implantation.'
+            )
 
     data_tensor = ggml.utils.from_numpy(
         data_value.astype(np_data_type_limit),
@@ -818,6 +834,106 @@ def ggml_operator_constant_of_shape(
         1,
         None,
     )
+
+    return new_tensor
+
+
+class DepthToSpaceUserData(ctypes.Structure):
+    _fields_ = [
+        ("blocksize", ctypes.c_int),
+        ("mode", ctypes.c_char_p),
+    ]
+
+
+@ggml.ggml_custom2_op_t
+def custom_depth_to_space(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    x = ggml.utils.to_numpy(tensor_in_2)
+    userdata_data_ptr = ctypes.cast(userdata, ctypes.POINTER(DepthToSpaceUserData))
+    userdata_data = userdata_data_ptr.contents
+
+    blocksize = userdata_data.blocksize
+    mode = userdata_data.mode
+
+    N, C, H, W = x.shape
+
+    new_C = C // (blocksize**2)
+    new_H = H * blocksize
+    new_W = W * blocksize
+
+    if mode == b"DCR":
+        reshaped = x.reshape(N, blocksize, blocksize, C // (blocksize**2), H, W)
+        transposed_axes = (0, 3, 4, 1, 5, 2)
+
+    elif mode == b"CRD":
+        reshaped = x.reshape(N, C // (blocksize**2), blocksize, blocksize, H, W)
+        transposed_axes = (0, 1, 4, 2, 5, 3)
+    else:
+        raise ValueError(f"Unknown mode: {mode}")
+
+    transposed = np.transpose(reshaped, axes=transposed_axes)
+    y = transposed.reshape(N, new_C, new_H, new_W)
+
+    set_tensor_out(tensor_out, y)
+
+
+@ggml_operator("DepthToSpace")
+def ggml_operator_depth_to_space(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "DepthToSpace" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    x = node_inputs[0]
+    blocksize = next(
+        (attr.i for attr in node.attribute if attr.name == "blocksize"), None
+    )
+
+    mode = next((attr.s for attr in node.attribute if attr.name == "mode"), b"DCR")
+
+    if blocksize is None:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "SpaceToDepth" requires "blocksize"'
+        )
+
+    N, C, H, W = get_tensor_shape(x)
+
+    new_C = C // (blocksize**2)
+    new_H = H * blocksize
+    new_W = W * blocksize
+
+    output_shape = (N, new_C, new_H, new_W)
+
+    x_t = ggml.utils.from_numpy(
+        np.empty(output_shape, dtype=get_tensor_dtype(x)), context
+    )
+    depthtospace_userdata = DepthToSpaceUserData(blocksize, mode)
+    userdata_p = ctypes.cast(ctypes.pointer(depthtospace_userdata), ctypes.c_void_p)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+        context,
+        x_t,
+        x,
+        custom_depth_to_space,
+        1,
+        userdata_p,
+    )
+
+    refs.append(depthtospace_userdata)
 
     return new_tensor
 

@@ -274,6 +274,10 @@ backend_test.include("test_concat_")
 backend_test.include("test_constant_")
 backend_test.exclude(".*constant.*.*pad.*")
 
+backend_test.include("test_constantofshape")
+
+backend_test.include("test_depthtospace")
+
 backend_test.include("test_div_")
 backend_test.exclude("test_div_uint8_")  # not supported
 
