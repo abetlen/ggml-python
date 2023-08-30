@@ -1596,6 +1596,60 @@ def ggml_operator_floor(
     return y
 
 
+@ggml.ggml_custom3_op_t
+def custom_instancenorm(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    tensor_in_3: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    x = ggml.utils.to_numpy(tensor_in_1)
+    scale = ggml.utils.to_numpy(tensor_in_2)
+    B = ggml.utils.to_numpy(tensor_in_3)
+    epsilon = ctypes.cast(userdata, ctypes.POINTER(ctypes.c_double)).contents.value
+
+    mean = np.mean(x, axis=(2, 3), keepdims=True)
+    variance = np.var(x, axis=(2, 3), keepdims=True)
+    normalized = (x - mean) / np.sqrt(variance + epsilon)
+    y = scale.reshape(1, -1, 1, 1) * normalized + B.reshape(1, -1, 1, 1)
+
+    set_tensor_out(tensor_out, y)
+
+
+@ggml_operator("InstanceNormalization")
+def ggml_operator_instancenorm(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 3:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "InstanceNormalization" requires exactly three inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+    input_tensor, scale, B = node_inputs
+    epsilon = next((attr.f for attr in node.attribute if attr.name == "epsilon"), 1e-05)
+    epsilon_c = ctypes.c_double(epsilon)
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom3_inplace(
+        context,
+        input_tensor,
+        scale,
+        B,
+        custom_instancenorm,
+        1,
+        ctypes.pointer(epsilon_c),
+    )
+
+    refs.append(epsilon_c)
+    return new_tensor
+
+
 class LRNUserData(ctypes.Structure):
     _fields_ = [
         ("alpha", ctypes.c_double),

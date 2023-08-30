@@ -314,6 +314,8 @@ backend_test.include("test_identity_")
 backend_test.exclude("test_identity_opt")  # test case not correct: ONNX issue
 backend_test.exclude("test_identity_sequence")  # test case not correct: ONNX issue
 
+backend_test.include("test_instancenorm")
+
 # backend_test.include("test_leakyrelu")
 
 backend_test.include("test_less_")

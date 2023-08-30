@@ -79,7 +79,7 @@ This table is generated from [`operator_sets.h`](https://github.com/onnx/onnx/bl
 | [Hardmax](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Hardmax)                       | :white_check_mark: |                  |
 | [Identity](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Identity)                     | :white_check_mark: |                  |
 | [If](https://github.com/onnx/onnx/blob/main/docs/Operators.md#If)                                 |       :x:          |                  |
-| [InstanceNormalization](https://github.com/onnx/onnx/blob/main/docs/Operators.md#InstanceNormalization)|               |                  |
+| [InstanceNormalization](https://github.com/onnx/onnx/blob/main/docs/Operators.md#InstanceNormalization)| :white_check_mark: |             |
 | [LRN](https://github.com/onnx/onnx/blob/main/docs/Operators.md#LRN)                               | :white_check_mark: |                  |
 | [LSTM](https://github.com/onnx/onnx/blob/main/docs/Operators.md#LSTM)                             |       :x:          |                  |
 | [LeakyRelu](https://github.com/onnx/onnx/blob/main/docs/Operators.md#LeakyRelu)                   |         ⚙️          |                  |
