@@ -129,14 +129,14 @@ This table is generated from [`operator_sets.h`](https://github.com/onnx/onnx/bl
 | [Softplus](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Softplus)                     | :white_check_mark: |                  |
 | [Softsign](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Softsign)                     | :white_check_mark: |                  |
 | [SpaceToDepth](https://github.com/onnx/onnx/blob/main/docs/Operators.md#SpaceToDepth)             |                    |                  |
-| [Split](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Split)                           |                    |                  |
+| [Split](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Split)                           | :white_check_mark: |                  |
 | [Sqrt](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Sqrt)                             | :white_check_mark: | `ggml_sqrt`      |
 | [Squeeze](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Squeeze)                       | :white_check_mark: |                  |
 | [Sub](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Sub)                               | :white_check_mark: | `ggml_sub`       |
 | [Sum](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Sum)                               | :white_check_mark: | `ggml_sum`       |
 | [Tanh](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Tanh)                             | :white_check_mark: | `ggml_tanh`      |
 | [Tile](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Tile)                             | :white_check_mark: |                  |
-| [TopK](https://github.com/onnx/onnx/blob/main/docs/Operators.md#TopK)                             |                    |                  |
+| [TopK](https://github.com/onnx/onnx/blob/main/docs/Operators.md#TopK)                             | :white_check_mark: |                  |
 | [Transpose](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Transpose)                   | :white_check_mark: | `ggml_transpose` |
 | [Unsqueeze](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Unsqueeze)                   | :white_check_mark: |                  |
 | ~~[Upsample](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Upsample)~~ (Deprecated)    |  :x:               |                  |

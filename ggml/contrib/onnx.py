@@ -3511,6 +3511,120 @@ def ggml_operator_size(
     return new_tensor
 
 
+class SplitUserData(ctypes.Structure):
+    _fields_ = [
+        ("axis", ctypes.c_int),
+        ("split_index", ctypes.c_int),
+    ]
+
+
+@ggml.ggml_custom3_op_t
+def custom_split(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    tensor_in_3: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    userdata_data_ptr = ctypes.cast(userdata, ctypes.POINTER(SplitUserData))
+    userdata_data = userdata_data_ptr.contents
+
+    axis = userdata_data.axis
+    split_index = userdata_data.split_index
+
+    tensor = ggml.utils.to_numpy(tensor_in_2)
+
+    split_shapes = ggml.utils.to_numpy(tensor_in_3)
+    split_shape = list(ggml.utils.to_numpy(tensor_in_1).shape)
+
+    split_size = split_shape[axis]
+    split_start = sum(split_shapes[i][axis] for i in range(split_index))
+    split_end = split_start + split_size
+
+    split_output = np.take(tensor, range(split_start, split_end), axis=axis)
+
+    set_tensor_out(tensor_out, split_output)
+
+
+@ggml_operator("Split")
+def ggml_operator_split(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) < 1 or len(node_inputs) > 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Split" requires 1 - 2 inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    input_tensor = node_inputs.pop(0)
+    split_tensor = node_inputs.pop(0) if len(node_inputs) else None
+
+    axis = next((attr.i for attr in node.attribute if attr.name == "axis"), 0)
+    num_outputs = next(
+        (attr.i for attr in node.attribute if attr.name == "num_outputs"),
+        len(node.output),
+    )
+
+    input_shape = list(get_tensor_shape(input_tensor))
+    dtype = get_tensor_dtype(input_tensor)
+
+    if split_tensor is None:
+        split_size = input_shape[axis] // num_outputs
+        remainder = input_shape[axis] % num_outputs
+        split_shapes = [list(input_shape) for _ in range(num_outputs)]
+
+        for i in range(num_outputs):
+            split_shapes[i][axis] = split_size
+            if i < remainder:
+                split_shapes[i][axis] += 1
+
+        split_shapes = [tuple(split_shape) for split_shape in split_shapes]
+
+    else:
+        split_eval = backend.eval_tensor(split_tensor, context)
+        split_values = ggml.utils.to_numpy(split_eval)
+        split_shapes = [list(input_shape) for _ in range(num_outputs)]
+
+        for i, split_value in enumerate(split_values):
+            split_shapes[i][axis] = split_value
+
+        split_shapes = tuple(map(tuple, split_shapes))
+
+    split_shapes_np = np.array(split_shapes, dtype=np.int32)
+    split_shapes_t = ggml.utils.from_numpy(split_shapes_np, context)
+
+    outputs = []
+
+    for split_index, split_shape in enumerate(split_shapes):
+        split_userdata = SplitUserData(axis, split_index)
+        userdata_p = ctypes.cast(ctypes.pointer(split_userdata), ctypes.c_void_p)
+
+        x_t = ggml.utils.from_numpy(np.empty(split_shape, dtype=dtype), context)
+        new_tensor = tensors_dict[
+            node.output[split_index]
+        ] = ggml.ggml_map_custom3_inplace(
+            context,
+            x_t,
+            input_tensor,
+            split_shapes_t,
+            custom_split,
+            1,
+            userdata_p,
+        )
+
+        refs.append(split_userdata)
+        outputs.append(new_tensor)
+
+    return outputs
+
+
 @ggml.ggml_custom1_op_t
 def custom_softplus(
     tensor_out: ggml.ggml_tensor_p,
@@ -3872,7 +3986,6 @@ def custom_top_k_indices(
 
     axis = userdata_data.axis
     largest = bool(userdata_data.largest)
-    sort = bool(userdata_data.sorted)
 
     k = userdata_data.k
 

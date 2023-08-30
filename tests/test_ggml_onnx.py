@@ -381,6 +381,9 @@ backend_test.include("test_sigmoid_")
 
 backend_test.include("test_size_")
 
+backend_test.include("test_split_")
+backend_test.exclude(".*split.*.*to.*.*sequence.*")
+
 backend_test.include("test_softmax_")
 backend_test.exclude("test_softmax_axis_0")  # not supported
 backend_test.exclude("test_softmax_axis_1")  # not supported
