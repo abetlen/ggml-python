@@ -102,7 +102,7 @@ This table is generated from [`operator_sets.h`](https://github.com/onnx/onnx/bl
 | [PRelu](https://github.com/onnx/onnx/blob/main/docs/Operators.md#PRelu)                           | :white_check_mark: |                  |
 | [Pad](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Pad)                               |                    |                  |
 | [Pow](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Pow)                               | :white_check_mark: |                  |
-| [RNN](https://github.com/onnx/onnx/blob/main/docs/Operators.md#RNN)                               |                    |                  |
+| [RNN](https://github.com/onnx/onnx/blob/main/docs/Operators.md#RNN)                               |       :x:          |                  |
 | [RandomNormal](https://github.com/onnx/onnx/blob/main/docs/Operators.md#RandomNormal)             |:x: (Test case not provided)|                  |
 | [RandomNormalLike](https://github.com/onnx/onnx/blob/main/docs/Operators.md#RandomNormalLike)     |:x: (Test case not provided)|                  |
 | [RandomUniform](https://github.com/onnx/onnx/blob/main/docs/Operators.md#RandomUniform)           |:x: (Test case not provided)|                  |
@@ -128,7 +128,7 @@ This table is generated from [`operator_sets.h`](https://github.com/onnx/onnx/bl
 | [Softmax](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Softmax)                       | :white_check_mark: | `ggml_soft_max`  |
 | [Softplus](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Softplus)                     | :white_check_mark: |                  |
 | [Softsign](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Softsign)                     | :white_check_mark: |                  |
-| [SpaceToDepth](https://github.com/onnx/onnx/blob/main/docs/Operators.md#SpaceToDepth)             |                    |                  |
+| [SpaceToDepth](https://github.com/onnx/onnx/blob/main/docs/Operators.md#SpaceToDepth)             | :white_check_mark: |                  |
 | [Split](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Split)                           | :white_check_mark: |                  |
 | [Sqrt](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Sqrt)                             | :white_check_mark: | `ggml_sqrt`      |
 | [Squeeze](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Squeeze)                       | :white_check_mark: |                  |
@@ -139,5 +139,5 @@ This table is generated from [`operator_sets.h`](https://github.com/onnx/onnx/bl
 | [TopK](https://github.com/onnx/onnx/blob/main/docs/Operators.md#TopK)                             | :white_check_mark: |                  |
 | [Transpose](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Transpose)                   | :white_check_mark: | `ggml_transpose` |
 | [Unsqueeze](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Unsqueeze)                   | :white_check_mark: |                  |
-| ~~[Upsample](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Upsample)~~ (Deprecated)    |  :x:               |                  |
+| ~~[Upsample](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Upsample)~~                 |  :x: (Deprecated)  |                  |
 | [Xor](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Xor)                               | :white_check_mark: |                  |

@@ -393,6 +393,8 @@ backend_test.exclude("test_softmax_lastdim")  # Out of tolerance
 backend_test.include("test_softplus_")
 backend_test.include("test_softsign_")
 
+backend_test.include("test_spacetodepth")
+
 backend_test.include("test_sqrt_")
 
 backend_test.include("test_sub_")

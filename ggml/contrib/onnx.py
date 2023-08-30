@@ -3511,6 +3511,175 @@ def ggml_operator_size(
     return new_tensor
 
 
+@ggml_operator("Softmax")
+def ggml_operator_softmax(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Softmax" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    output_name = node.output[0]
+    a = node_inputs[0]
+
+    soft_max_result = ggml.ggml_soft_max(
+        context,
+        a,
+    )
+    tensors_dict[output_name] = soft_max_result
+    return soft_max_result
+
+
+@ggml.ggml_custom1_op_t
+def custom_softplus(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    x = ggml.utils.to_numpy(tensor_in_1)
+    y = np.log(np.exp(x) + 1)
+    set_tensor_out(tensor_out, y)
+
+
+@ggml_operator("Softplus")
+def ggml_operator_softplus(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Softplus" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    x = node_inputs[0]
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom1_inplace(
+        context,
+        x,
+        custom_softplus,
+        1,
+        None,
+    )
+
+    return new_tensor
+
+
+@ggml_operator("Softsign")
+def ggml_operator_softsign(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Softsign" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    x = node_inputs[0]
+    x_shape = get_tensor_shape(x)
+    x_dtype = get_tensor_dtype(x)
+
+    # y = x / (1 + abs(x))
+    one_np = np.full(x_shape, 1, dtype=x_dtype)
+    one_t = ggml.utils.from_numpy(one_np, context)
+    x_abs = ggml.ggml_abs(context, x)
+    one_plus_abs = ggml.ggml_add(context, one_t, x_abs)
+    y = ggml.ggml_div(context, x, one_plus_abs)
+    tensors_dict[node.output[0]] = y
+
+    return y
+
+
+@ggml.ggml_custom2_op_t
+def custom_space_to_depth(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    x = ggml.utils.to_numpy(tensor_in_2)
+    blocksize = ctypes.cast(userdata, ctypes.POINTER(ctypes.c_int)).contents.value
+
+    N, C, H, W = x.shape
+    new_H = H // blocksize
+    new_W = W // blocksize
+    
+    reshaped = x.reshape(N, C, new_H, blocksize, new_W, blocksize)
+    transposed = reshaped.transpose(0, 3, 5, 1, 2, 4) # ONNX specification TODO: Test more examples
+    y = transposed.reshape(N, C * (blocksize ** 2), new_H, new_W)
+    
+    set_tensor_out(tensor_out, y)
+
+
+@ggml_operator("SpaceToDepth")
+def ggml_operator_space_to_depth(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "SpaceToDepth" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    x = node_inputs[0]
+    blocksize = next(
+        (attr.i for attr in node.attribute if attr.name == "blocksize"), None
+    )
+
+    if blocksize is None:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "SpaceToDepth" requires "blocksize"'
+        )
+
+    N, C, H, W = get_tensor_shape(x)
+    new_H = H // blocksize
+    new_W = W // blocksize
+    output_shape = (N, C * blocksize * blocksize, new_H, new_W)
+
+    x_t = ggml.utils.from_numpy(
+        np.empty(output_shape, dtype=get_tensor_dtype(x)), context
+    )
+
+    blocksize_c = ctypes.c_int(blocksize)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+        context,
+        x_t,
+        x,
+        custom_space_to_depth,
+        1,
+        ctypes.pointer(blocksize_c),
+    )
+
+    refs.append(blocksize_c)
+
+    return new_tensor
+
 class SplitUserData(ctypes.Structure):
     _fields_ = [
         ("axis", ctypes.c_int),
@@ -3623,104 +3792,6 @@ def ggml_operator_split(
         outputs.append(new_tensor)
 
     return outputs
-
-
-@ggml.ggml_custom1_op_t
-def custom_softplus(
-    tensor_out: ggml.ggml_tensor_p,
-    tensor_in_1: ggml.ggml_tensor_p,
-    ith: int,
-    nth: int,
-    userdata: Optional[ctypes.c_void_p],
-):
-    x = ggml.utils.to_numpy(tensor_in_1)
-    y = np.log(np.exp(x) + 1)
-    set_tensor_out(tensor_out, y)
-
-
-@ggml_operator("Softplus")
-def ggml_operator_softplus(
-    backend: "GgmlBackendRep",
-    node: NodeProto,
-    tensors_dict: Dict[str, ggml.ggml_tensor_p],
-    context: ggml.ggml_context_p,
-    refs: List[Any],
-):
-    node_inputs = [tensors_dict[inp] for inp in node.input]
-
-    if len(node_inputs) != 1:
-        raise ValueError(
-            f'Error for node "{node.name}": Operation "Softplus" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
-        )
-
-    x = node_inputs[0]
-
-    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom1_inplace(
-        context,
-        x,
-        custom_softplus,
-        1,
-        None,
-    )
-
-    return new_tensor
-
-
-@ggml_operator("Softsign")
-def ggml_operator_softsign(
-    backend: "GgmlBackendRep",
-    node: NodeProto,
-    tensors_dict: Dict[str, ggml.ggml_tensor_p],
-    context: ggml.ggml_context_p,
-    refs: List[Any],
-):
-    node_inputs = [tensors_dict[inp] for inp in node.input]
-
-    if len(node_inputs) != 1:
-        raise ValueError(
-            f'Error for node "{node.name}": Operation "Softsign" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
-        )
-
-    x = node_inputs[0]
-    x_shape = get_tensor_shape(x)
-    x_dtype = get_tensor_dtype(x)
-
-    # y = x / (1 + abs(x))
-    one_np = np.full(x_shape, 1, dtype=x_dtype)
-    one_t = ggml.utils.from_numpy(one_np, context)
-    x_abs = ggml.ggml_abs(context, x)
-    one_plus_abs = ggml.ggml_add(context, one_t, x_abs)
-    y = ggml.ggml_div(context, x, one_plus_abs)
-    tensors_dict[node.output[0]] = y
-
-    return y
-
-
-@ggml_operator("Softmax")
-def ggml_operator_softmax(
-    backend: "GgmlBackendRep",
-    node: NodeProto,
-    tensors_dict: Dict[str, ggml.ggml_tensor_p],
-    context: ggml.ggml_context_p,
-    refs: List[Any],
-):
-    node_inputs = [tensors_dict[inp] for inp in node.input]
-
-    if len(node_inputs) != 1:
-        raise ValueError(
-            f'Error for node "{node.name}": Operation "Softmax" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
-        )
-
-    output_name = node.output[0]
-    a = node_inputs[0]
-
-    soft_max_result = ggml.ggml_soft_max(
-        context,
-        a,
-    )
-    tensors_dict[output_name] = soft_max_result
-    return soft_max_result
-
 
 @ggml_operator("Sqrt")
 def ggml_operator_sqrt(
