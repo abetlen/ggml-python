@@ -432,8 +432,6 @@ def ggml_operator_arg_max(
     )
 
     x_shape = get_tensor_shape(data)
-    x_dtype = get_tensor_dtype(data)
-    x_ndims = ggml.utils.get_ndims(data)
 
     dummpy_data = np.empty(x_shape, dtype=np.int32)
 
