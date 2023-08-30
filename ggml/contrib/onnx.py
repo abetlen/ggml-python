@@ -4252,19 +4252,7 @@ class GgmlRuntimeBackend(Backend):
         for initializer in graph.initializer:
             name = initializer.name
             np_array = onnx.numpy_helper.to_array(initializer)
-            if can_quantize(np_array, name, graph):
-                ggml_qtype = ggml.utils.GGML_TYPE.Q8_0
-                shape = tuple(reversed(np_array.shape))
-                tensor = ggml.ggml_new_tensor(
-                    context,
-                    ggml_qtype.value,
-                    len(shape),
-                    (ctypes.c_int64 * len(shape))(*shape),
-                )
-
-            else:
-                tensor = ggml.utils.from_numpy(x=np_array, ctx=context)
-
+            tensor = ggml.utils.from_numpy(x=np_array, ctx=context)
             ggml.ggml_set_name(tensor=tensor, name=name.encode())
             total_nbytes += ggml.ggml_nbytes_pad(tensor)
             weights[name] = tensor
@@ -4278,25 +4266,8 @@ class GgmlRuntimeBackend(Backend):
             tensor.contents.data = ctypes.cast(
                 ctypes.addressof(buffer) + offset, ctypes.c_void_p
             )
-
             np_array = onnx.numpy_helper.to_array(initializer)
-            if ggml.ggml_is_quantized(tensor.contents.type):
-                np_c_float_data = (ctypes.c_float * np_array.size).from_address(
-                    ctypes.addressof(np_array.ctypes.data)
-                )
-
-                ggml.utils.quantize_0(
-                    np_c_float_data,
-                    np_array.size,
-                    np_array.shape[0],
-                    ggml_qtype,
-                    work=ctypes.cast(
-                        ctypes.addressof(buffer) + offset, ctypes.c_void_p
-                    ),
-                )
-
-            else:
-                set_tensor_out(tensor, np_array)
+            set_tensor_out(tensor, np_array)
 
             offset += nbytes
 
