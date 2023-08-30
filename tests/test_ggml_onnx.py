@@ -297,6 +297,9 @@ backend_test.include("test_greater_")
 backend_test.include("test_gather_")
 backend_test.exclude("test_gather_elements")  # not supported
 
+backend_test.include("test_gemm")
+backend_test.exclude("test_gemm_default_scalar_bias")
+
 backend_test.include("test_greater_")
 
 backend_test.include("test_hardsigmoid_")
@@ -381,9 +384,6 @@ backend_test.include("test_sigmoid_")
 
 backend_test.include("test_size_")
 
-backend_test.include("test_split_")
-backend_test.exclude(".*split.*.*to.*.*sequence.*")
-
 backend_test.include("test_softmax_")
 backend_test.exclude("test_softmax_axis_0")  # not supported
 backend_test.exclude("test_softmax_axis_1")  # not supported
@@ -394,6 +394,9 @@ backend_test.include("test_softplus_")
 backend_test.include("test_softsign_")
 
 backend_test.include("test_spacetodepth")
+
+backend_test.include("test_split_")
+backend_test.exclude(".*split.*.*to.*.*sequence.*")
 
 backend_test.include("test_sqrt_")
 

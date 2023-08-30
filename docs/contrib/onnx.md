@@ -68,9 +68,9 @@ This table is generated from [`operator_sets.h`](https://github.com/onnx/onnx/bl
 | [Exp](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Exp)                               | :white_check_mark: |                  |
 | [Flatten](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Flatten)                       | :white_check_mark: |                  |
 | [Floor](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Floor)                           | :white_check_mark: |                  |
-| [GRU](https://github.com/onnx/onnx/blob/main/docs/Operators.md#GRU)                               |                    |                  |
+| [GRU](https://github.com/onnx/onnx/blob/main/docs/Operators.md#GRU)                               |       :x:          |                  |
 | [Gather](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Gather)                         | :white_check_mark: |                  |
-| [Gemm](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Gemm)                             |                    |                  |
+| [Gemm](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Gemm)                             | :white_check_mark: |                  |
 | [GlobalAveragePool](https://github.com/onnx/onnx/blob/main/docs/Operators.md#GlobalAveragePool)   |                    |                  |
 | [GlobalLpPool](https://github.com/onnx/onnx/blob/main/docs/Operators.md#GlobalLpPool)             |                    |                  |
 | [GlobalMaxPool](https://github.com/onnx/onnx/blob/main/docs/Operators.md#GlobalMaxPool)           |                    |                  |

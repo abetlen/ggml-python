@@ -1163,6 +1163,127 @@ def ggml_operator_gather(
     return new_tensor
 
 
+@ggml_operator("Gemm")
+def ggml_operator_gemm(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) < 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Gemm" requires at least two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    node_inputs_iter = iter(node_inputs)
+
+    a = next(node_inputs_iter)
+    b = next(node_inputs_iter)
+    c = next(node_inputs_iter, None)
+
+    alpha = next((attr.f for attr in node.attribute if attr.name == "alpha"), 1.0)
+    beta = next((attr.f for attr in node.attribute if attr.name == "beta"), 1.0)
+
+    transA = next((attr.i for attr in node.attribute if attr.name == "transA"), 0)
+    transB = next((attr.i for attr in node.attribute if attr.name == "transB"), 0)
+
+    b_shape = get_tensor_shape(b)
+    a_shape = get_tensor_shape(a)
+
+    # TODO: broadcast? Current broadcasting method fails during tests
+
+    a_dtype = get_tensor_dtype(a)
+    b_dtype = get_tensor_dtype(b)
+
+    a_transposed = a
+    b_transposed = b
+
+    if transA:
+        a_permute = ggml.ggml_transpose(
+            context,
+            a,
+        )
+        a_shape = ggml.utils.get_shape(a_permute)
+        a_transposed = ggml.ggml_cpy(
+            context,
+            a_permute,
+            ggml.ggml_new_tensor(
+                context,
+                map_to_ggml_type(a_dtype).value,
+                len(a_shape),
+                (ctypes.c_int64 * len(a_shape))(*a_shape),
+            ),
+        )
+
+    if not transB:
+        b_permute = ggml.ggml_transpose(
+            context,
+            b,
+        )
+        b_shape = ggml.utils.get_shape(b_permute)
+        b_transposed = ggml.ggml_cpy(
+            context,
+            b_permute,
+            ggml.ggml_new_tensor(
+                context,
+                map_to_ggml_type(b_dtype).value,
+                len(b_shape),
+                (ctypes.c_int64 * len(b_shape))(*b_shape),
+            ),
+        )
+
+    # Y = alpha * np.dot(A, B) + beta * C
+    # ref: https://github.com/onnx/onnx/blob/main/onnx/backend/test/case/node/gemm.py
+
+    mul_mat_result = ggml.ggml_mul_mat(
+        context,
+        b_transposed,
+        a_transposed,
+    )
+
+    alpha_t = ggml.utils.from_numpy(
+        np.full(
+            get_tensor_shape(mul_mat_result),
+            alpha,
+            dtype=get_tensor_dtype(mul_mat_result),
+        ),
+        context,
+    )
+
+    mul_mat_result = ggml.ggml_mul_inplace(context, mul_mat_result, alpha_t)
+
+    if c is None:
+        c = ggml.utils.from_numpy(
+            np.full(
+                get_tensor_shape(mul_mat_result),
+                0,
+                dtype=get_tensor_dtype(mul_mat_result),
+            ),
+            context,
+        )
+
+    c, mul_mat_result = broadcast_shapes(context, c, mul_mat_result)
+
+    beta_t = ggml.utils.from_numpy(
+        np.full(
+            get_tensor_shape(mul_mat_result),
+            beta,
+            dtype=get_tensor_dtype(mul_mat_result),
+        ),
+        context,
+    )
+
+    mul_mat_result = ggml.ggml_add_inplace(
+        context, mul_mat_result, ggml.ggml_mul_inplace(context, c, beta_t)
+    )
+
+    tensors_dict[node.output[0]] = mul_mat_result
+    return mul_mat_result
+
+
 @ggml.ggml_custom3_op_t
 def custom_greater(
     tensor_out: ggml.ggml_tensor_p,
@@ -3623,11 +3744,13 @@ def custom_space_to_depth(
     N, C, H, W = x.shape
     new_H = H // blocksize
     new_W = W // blocksize
-    
+
     reshaped = x.reshape(N, C, new_H, blocksize, new_W, blocksize)
-    transposed = reshaped.transpose(0, 3, 5, 1, 2, 4) # ONNX specification TODO: Test more examples
-    y = transposed.reshape(N, C * (blocksize ** 2), new_H, new_W)
-    
+    transposed = reshaped.transpose(
+        0, 3, 5, 1, 2, 4
+    )  # ONNX specification TODO: Test more examples
+    y = transposed.reshape(N, C * (blocksize**2), new_H, new_W)
+
     set_tensor_out(tensor_out, y)
 
 
@@ -3679,6 +3802,7 @@ def ggml_operator_space_to_depth(
     refs.append(blocksize_c)
 
     return new_tensor
+
 
 class SplitUserData(ctypes.Structure):
     _fields_ = [
@@ -3792,6 +3916,7 @@ def ggml_operator_split(
         outputs.append(new_tensor)
 
     return outputs
+
 
 @ggml_operator("Sqrt")
 def ggml_operator_sqrt(
@@ -4497,7 +4622,7 @@ class GgmlBackendRep(BackendRep):
 
         # Set user inputs
         for key, value in inputs.items():
-            set_tensor_out(ggml_tensors[key], value)
+            set_tensor_out(ggml_tensors[key], np.array(value))
 
         gf = ggml.ggml_cgraph()
         gf_p = ctypes.pointer(gf)
