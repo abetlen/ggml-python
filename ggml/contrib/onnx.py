@@ -836,6 +836,92 @@ def ggml_operator_constant_of_shape(
     return new_tensor
 
 
+@ggml_operator("Conv")
+def ggml_operator_conv(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) < 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Conv" requires 2 - 3 inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    node_inputs_iter = iter(node_inputs)
+    x = next(node_inputs_iter)
+    x_shape = get_tensor_shape(x)
+    w = next(node_inputs_iter)
+    w_shape = get_tensor_shape(w)
+    m = w_shape[0]
+    bias = next(
+        node_inputs_iter,
+        ggml.utils.from_numpy(np.full(m, 0, dtype=get_tensor_dtype(x)), context),
+    )
+
+    auto_pad = next(
+        (attr.s.decode() for attr in node.attribute if attr.name == "auto_pad"),
+        "NOTSET",
+    )
+    dilations = next(
+        (attr.ints for attr in node.attribute if attr.name == "dilations"),
+        [1 for _ in x_shape[2:]],
+    )
+    group = next((attr.i for attr in node.attribute if attr.name == "group"), 1)
+    kernel_shape = next(
+        (attr.ints for attr in node.attribute if attr.name == "kernel_shape"),
+        w_shape[2:],
+    )
+    pads = next(
+        (attr.ints for attr in node.attribute if attr.name == "pads"),
+        [0 for _ in x_shape[2:]] * 2,
+    )
+    strides = next(
+        (attr.ints for attr in node.attribute if attr.name == "strides"),
+        [1 for _ in x_shape[2:]],
+    )
+
+    # Source: https://github.com/onnx/onnx/blob/main/onnx/reference/ops/op_conv.py
+
+    if auto_pad in {"SAME_LOWER", "SAME_UPPER", "VALID"}:
+        head = []
+        tail = []
+        for i in range(len(x_shape) - 2):
+            d = x_shape[i]
+            target_size = (d + strides[i] - 1) // strides[i]
+            pad_needed = (target_size - 1) * strides[i] + kernel_shape[i] - d
+            if auto_pad == "SAME_LOWER":
+                pad_head = (pad_needed + 1) // 2
+            else:
+                pad_head = pad_needed // 2
+            pad_tail = pad_needed - pad_head
+            head.append(pad_head)
+            tail.append(pad_tail)
+        pads = head + tail
+
+    if len(strides) != 2:
+        raise NotImplementedError("Cannot handle other than 2 strides")
+
+    raise NotImplementedError(f'Operator "Conv" not implemented')
+    # FIXME: ggml can only work with F16
+    conv_result = ggml.ggml_conv_2d(
+        context,
+        x,
+        bias,
+        strides[0],
+        strides[1],
+        pads[0],
+        pads[1],
+        dilations[0],
+        dilations[1],
+    )
+
+    tensors_dict[node.output[0]] = conv_result
+    return conv_result
+
 class DepthToSpaceUserData(ctypes.Structure):
     _fields_ = [
         ("blocksize", ctypes.c_int),
