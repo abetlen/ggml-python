@@ -1164,6 +1164,139 @@ def ggml_operator_div(
     tensors_dict[output_name] = div_result
     return div_result
 
+class DropoutUserData(ctypes.Structure):
+    _fields_ = [
+        ("seed", ctypes.c_int),
+        ("training_mode", ctypes.c_bool),
+    ]
+
+
+@ggml.ggml_custom2_op_t
+def custom_dropout_mask(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    x = ggml.utils.to_numpy(tensor_in_1)
+    ratio = ggml.utils.to_numpy(tensor_in_2)
+
+    userdata_data_ptr = ctypes.cast(userdata, ctypes.POINTER(DropoutUserData))
+    userdata_data = userdata_data_ptr.contents
+
+    seed = userdata_data.seed
+    training_mode = userdata_data.training_mode
+
+    if np.equal(0, np.array(ratio)) or training_mode is False:
+        mask = np.ones(x.shape, dtype=np.int32)
+
+    else:
+        np.random.seed(seed)
+        mask = np.random.uniform(0, 1.0, x.shape) >= ratio
+
+    set_tensor_out(tensor_out, mask)
+
+
+@ggml.ggml_custom3_op_t
+def custom_dropout_output(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    tensor_in_3: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    x = ggml.utils.to_numpy(tensor_in_1)
+    ratio = ggml.utils.to_numpy(tensor_in_2)
+    mask = ggml.utils.to_numpy(tensor_in_3)
+
+    userdata_data_ptr = ctypes.cast(userdata, ctypes.POINTER(DropoutUserData))
+    userdata_data = userdata_data_ptr.contents
+
+    training_mode = userdata_data.training_mode
+
+    if np.equal(0, np.array(ratio)) or training_mode is False:
+        y = x
+
+    else:
+        scale = 1 / (1 - ratio)
+        y = mask * x * scale
+
+    set_tensor_out(tensor_out, y)
+
+
+@ggml_operator("Dropout")
+def ggml_operator_dropout(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) < 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Dropout" requires 1 - 3 inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+
+    # Ref = https://github.com/onnx/onnx/blob/main/onnx/backend/test/case/node/dropout.py
+
+    node_inputs_iter = iter(node_inputs)
+
+    data = next(node_inputs_iter)
+    ratio = next(
+        node_inputs_iter,
+        next((attr.f for attr in node.attribute if attr.name == "ratio"), 0.5),
+    )
+    training_mode = next(node_inputs_iter, np.bool_(False))
+
+    if type(ratio) is float:
+        ratio = ggml.utils.from_numpy(np.array([ratio]).astype(np.float32), context)
+
+    seed = next((attr.i for attr in node.attribute if attr.name == "seed"), 6)
+
+    if type(training_mode) is ggml.ggml_tensor_p:
+        training_mode_eval = backend.eval_tensor(training_mode, context)
+        training_mode = ggml.utils.to_numpy(training_mode_eval)
+
+    droput_userdata = DropoutUserData(seed, bool(training_mode))
+    userdata_p = ctypes.cast(ctypes.pointer(droput_userdata), ctypes.c_void_p)
+
+    mask = ggml.ggml_map_custom2_inplace(
+        context,
+        data,
+        ratio,
+        custom_dropout_mask,
+        1,
+        userdata_p,
+    )
+
+    output = ggml.ggml_map_custom3_inplace(
+        context,
+        data,
+        ratio,
+        mask,
+        custom_dropout_output,
+        1,
+        userdata_p,
+    )
+
+    refs.append(droput_userdata)
+
+    if len(node.output) == 2:
+        ggml.ggml_set_name(mask, (node.output[1] + f"<bool>").encode())
+        tensors_dict[node.output[0]] = output
+        tensors_dict[node.output[1]] = mask
+
+        return output, mask
+
+    tensors_dict[node.output[0]] = output
+    return output
 
 @ggml_operator("Elu")
 def ggml_operator_elu(
