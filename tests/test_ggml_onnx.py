@@ -283,6 +283,11 @@ backend_test.include("test_constantofshape")
 # backend_test.exclude("_deform_conv")
 # backend_test.exclude("test_operator_conv")
 
+
+# backend_test.include("_convtranspose_")
+# backend_test.exclude("_deform_convtranspose")
+# backend_test.exclude("test_operator_convtranspose")
+
 backend_test.include("test_operator_chunk")
 
 backend_test.include("test_depthtospace")

@@ -905,6 +905,7 @@ def ggml_operator_conv(
     if len(strides) != 2:
         raise NotImplementedError("Cannot handle other than 2 strides")
 
+    
     raise NotImplementedError(f'Operator "Conv" not implemented')
     # FIXME: ggml can only work with F16
     conv_result = ggml.ggml_conv_2d(
@@ -921,6 +922,118 @@ def ggml_operator_conv(
 
     tensors_dict[node.output[0]] = conv_result
     return conv_result
+
+
+@ggml_operator("ConvTranspose")
+def ggml_operator_convtranspose(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) < 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "ConvTranspose" requires 2 - 3 inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    node_inputs_iter = iter(node_inputs)
+    x = next(node_inputs_iter)
+    x_shape = get_tensor_shape(x)
+    w = next(node_inputs_iter)
+    w_shape = get_tensor_shape(w)
+    m = w_shape[0]
+    bias = next(
+        node_inputs_iter,
+        ggml.utils.from_numpy(np.full(m, 0, dtype=get_tensor_dtype(x)), context),
+    )
+
+    auto_pad = next(
+        (attr.s.decode() for attr in node.attribute if attr.name == "auto_pad"),
+        "NOTSET",
+    )
+    dilations = next(
+        (attr.ints for attr in node.attribute if attr.name == "dilations"),
+        [1 for _ in x_shape[2:]],
+    )
+    group = next((attr.i for attr in node.attribute if attr.name == "group"), 1)
+    kernel_shape = next(
+        (attr.ints for attr in node.attribute if attr.name == "kernel_shape"),
+        w_shape[2:],
+    )
+    output_padding = next(
+        (attr.ints for attr in node.attribute if attr.name == "output_padding"),
+        [0 for _ in x_shape[2:]] * 2,
+    )
+    output_shape = next(
+        (attr.ints for attr in node.attribute if attr.name == "output_shape"),
+        None,
+    )
+    pads = next(
+        (attr.ints for attr in node.attribute if attr.name == "pads"),
+        None,
+    )
+    strides = next(
+        (attr.ints for attr in node.attribute if attr.name == "strides"),
+        [1 for _ in x_shape[2:]],
+    )
+
+    # https://github.com/onnx/onnx/blob/main/onnx/reference/ops/op_conv_transpose.py
+
+    if pads is None and auto_pad not in {"SAME_UPPER", "SAME_LOWER"}:
+        pads = [0 for i in range(2 * len(strides))]
+    if pads is None:
+        if output_shape is None:
+            output_shape = [x_shape[i + 2] * strides[i] for i in range(len(strides))]
+        total_padding = [
+            strides[i] * (x_shape[i + 2] - 1)
+            + output_padding[i]
+            + ((kernel_shape[i] - 1) * dilations[i] + 1)
+            - output_shape[i]
+            for i in range(len(output_shape))
+        ]
+        pads_1 = []
+        pads_2 = []
+        for i in range(len(output_shape)):
+            if auto_pad == "SAME_UPPER":
+                pads_1.append(total_padding[i] // 2)
+                pads_2.append(total_padding[i] - (total_padding[i] // 2))
+            else:
+                pads_1.append(total_padding[i] - (total_padding[i] // 2))
+                pads_2.append(total_padding[i] // 2)
+        pads = pads_1 + pads_2
+        n_dims = len(pads) // 2
+    else:
+        n_dims = len(x_shape) - 2
+        new_pads = np.array([(pads[i], pads[i + n_dims]) for i in range(n_dims)])
+        if output_shape is None:
+            output_shape = [
+                strides[i] * (x_shape[i + 2] - 1)
+                + output_padding[i]
+                + ((kernel_shape[i] - 1) * dilations[i] + 1)
+                - new_pads[i, :].sum()
+                for i in range(n_dims)
+            ]
+
+    kernel_shape = w_shape[2:]
+    kernel_size = np.prod(kernel_shape)
+    num_output_channels = w_shape[1] * group
+    kernel_dim = num_output_channels // group * kernel_size
+
+    C = x_shape[1]  # num_inputs_channels
+    m = kernel_dim  # kernel_dim
+    n = np.prod(x_shape[2:])  # input_image_size
+    k = C // group
+
+    if group != 1:
+        raise NotImplementedError(
+            f'Error for node "{node.name}": Implementation for group={group} > 1 is not available yet.'
+        )
+
+    raise NotImplementedError(f'Operator "ConvTranspose" not implemented')
+
 
 class DepthToSpaceUserData(ctypes.Structure):
     _fields_ = [
