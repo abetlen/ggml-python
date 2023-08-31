@@ -836,6 +836,205 @@ def ggml_operator_constant_of_shape(
     return new_tensor
 
 
+@ggml_operator("Conv")
+def ggml_operator_conv(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) < 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Conv" requires 2 - 3 inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    node_inputs_iter = iter(node_inputs)
+    x = next(node_inputs_iter)
+    x_shape = get_tensor_shape(x)
+    w = next(node_inputs_iter)
+    w_shape = get_tensor_shape(w)
+    m = w_shape[0]
+    bias = next(
+        node_inputs_iter,
+        ggml.utils.from_numpy(np.full(m, 0, dtype=get_tensor_dtype(x)), context),
+    )
+
+    auto_pad = next(
+        (attr.s.decode() for attr in node.attribute if attr.name == "auto_pad"),
+        "NOTSET",
+    )
+    dilations = next(
+        (attr.ints for attr in node.attribute if attr.name == "dilations"),
+        [1 for _ in x_shape[2:]],
+    )
+    group = next((attr.i for attr in node.attribute if attr.name == "group"), 1)
+    kernel_shape = next(
+        (attr.ints for attr in node.attribute if attr.name == "kernel_shape"),
+        w_shape[2:],
+    )
+    pads = next(
+        (attr.ints for attr in node.attribute if attr.name == "pads"),
+        [0 for _ in x_shape[2:]] * 2,
+    )
+    strides = next(
+        (attr.ints for attr in node.attribute if attr.name == "strides"),
+        [1 for _ in x_shape[2:]],
+    )
+
+    # Source: https://github.com/onnx/onnx/blob/main/onnx/reference/ops/op_conv.py
+
+    if auto_pad in {"SAME_LOWER", "SAME_UPPER", "VALID"}:
+        head = []
+        tail = []
+        for i in range(len(x_shape) - 2):
+            d = x_shape[i]
+            target_size = (d + strides[i] - 1) // strides[i]
+            pad_needed = (target_size - 1) * strides[i] + kernel_shape[i] - d
+            if auto_pad == "SAME_LOWER":
+                pad_head = (pad_needed + 1) // 2
+            else:
+                pad_head = pad_needed // 2
+            pad_tail = pad_needed - pad_head
+            head.append(pad_head)
+            tail.append(pad_tail)
+        pads = head + tail
+
+    if len(strides) != 2:
+        raise NotImplementedError("Cannot handle other than 2 strides")
+
+    
+    raise NotImplementedError(f'Operator "Conv" not implemented')
+    # FIXME: ggml can only work with F16
+    conv_result = ggml.ggml_conv_2d(
+        context,
+        x,
+        bias,
+        strides[0],
+        strides[1],
+        pads[0],
+        pads[1],
+        dilations[0],
+        dilations[1],
+    )
+
+    tensors_dict[node.output[0]] = conv_result
+    return conv_result
+
+
+@ggml_operator("ConvTranspose")
+def ggml_operator_convtranspose(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) < 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "ConvTranspose" requires 2 - 3 inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    node_inputs_iter = iter(node_inputs)
+    x = next(node_inputs_iter)
+    x_shape = get_tensor_shape(x)
+    w = next(node_inputs_iter)
+    w_shape = get_tensor_shape(w)
+    m = w_shape[0]
+    bias = next(
+        node_inputs_iter,
+        ggml.utils.from_numpy(np.full(m, 0, dtype=get_tensor_dtype(x)), context),
+    )
+
+    auto_pad = next(
+        (attr.s.decode() for attr in node.attribute if attr.name == "auto_pad"),
+        "NOTSET",
+    )
+    dilations = next(
+        (attr.ints for attr in node.attribute if attr.name == "dilations"),
+        [1 for _ in x_shape[2:]],
+    )
+    group = next((attr.i for attr in node.attribute if attr.name == "group"), 1)
+    kernel_shape = next(
+        (attr.ints for attr in node.attribute if attr.name == "kernel_shape"),
+        w_shape[2:],
+    )
+    output_padding = next(
+        (attr.ints for attr in node.attribute if attr.name == "output_padding"),
+        [0 for _ in x_shape[2:]] * 2,
+    )
+    output_shape = next(
+        (attr.ints for attr in node.attribute if attr.name == "output_shape"),
+        None,
+    )
+    pads = next(
+        (attr.ints for attr in node.attribute if attr.name == "pads"),
+        None,
+    )
+    strides = next(
+        (attr.ints for attr in node.attribute if attr.name == "strides"),
+        [1 for _ in x_shape[2:]],
+    )
+
+    # https://github.com/onnx/onnx/blob/main/onnx/reference/ops/op_conv_transpose.py
+
+    if pads is None and auto_pad not in {"SAME_UPPER", "SAME_LOWER"}:
+        pads = [0 for i in range(2 * len(strides))]
+    if pads is None:
+        if output_shape is None:
+            output_shape = [x_shape[i + 2] * strides[i] for i in range(len(strides))]
+        total_padding = [
+            strides[i] * (x_shape[i + 2] - 1)
+            + output_padding[i]
+            + ((kernel_shape[i] - 1) * dilations[i] + 1)
+            - output_shape[i]
+            for i in range(len(output_shape))
+        ]
+        pads_1 = []
+        pads_2 = []
+        for i in range(len(output_shape)):
+            if auto_pad == "SAME_UPPER":
+                pads_1.append(total_padding[i] // 2)
+                pads_2.append(total_padding[i] - (total_padding[i] // 2))
+            else:
+                pads_1.append(total_padding[i] - (total_padding[i] // 2))
+                pads_2.append(total_padding[i] // 2)
+        pads = pads_1 + pads_2
+        n_dims = len(pads) // 2
+    else:
+        n_dims = len(x_shape) - 2
+        new_pads = np.array([(pads[i], pads[i + n_dims]) for i in range(n_dims)])
+        if output_shape is None:
+            output_shape = [
+                strides[i] * (x_shape[i + 2] - 1)
+                + output_padding[i]
+                + ((kernel_shape[i] - 1) * dilations[i] + 1)
+                - new_pads[i, :].sum()
+                for i in range(n_dims)
+            ]
+
+    kernel_shape = w_shape[2:]
+    kernel_size = np.prod(kernel_shape)
+    num_output_channels = w_shape[1] * group
+    kernel_dim = num_output_channels // group * kernel_size
+
+    C = x_shape[1]  # num_inputs_channels
+    m = kernel_dim  # kernel_dim
+    n = np.prod(x_shape[2:])  # input_image_size
+    k = C // group
+
+    if group != 1:
+        raise NotImplementedError(
+            f'Error for node "{node.name}": Implementation for group={group} > 1 is not available yet.'
+        )
+
+    raise NotImplementedError(f'Operator "ConvTranspose" not implemented')
+
+
 class DepthToSpaceUserData(ctypes.Structure):
     _fields_ = [
         ("blocksize", ctypes.c_int),
@@ -965,6 +1164,139 @@ def ggml_operator_div(
     tensors_dict[output_name] = div_result
     return div_result
 
+class DropoutUserData(ctypes.Structure):
+    _fields_ = [
+        ("seed", ctypes.c_int),
+        ("training_mode", ctypes.c_bool),
+    ]
+
+
+@ggml.ggml_custom2_op_t
+def custom_dropout_mask(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    x = ggml.utils.to_numpy(tensor_in_1)
+    ratio = ggml.utils.to_numpy(tensor_in_2)
+
+    userdata_data_ptr = ctypes.cast(userdata, ctypes.POINTER(DropoutUserData))
+    userdata_data = userdata_data_ptr.contents
+
+    seed = userdata_data.seed
+    training_mode = userdata_data.training_mode
+
+    if np.equal(0, np.array(ratio)) or training_mode is False:
+        mask = np.ones(x.shape, dtype=np.int32)
+
+    else:
+        np.random.seed(seed)
+        mask = np.random.uniform(0, 1.0, x.shape) >= ratio
+
+    set_tensor_out(tensor_out, mask)
+
+
+@ggml.ggml_custom3_op_t
+def custom_dropout_output(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    tensor_in_3: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    x = ggml.utils.to_numpy(tensor_in_1)
+    ratio = ggml.utils.to_numpy(tensor_in_2)
+    mask = ggml.utils.to_numpy(tensor_in_3)
+
+    userdata_data_ptr = ctypes.cast(userdata, ctypes.POINTER(DropoutUserData))
+    userdata_data = userdata_data_ptr.contents
+
+    training_mode = userdata_data.training_mode
+
+    if np.equal(0, np.array(ratio)) or training_mode is False:
+        y = x
+
+    else:
+        scale = 1 / (1 - ratio)
+        y = mask * x * scale
+
+    set_tensor_out(tensor_out, y)
+
+
+@ggml_operator("Dropout")
+def ggml_operator_dropout(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) < 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Dropout" requires 1 - 3 inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+
+    # Ref = https://github.com/onnx/onnx/blob/main/onnx/backend/test/case/node/dropout.py
+
+    node_inputs_iter = iter(node_inputs)
+
+    data = next(node_inputs_iter)
+    ratio = next(
+        node_inputs_iter,
+        next((attr.f for attr in node.attribute if attr.name == "ratio"), 0.5),
+    )
+    training_mode = next(node_inputs_iter, np.bool_(False))
+
+    if type(ratio) is float:
+        ratio = ggml.utils.from_numpy(np.array([ratio]).astype(np.float32), context)
+
+    seed = next((attr.i for attr in node.attribute if attr.name == "seed"), 6)
+
+    if type(training_mode) is ggml.ggml_tensor_p:
+        training_mode_eval = backend.eval_tensor(training_mode, context)
+        training_mode = ggml.utils.to_numpy(training_mode_eval)
+
+    droput_userdata = DropoutUserData(seed, bool(training_mode))
+    userdata_p = ctypes.cast(ctypes.pointer(droput_userdata), ctypes.c_void_p)
+
+    mask = ggml.ggml_map_custom2_inplace(
+        context,
+        data,
+        ratio,
+        custom_dropout_mask,
+        1,
+        userdata_p,
+    )
+
+    output = ggml.ggml_map_custom3_inplace(
+        context,
+        data,
+        ratio,
+        mask,
+        custom_dropout_output,
+        1,
+        userdata_p,
+    )
+
+    refs.append(droput_userdata)
+
+    if len(node.output) == 2:
+        ggml.ggml_set_name(mask, (node.output[1] + f"<bool>").encode())
+        tensors_dict[node.output[0]] = output
+        tensors_dict[node.output[1]] = mask
+
+        return output, mask
+
+    tensors_dict[node.output[0]] = output
+    return output
 
 @ggml_operator("Elu")
 def ggml_operator_elu(

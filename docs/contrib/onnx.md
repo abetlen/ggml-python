@@ -58,11 +58,11 @@ This table is generated from [`operator_sets.h`](https://github.com/onnx/onnx/bl
 | [Concat](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Concat)                         | :white_check_mark: | `ggml_concat`    |
 | [Constant](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Constant)                     | :white_check_mark: |                  |
 | [ConstantOfShape](https://github.com/onnx/onnx/blob/main/docs/Operators.md#ConstantOfShape)       | :white_check_mark: |                  |
-| [Conv](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Conv)                             |                    |                  |
-| [ConvTranspose](https://github.com/onnx/onnx/blob/main/docs/Operators.md#ConvTranspose)           |                    |                  |
+| [Conv](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Conv)                             |  ⚙️ (in progress)   |                  |
+| [ConvTranspose](https://github.com/onnx/onnx/blob/main/docs/Operators.md#ConvTranspose)           |  ⚙️ (in progress)   |                   |
 | [DepthToSpace](https://github.com/onnx/onnx/blob/main/docs/Operators.md#DepthToSpace)             | :white_check_mark: |                  |
 | [Div](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Div)                               | :white_check_mark: | `ggml_div`       |
-| [Dropout](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Dropout) -> [code ref](https://github.com/onnx/onnx/blob/main/onnx/backend/test/case/node/dropout.py)                      |                    |                  |
+| [Dropout](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Dropout)                       |  ⚙️ (in progress)   |                   |
 | [Elu](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Elu)                               | :white_check_mark: | `ggml_elu`       |
 | [Equal](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Equal)                           | :white_check_mark: |                  |
 | [Exp](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Exp)                               | :white_check_mark: |                  |
