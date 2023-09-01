@@ -58,19 +58,19 @@ This table is generated from [`operator_sets.h`](https://github.com/onnx/onnx/bl
 | [Concat](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Concat)                         | :white_check_mark: | `ggml_concat`    |
 | [Constant](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Constant)                     | :white_check_mark: |                  |
 | [ConstantOfShape](https://github.com/onnx/onnx/blob/main/docs/Operators.md#ConstantOfShape)       | :white_check_mark: |                  |
-| [Conv](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Conv)                             |                    |                  |
-| [ConvTranspose](https://github.com/onnx/onnx/blob/main/docs/Operators.md#ConvTranspose)           |                    |                  |
-| [DepthToSpace](https://github.com/onnx/onnx/blob/main/docs/Operators.md#DepthToSpace)             |                    |                  |
+| [Conv](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Conv)                             |  ⚙️ (in progress)   |                  |
+| [ConvTranspose](https://github.com/onnx/onnx/blob/main/docs/Operators.md#ConvTranspose)           |  ⚙️ (in progress)   |                   |
+| [DepthToSpace](https://github.com/onnx/onnx/blob/main/docs/Operators.md#DepthToSpace)             | :white_check_mark: |                  |
 | [Div](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Div)                               | :white_check_mark: | `ggml_div`       |
-| [Dropout](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Dropout) -> [code ref](https://github.com/onnx/onnx/blob/main/onnx/backend/test/case/node/dropout.py)                      |                    |                  |
+| [Dropout](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Dropout)                       |  ⚙️ (in progress)   |                   |
 | [Elu](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Elu)                               | :white_check_mark: | `ggml_elu`       |
 | [Equal](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Equal)                           | :white_check_mark: |                  |
 | [Exp](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Exp)                               | :white_check_mark: |                  |
 | [Flatten](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Flatten)                       | :white_check_mark: |                  |
 | [Floor](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Floor)                           | :white_check_mark: |                  |
-| [GRU](https://github.com/onnx/onnx/blob/main/docs/Operators.md#GRU)                               |                    |                  |
+| [GRU](https://github.com/onnx/onnx/blob/main/docs/Operators.md#GRU)                               |       :x:          |                  |
 | [Gather](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Gather)                         | :white_check_mark: |                  |
-| [Gemm](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Gemm)                             |                    |                  |
+| [Gemm](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Gemm)                             | :white_check_mark: |                  |
 | [GlobalAveragePool](https://github.com/onnx/onnx/blob/main/docs/Operators.md#GlobalAveragePool)   |                    |                  |
 | [GlobalLpPool](https://github.com/onnx/onnx/blob/main/docs/Operators.md#GlobalLpPool)             |                    |                  |
 | [GlobalMaxPool](https://github.com/onnx/onnx/blob/main/docs/Operators.md#GlobalMaxPool)           |                    |                  |
@@ -79,9 +79,9 @@ This table is generated from [`operator_sets.h`](https://github.com/onnx/onnx/bl
 | [Hardmax](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Hardmax)                       | :white_check_mark: |                  |
 | [Identity](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Identity)                     | :white_check_mark: |                  |
 | [If](https://github.com/onnx/onnx/blob/main/docs/Operators.md#If)                                 |       :x:          |                  |
-| [InstanceNormalization](https://github.com/onnx/onnx/blob/main/docs/Operators.md#InstanceNormalization)|               |                  |
+| [InstanceNormalization](https://github.com/onnx/onnx/blob/main/docs/Operators.md#InstanceNormalization)| :white_check_mark: |             |
 | [LRN](https://github.com/onnx/onnx/blob/main/docs/Operators.md#LRN)                               | :white_check_mark: |                  |
-| [LSTM](https://github.com/onnx/onnx/blob/main/docs/Operators.md#LSTM)                             |                    |                  |
+| [LSTM](https://github.com/onnx/onnx/blob/main/docs/Operators.md#LSTM)                             |       :x:          |                  |
 | [LeakyRelu](https://github.com/onnx/onnx/blob/main/docs/Operators.md#LeakyRelu)                   |         ⚙️          |                  |
 | [Less](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Less)                             | :white_check_mark: |                  |
 | [Log](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Log)                               | :white_check_mark: | `ggml_log`       |
@@ -102,7 +102,7 @@ This table is generated from [`operator_sets.h`](https://github.com/onnx/onnx/bl
 | [PRelu](https://github.com/onnx/onnx/blob/main/docs/Operators.md#PRelu)                           | :white_check_mark: |                  |
 | [Pad](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Pad)                               |                    |                  |
 | [Pow](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Pow)                               | :white_check_mark: |                  |
-| [RNN](https://github.com/onnx/onnx/blob/main/docs/Operators.md#RNN)                               |                    |                  |
+| [RNN](https://github.com/onnx/onnx/blob/main/docs/Operators.md#RNN)                               |       :x:          |                  |
 | [RandomNormal](https://github.com/onnx/onnx/blob/main/docs/Operators.md#RandomNormal)             |:x: (Test case not provided)|                  |
 | [RandomNormalLike](https://github.com/onnx/onnx/blob/main/docs/Operators.md#RandomNormalLike)     |:x: (Test case not provided)|                  |
 | [RandomUniform](https://github.com/onnx/onnx/blob/main/docs/Operators.md#RandomUniform)           |:x: (Test case not provided)|                  |
@@ -128,16 +128,16 @@ This table is generated from [`operator_sets.h`](https://github.com/onnx/onnx/bl
 | [Softmax](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Softmax)                       | :white_check_mark: | `ggml_soft_max`  |
 | [Softplus](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Softplus)                     | :white_check_mark: |                  |
 | [Softsign](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Softsign)                     | :white_check_mark: |                  |
-| [SpaceToDepth](https://github.com/onnx/onnx/blob/main/docs/Operators.md#SpaceToDepth)             |                    |                  |
-| [Split](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Split)                           |                    |                  |
+| [SpaceToDepth](https://github.com/onnx/onnx/blob/main/docs/Operators.md#SpaceToDepth)             | :white_check_mark: |                  |
+| [Split](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Split)                           | :white_check_mark: |                  |
 | [Sqrt](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Sqrt)                             | :white_check_mark: | `ggml_sqrt`      |
 | [Squeeze](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Squeeze)                       | :white_check_mark: |                  |
 | [Sub](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Sub)                               | :white_check_mark: | `ggml_sub`       |
 | [Sum](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Sum)                               | :white_check_mark: | `ggml_sum`       |
 | [Tanh](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Tanh)                             | :white_check_mark: | `ggml_tanh`      |
 | [Tile](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Tile)                             | :white_check_mark: |                  |
-| [TopK](https://github.com/onnx/onnx/blob/main/docs/Operators.md#TopK)                             |                    |                  |
+| [TopK](https://github.com/onnx/onnx/blob/main/docs/Operators.md#TopK)                             | :white_check_mark: |                  |
 | [Transpose](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Transpose)                   | :white_check_mark: | `ggml_transpose` |
 | [Unsqueeze](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Unsqueeze)                   | :white_check_mark: |                  |
-| ~~[Upsample](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Upsample)~~ (Deprecated)    |  :x:               |                  |
+| ~~[Upsample](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Upsample)~~                 |  :x: (Deprecated)  |                  |
 | [Xor](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Xor)                               | :white_check_mark: |                  |

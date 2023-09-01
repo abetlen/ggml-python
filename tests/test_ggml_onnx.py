@@ -302,16 +302,31 @@ backend_test.include("test_and_")
 backend_test.include("test_argmax_")
 backend_test.include("test_argmin_")
 
+backend_test.include("test_operator_basic_")
+
 backend_test.include("test_cast_")
 
 backend_test.include("test_ceil_")
 
 backend_test.include("test_concat_")
+backend_test.include("test_operator_concat")
 
 backend_test.include("test_constant_")
-backend_test.exclude(".*constant.*.*pad.*")
 
-# backend_test.include("test_clip_")
+backend_test.include("test_constantofshape")
+
+# backend_test.include("_conv_")
+# backend_test.exclude("_deform_conv")
+# backend_test.exclude("test_operator_conv")
+
+
+# backend_test.include("_convtranspose_")
+# backend_test.exclude("_deform_convtranspose")
+# backend_test.exclude("test_operator_convtranspose")
+
+backend_test.include("test_operator_chunk")
+
+backend_test.include("test_depthtospace")
 
 backend_test.include("test_div_")
 backend_test.exclude("test_div_uint8_")  # not supported
@@ -326,8 +341,12 @@ backend_test.include("test_equal_")
 backend_test.exclude(".*equal.*.*string.*")
 
 backend_test.include("test_exp_")
+backend_test.include("test_operator_exp_")
+
 
 backend_test.include("test_flatten_")
+backend_test.include("test_operator_flatten_")
+
 
 backend_test.include("test_floor_")
 
@@ -335,6 +354,9 @@ backend_test.include("test_greater_")
 
 backend_test.include("test_gather_")
 backend_test.exclude("test_gather_elements")  # not supported
+
+backend_test.include("test_gemm")
+backend_test.exclude("test_gemm_default_scalar_bias")
 
 backend_test.include("test_greater_")
 
@@ -346,21 +368,28 @@ backend_test.include("test_identity_")
 backend_test.exclude("test_identity_opt")  # test case not correct: ONNX issue
 backend_test.exclude("test_identity_sequence")  # test case not correct: ONNX issue
 
+backend_test.include("test_instancenorm")
+
 # backend_test.include("test_leakyrelu")
 
 backend_test.include("test_less_")
 
 backend_test.include("test_log_")
 
+backend_test.include("test_LogSoftmax_")
+
 backend_test.include("test_lrn")
 
 backend_test.include("test_matmul_")
+backend_test.include("test_operator_mm")
 
 backend_test.include("test_max_")
 backend_test.exclude("test_max_float16")  # not supported
 backend_test.exclude("test_max_float64")  # not supported
 backend_test.exclude("test_max_int64")  # not supported
 backend_test.exclude("test_max_uint")  # not supported
+backend_test.include("test_operator_max_")
+
 
 backend_test.include("test_mean_")
 
@@ -369,6 +398,8 @@ backend_test.exclude("test_min_float16")  # not supported
 backend_test.exclude("test_min_float64")  # not supported
 backend_test.exclude("test_min_int64")  # not supported
 backend_test.exclude("test_min_uint")  # not supported
+backend_test.include("test_operator_min_")
+
 
 backend_test.include("test_mul_")
 backend_test.exclude("test_mul_uint8")  # not supported
@@ -386,6 +417,7 @@ backend_test.include("test_prelu_example")
 backend_test.include("test_pow_")
 backend_test.exclude("test_pow_bcast")  # not supported
 backend_test.exclude("test_pow_types_int64")  # not supported
+backend_test.include("test_operator_pow_")
 
 backend_test.include("test_range_")
 backend_test.exclude("test_range_float")  # segfault
@@ -395,11 +427,14 @@ backend_test.include("test_reciprocal")
 
 backend_test.include("test_reduce_max_")
 backend_test.include("test_reduce_mean_")
+backend_test.include("test_operator_reduced_mean_")
 backend_test.include("test_reduce_min_")
 backend_test.include("test_reduce_prod_")
 backend_test.include("test_reduce_sum_")
+backend_test.include("test_operator_reduced_sum_")
 backend_test.include("test_reduce_log_sum_")
 backend_test.exclude("test_reduce_log_sum_exp")
+
 
 backend_test.include("test_reduce_l1_")
 backend_test.include("test_reduce_l2_")
@@ -413,23 +448,36 @@ backend_test.exclude("test_reshape_allowzero")  # not supported
 
 backend_test.include("test_selu_")
 backend_test.include("test_selu_example")
+backend_test.include("test_SELU_")
+backend_test.include("test_operator_selu_")
 
 backend_test.include("test_shape_")
 
 backend_test.include("test_sigmoid_")
+backend_test.include("test_Sigmoid_")
 
 backend_test.include("test_size_")
+
+# backend_test.include("test_slice_")
 
 backend_test.include("test_softmax_")
 backend_test.exclude("test_softmax_axis_0")  # not supported
 backend_test.exclude("test_softmax_axis_1")  # not supported
 backend_test.exclude("test_softmax_large_number")  # not supported
 backend_test.exclude("test_softmax_lastdim")  # Out of tolerance
+# backend_test.include("test_Softmax")
 
 backend_test.include("test_softplus_")
 backend_test.include("test_softsign_")
+backend_test.include("test_Softplus")
+
+backend_test.include("test_spacetodepth")
+
+backend_test.include("test_split_")
+backend_test.exclude(".*split.*.*to.*.*sequence.*")
 
 backend_test.include("test_sqrt_")
+backend_test.include("test_operator_sqrt_")
 
 backend_test.include("test_sub_")
 backend_test.exclude("test_sub_bcast_")  # not supported
@@ -438,7 +486,11 @@ backend_test.exclude("test_sub_uint8_")  # not supported
 backend_test.include("test_sum_")
 
 backend_test.include("test_tanh_")
+backend_test.include("test_Tanh_")
+
 backend_test.include("test_tile_")
+
+backend_test.include("test_top_k")
 
 backend_test.include("test_transpose_")
 

@@ -432,8 +432,6 @@ def ggml_operator_arg_max(
     )
 
     x_shape = get_tensor_shape(data)
-    x_dtype = get_tensor_dtype(data)
-    x_ndims = ggml.utils.get_ndims(data)
 
     dummpy_data = np.empty(x_shape, dtype=np.int32)
 
@@ -790,15 +788,31 @@ def ggml_operator_constant_of_shape(
         )
 
     node_attributes = node.attribute
+    value_attr = next(attr for attr in node_attributes if "value" in attr.name)
 
-    value_attr = next(attr for attr in node_attributes if attr.name == "value")
-    tensor = value_attr.t
-    data_type = tensor.data_type
-    np_data_type = tensor_dtype_to_np_dtype(data_type)
+    if value_attr.HasField("t"):
+        tensor = value_attr.t
+        data_type = tensor.data_type
+        np_data_type = tensor_dtype_to_np_dtype(data_type)
+        np_data_type_limit = np.dtype(str(np_data_type).replace("64", "32"))
 
-    np_data_type_limit = np.dtype(str(np_data_type).replace("64", "32"))
+        if tensor.raw_data:
+            data_value = np.frombuffer(tensor.raw_data, dtype=np_data_type)
+        else:
+            data_value = onnx.numpy_helper.to_array(tensor)
 
-    data_value = np.frombuffer(tensor.raw_data, dtype=np_data_type)
+    else:
+        data_type = value_attr.type
+        np_data_type = tensor_dtype_to_np_dtype(data_type)
+        np_data_type_limit = np.dtype(str(np_data_type).replace("64", "32"))
+        if np.issubdtype(np_data_type, np.floating):
+            data_value = np.array(value_attr.f)
+        elif np.issubdtype(np_data_type, np.integer):
+            data_value = np.array(value_attr.i)
+        else:
+            raise ValueError(
+                f'Error for node "{node.name}": Constant node not set correctly or incomplete implantation.'
+            )
 
     data_tensor = ggml.utils.from_numpy(
         data_value.astype(np_data_type_limit),
@@ -818,6 +832,304 @@ def ggml_operator_constant_of_shape(
         1,
         None,
     )
+
+    return new_tensor
+
+
+@ggml_operator("Conv")
+def ggml_operator_conv(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) < 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Conv" requires 2 - 3 inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    node_inputs_iter = iter(node_inputs)
+    x = next(node_inputs_iter)
+    x_shape = get_tensor_shape(x)
+    w = next(node_inputs_iter)
+    w_shape = get_tensor_shape(w)
+    m = w_shape[0]
+    bias = next(
+        node_inputs_iter,
+        ggml.utils.from_numpy(np.full(m, 0, dtype=get_tensor_dtype(x)), context),
+    )
+
+    auto_pad = next(
+        (attr.s.decode() for attr in node.attribute if attr.name == "auto_pad"),
+        "NOTSET",
+    )
+    dilations = next(
+        (attr.ints for attr in node.attribute if attr.name == "dilations"),
+        [1 for _ in x_shape[2:]],
+    )
+    group = next((attr.i for attr in node.attribute if attr.name == "group"), 1)
+    kernel_shape = next(
+        (attr.ints for attr in node.attribute if attr.name == "kernel_shape"),
+        w_shape[2:],
+    )
+    pads = next(
+        (attr.ints for attr in node.attribute if attr.name == "pads"),
+        [0 for _ in x_shape[2:]] * 2,
+    )
+    strides = next(
+        (attr.ints for attr in node.attribute if attr.name == "strides"),
+        [1 for _ in x_shape[2:]],
+    )
+
+    # Source: https://github.com/onnx/onnx/blob/main/onnx/reference/ops/op_conv.py
+
+    if auto_pad in {"SAME_LOWER", "SAME_UPPER", "VALID"}:
+        head = []
+        tail = []
+        for i in range(len(x_shape) - 2):
+            d = x_shape[i]
+            target_size = (d + strides[i] - 1) // strides[i]
+            pad_needed = (target_size - 1) * strides[i] + kernel_shape[i] - d
+            if auto_pad == "SAME_LOWER":
+                pad_head = (pad_needed + 1) // 2
+            else:
+                pad_head = pad_needed // 2
+            pad_tail = pad_needed - pad_head
+            head.append(pad_head)
+            tail.append(pad_tail)
+        pads = head + tail
+
+    if len(strides) != 2:
+        raise NotImplementedError("Cannot handle other than 2 strides")
+
+    raise NotImplementedError(f'Operator "Conv" not implemented')
+    # FIXME: ggml can only work with F16
+    conv_result = ggml.ggml_conv_2d(
+        context,
+        x,
+        bias,
+        strides[0],
+        strides[1],
+        pads[0],
+        pads[1],
+        dilations[0],
+        dilations[1],
+    )
+
+    tensors_dict[node.output[0]] = conv_result
+    return conv_result
+
+
+@ggml_operator("ConvTranspose")
+def ggml_operator_convtranspose(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) < 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "ConvTranspose" requires 2 - 3 inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    node_inputs_iter = iter(node_inputs)
+    x = next(node_inputs_iter)
+    x_shape = get_tensor_shape(x)
+    w = next(node_inputs_iter)
+    w_shape = get_tensor_shape(w)
+    m = w_shape[0]
+    bias = next(
+        node_inputs_iter,
+        ggml.utils.from_numpy(np.full(m, 0, dtype=get_tensor_dtype(x)), context),
+    )
+
+    auto_pad = next(
+        (attr.s.decode() for attr in node.attribute if attr.name == "auto_pad"),
+        "NOTSET",
+    )
+    dilations = next(
+        (attr.ints for attr in node.attribute if attr.name == "dilations"),
+        [1 for _ in x_shape[2:]],
+    )
+    group = next((attr.i for attr in node.attribute if attr.name == "group"), 1)
+    kernel_shape = next(
+        (attr.ints for attr in node.attribute if attr.name == "kernel_shape"),
+        w_shape[2:],
+    )
+    output_padding = next(
+        (attr.ints for attr in node.attribute if attr.name == "output_padding"),
+        [0 for _ in x_shape[2:]] * 2,
+    )
+    output_shape = next(
+        (attr.ints for attr in node.attribute if attr.name == "output_shape"),
+        None,
+    )
+    pads = next(
+        (attr.ints for attr in node.attribute if attr.name == "pads"),
+        None,
+    )
+    strides = next(
+        (attr.ints for attr in node.attribute if attr.name == "strides"),
+        [1 for _ in x_shape[2:]],
+    )
+
+    # https://github.com/onnx/onnx/blob/main/onnx/reference/ops/op_conv_transpose.py
+
+    if pads is None and auto_pad not in {"SAME_UPPER", "SAME_LOWER"}:
+        pads = [0 for i in range(2 * len(strides))]
+    if pads is None:
+        if output_shape is None:
+            output_shape = [x_shape[i + 2] * strides[i] for i in range(len(strides))]
+        total_padding = [
+            strides[i] * (x_shape[i + 2] - 1)
+            + output_padding[i]
+            + ((kernel_shape[i] - 1) * dilations[i] + 1)
+            - output_shape[i]
+            for i in range(len(output_shape))
+        ]
+        pads_1 = []
+        pads_2 = []
+        for i in range(len(output_shape)):
+            if auto_pad == "SAME_UPPER":
+                pads_1.append(total_padding[i] // 2)
+                pads_2.append(total_padding[i] - (total_padding[i] // 2))
+            else:
+                pads_1.append(total_padding[i] - (total_padding[i] // 2))
+                pads_2.append(total_padding[i] // 2)
+        pads = pads_1 + pads_2
+        n_dims = len(pads) // 2
+    else:
+        n_dims = len(x_shape) - 2
+        new_pads = np.array([(pads[i], pads[i + n_dims]) for i in range(n_dims)])
+        if output_shape is None:
+            output_shape = [
+                strides[i] * (x_shape[i + 2] - 1)
+                + output_padding[i]
+                + ((kernel_shape[i] - 1) * dilations[i] + 1)
+                - new_pads[i, :].sum()
+                for i in range(n_dims)
+            ]
+
+    kernel_shape = w_shape[2:]
+    kernel_size = np.prod(kernel_shape)
+    num_output_channels = w_shape[1] * group
+    kernel_dim = num_output_channels // group * kernel_size
+
+    C = x_shape[1]  # num_inputs_channels
+    m = kernel_dim  # kernel_dim
+    n = np.prod(x_shape[2:])  # input_image_size
+    k = C // group
+
+    if group != 1:
+        raise NotImplementedError(
+            f'Error for node "{node.name}": Implementation for group={group} > 1 is not available yet.'
+        )
+
+    raise NotImplementedError(f'Operator "ConvTranspose" not implemented')
+
+
+class DepthToSpaceUserData(ctypes.Structure):
+    _fields_ = [
+        ("blocksize", ctypes.c_int),
+        ("mode", ctypes.c_char_p),
+    ]
+
+
+@ggml.ggml_custom2_op_t
+def custom_depth_to_space(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    x = ggml.utils.to_numpy(tensor_in_2)
+    userdata_data_ptr = ctypes.cast(userdata, ctypes.POINTER(DepthToSpaceUserData))
+    userdata_data = userdata_data_ptr.contents
+
+    blocksize = userdata_data.blocksize
+    mode = userdata_data.mode
+
+    N, C, H, W = x.shape
+
+    new_C = C // (blocksize**2)
+    new_H = H * blocksize
+    new_W = W * blocksize
+
+    if mode == b"DCR":
+        reshaped = x.reshape(N, blocksize, blocksize, C // (blocksize**2), H, W)
+        transposed_axes = (0, 3, 4, 1, 5, 2)
+
+    elif mode == b"CRD":
+        reshaped = x.reshape(N, C // (blocksize**2), blocksize, blocksize, H, W)
+        transposed_axes = (0, 1, 4, 2, 5, 3)
+    else:
+        raise ValueError(f"Unknown mode: {mode}")
+
+    transposed = np.transpose(reshaped, axes=transposed_axes)
+    y = transposed.reshape(N, new_C, new_H, new_W)
+
+    set_tensor_out(tensor_out, y)
+
+
+@ggml_operator("DepthToSpace")
+def ggml_operator_depth_to_space(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "DepthToSpace" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    x = node_inputs[0]
+    blocksize = next(
+        (attr.i for attr in node.attribute if attr.name == "blocksize"), None
+    )
+
+    mode = next((attr.s for attr in node.attribute if attr.name == "mode"), b"DCR")
+
+    if blocksize is None:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "SpaceToDepth" requires "blocksize"'
+        )
+
+    N, C, H, W = get_tensor_shape(x)
+
+    new_C = C // (blocksize**2)
+    new_H = H * blocksize
+    new_W = W * blocksize
+
+    output_shape = (N, new_C, new_H, new_W)
+
+    x_t = ggml.utils.from_numpy(
+        np.empty(output_shape, dtype=get_tensor_dtype(x)), context
+    )
+    depthtospace_userdata = DepthToSpaceUserData(blocksize, mode)
+    userdata_p = ctypes.cast(ctypes.pointer(depthtospace_userdata), ctypes.c_void_p)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+        context,
+        x_t,
+        x,
+        custom_depth_to_space,
+        1,
+        userdata_p,
+    )
+
+    refs.append(depthtospace_userdata)
 
     return new_tensor
 
@@ -850,6 +1162,140 @@ def ggml_operator_div(
     )
     tensors_dict[output_name] = div_result
     return div_result
+
+
+class DropoutUserData(ctypes.Structure):
+    _fields_ = [
+        ("seed", ctypes.c_int),
+        ("training_mode", ctypes.c_bool),
+    ]
+
+
+@ggml.ggml_custom2_op_t
+def custom_dropout_mask(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    x = ggml.utils.to_numpy(tensor_in_1)
+    ratio = ggml.utils.to_numpy(tensor_in_2)
+
+    userdata_data_ptr = ctypes.cast(userdata, ctypes.POINTER(DropoutUserData))
+    userdata_data = userdata_data_ptr.contents
+
+    seed = userdata_data.seed
+    training_mode = userdata_data.training_mode
+
+    if np.equal(0, np.array(ratio)) or training_mode is False:
+        mask = np.ones(x.shape, dtype=np.int32)
+
+    else:
+        np.random.seed(seed)
+        mask = np.random.uniform(0, 1.0, x.shape) >= ratio
+
+    set_tensor_out(tensor_out, mask)
+
+
+@ggml.ggml_custom3_op_t
+def custom_dropout_output(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    tensor_in_3: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    x = ggml.utils.to_numpy(tensor_in_1)
+    ratio = ggml.utils.to_numpy(tensor_in_2)
+    mask = ggml.utils.to_numpy(tensor_in_3)
+
+    userdata_data_ptr = ctypes.cast(userdata, ctypes.POINTER(DropoutUserData))
+    userdata_data = userdata_data_ptr.contents
+
+    training_mode = userdata_data.training_mode
+
+    if np.equal(0, np.array(ratio)) or training_mode is False:
+        y = x
+
+    else:
+        scale = 1 / (1 - ratio)
+        y = mask * x * scale
+
+    set_tensor_out(tensor_out, y)
+
+
+@ggml_operator("Dropout")
+def ggml_operator_dropout(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) < 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Dropout" requires 1 - 3 inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    # Ref = https://github.com/onnx/onnx/blob/main/onnx/backend/test/case/node/dropout.py
+
+    node_inputs_iter = iter(node_inputs)
+
+    data = next(node_inputs_iter)
+    ratio = next(
+        node_inputs_iter,
+        next((attr.f for attr in node.attribute if attr.name == "ratio"), 0.5),
+    )
+    training_mode = next(node_inputs_iter, np.bool_(False))
+
+    if type(ratio) is float:
+        ratio = ggml.utils.from_numpy(np.array([ratio]).astype(np.float32), context)
+
+    seed = next((attr.i for attr in node.attribute if attr.name == "seed"), 6)
+
+    if type(training_mode) is ggml.ggml_tensor_p:
+        training_mode_eval = backend.eval_tensor(training_mode, context)
+        training_mode = ggml.utils.to_numpy(training_mode_eval)
+
+    droput_userdata = DropoutUserData(seed, bool(training_mode))
+    userdata_p = ctypes.cast(ctypes.pointer(droput_userdata), ctypes.c_void_p)
+
+    mask = ggml.ggml_map_custom2_inplace(
+        context,
+        data,
+        ratio,
+        custom_dropout_mask,
+        1,
+        userdata_p,
+    )
+
+    output = ggml.ggml_map_custom3_inplace(
+        context,
+        data,
+        ratio,
+        mask,
+        custom_dropout_output,
+        1,
+        userdata_p,
+    )
+
+    refs.append(droput_userdata)
+
+    if len(node.output) == 2:
+        ggml.ggml_set_name(mask, (node.output[1] + f"<bool>").encode())
+        tensors_dict[node.output[0]] = output
+        tensors_dict[node.output[1]] = mask
+
+        return output, mask
+
+    tensors_dict[node.output[0]] = output
+    return output
 
 
 @ggml_operator("Elu")
@@ -1163,6 +1609,127 @@ def ggml_operator_gather(
     return new_tensor
 
 
+@ggml_operator("Gemm")
+def ggml_operator_gemm(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) < 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Gemm" requires at least two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    node_inputs_iter = iter(node_inputs)
+
+    a = next(node_inputs_iter)
+    b = next(node_inputs_iter)
+    c = next(node_inputs_iter, None)
+
+    alpha = next((attr.f for attr in node.attribute if attr.name == "alpha"), 1.0)
+    beta = next((attr.f for attr in node.attribute if attr.name == "beta"), 1.0)
+
+    transA = next((attr.i for attr in node.attribute if attr.name == "transA"), 0)
+    transB = next((attr.i for attr in node.attribute if attr.name == "transB"), 0)
+
+    b_shape = get_tensor_shape(b)
+    a_shape = get_tensor_shape(a)
+
+    # TODO: broadcast? Current broadcasting method fails during tests
+
+    a_dtype = get_tensor_dtype(a)
+    b_dtype = get_tensor_dtype(b)
+
+    a_transposed = a
+    b_transposed = b
+
+    if transA:
+        a_permute = ggml.ggml_transpose(
+            context,
+            a,
+        )
+        a_shape = ggml.utils.get_shape(a_permute)
+        a_transposed = ggml.ggml_cpy(
+            context,
+            a_permute,
+            ggml.ggml_new_tensor(
+                context,
+                map_to_ggml_type(a_dtype).value,
+                len(a_shape),
+                (ctypes.c_int64 * len(a_shape))(*a_shape),
+            ),
+        )
+
+    if not transB:
+        b_permute = ggml.ggml_transpose(
+            context,
+            b,
+        )
+        b_shape = ggml.utils.get_shape(b_permute)
+        b_transposed = ggml.ggml_cpy(
+            context,
+            b_permute,
+            ggml.ggml_new_tensor(
+                context,
+                map_to_ggml_type(b_dtype).value,
+                len(b_shape),
+                (ctypes.c_int64 * len(b_shape))(*b_shape),
+            ),
+        )
+
+    # Y = alpha * np.dot(A, B) + beta * C
+    # ref: https://github.com/onnx/onnx/blob/main/onnx/backend/test/case/node/gemm.py
+
+    mul_mat_result = ggml.ggml_mul_mat(
+        context,
+        b_transposed,
+        a_transposed,
+    )
+
+    alpha_t = ggml.utils.from_numpy(
+        np.full(
+            get_tensor_shape(mul_mat_result),
+            alpha,
+            dtype=get_tensor_dtype(mul_mat_result),
+        ),
+        context,
+    )
+
+    mul_mat_result = ggml.ggml_mul_inplace(context, mul_mat_result, alpha_t)
+
+    if c is None:
+        c = ggml.utils.from_numpy(
+            np.full(
+                get_tensor_shape(mul_mat_result),
+                0,
+                dtype=get_tensor_dtype(mul_mat_result),
+            ),
+            context,
+        )
+
+    c, mul_mat_result = broadcast_shapes(context, c, mul_mat_result)
+
+    beta_t = ggml.utils.from_numpy(
+        np.full(
+            get_tensor_shape(mul_mat_result),
+            beta,
+            dtype=get_tensor_dtype(mul_mat_result),
+        ),
+        context,
+    )
+
+    mul_mat_result = ggml.ggml_add_inplace(
+        context, mul_mat_result, ggml.ggml_mul_inplace(context, c, beta_t)
+    )
+
+    tensors_dict[node.output[0]] = mul_mat_result
+    return mul_mat_result
+
+
 @ggml.ggml_custom3_op_t
 def custom_greater(
     tensor_out: ggml.ggml_tensor_p,
@@ -1357,6 +1924,60 @@ def ggml_operator_floor(
     tensors_dict[output_name] = y
 
     return y
+
+
+@ggml.ggml_custom3_op_t
+def custom_instancenorm(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    tensor_in_3: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    x = ggml.utils.to_numpy(tensor_in_1)
+    scale = ggml.utils.to_numpy(tensor_in_2)
+    B = ggml.utils.to_numpy(tensor_in_3)
+    epsilon = ctypes.cast(userdata, ctypes.POINTER(ctypes.c_double)).contents.value
+
+    mean = np.mean(x, axis=(2, 3), keepdims=True)
+    variance = np.var(x, axis=(2, 3), keepdims=True)
+    normalized = (x - mean) / np.sqrt(variance + epsilon)
+    y = scale.reshape(1, -1, 1, 1) * normalized + B.reshape(1, -1, 1, 1)
+
+    set_tensor_out(tensor_out, y)
+
+
+@ggml_operator("InstanceNormalization")
+def ggml_operator_instancenorm(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 3:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "InstanceNormalization" requires exactly three inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+    input_tensor, scale, B = node_inputs
+    epsilon = next((attr.f for attr in node.attribute if attr.name == "epsilon"), 1e-05)
+    epsilon_c = ctypes.c_double(epsilon)
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom3_inplace(
+        context,
+        input_tensor,
+        scale,
+        B,
+        custom_instancenorm,
+        1,
+        ctypes.pointer(epsilon_c),
+    )
+
+    refs.append(epsilon_c)
+    return new_tensor
 
 
 class LRNUserData(ctypes.Structure):
@@ -2081,6 +2702,95 @@ def ggml_operator_or(
 
     ggml.ggml_set_name(new_tensor, (name + f"<bool>").encode())
 
+    return new_tensor
+
+
+@ggml_operator("Pad")
+def ggml_operator_pad(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    # x, pads, value, axes
+    if len(tensors_dict) < 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Pad" requires at least two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+    input_rank = tensors_dict["x"].contents.n_dims
+    mode = next(
+        (attr.s for attr in node.attribute if attr.name == "mode"), b"constant"
+    ).decode("utf-8")
+
+    if "axes" not in tensors_dict:
+        axes = list(range(input_rank))
+    else:
+        axes_eval = backend.eval_tensor(tensors_dict["axes"], context)
+        axes = ggml.utils.to_numpy(axes_eval)
+        axes = [axis if axis >= 0 else axis + input_rank for axis in axes]
+    num_axes = len(axes)
+    pad_width = []
+    for _ in range(input_rank):
+        pad_width += [[0, 0]]  # init to zero
+
+    raw_pads = ggml.utils.to_numpy(backend.eval_tensor(tensors_dict["pads"], context))
+
+    # re-order to np.pad accepted order ((x1_begin, x1_end), (x2_begin, x2_end), ...)
+    for i in range(num_axes):
+        axis = axes[i]
+        if axis < 0:
+            axis = input_rank + axis
+        pad_width[axis] = [raw_pads[i], raw_pads[i + num_axes]]
+
+    expand_by = [sum(pad) for pad in pad_width]
+    prev_shape = get_tensor_shape(tensors_dict["x"])
+    output_shape = [sum(x) for x in zip(prev_shape, expand_by)]
+    a_dtype = get_tensor_dtype(tensors_dict["x"])
+    x = np.empty(output_shape, dtype=a_dtype)
+    x_t = ggml.utils.from_numpy(x, context)
+
+    constant_value = None
+    if "value" in tensors_dict:
+        constant_values = ggml.utils.to_numpy(
+            backend.eval_tensor(tensors_dict["value"], context)
+        )
+
+    @ggml.ggml_custom2_op_t
+    def custom_pad(
+        tensor_out: ggml.ggml_tensor_p,
+        tensor_in_1: ggml.ggml_tensor_p,
+        tensor_in_2: ggml.ggml_tensor_p,
+        ith: int,
+        nth: int,
+        userdata: Optional[ctypes.c_void_p],
+    ):
+        a = ggml.utils.to_numpy(tensor_in_2)
+        if mode == "constant":
+            x = np.pad(
+                a,
+                pad_width=pad_width,
+                mode=mode,
+                constant_values=constant_values,
+            )
+
+        else:
+            x = np.pad(
+                a,
+                pad_width=pad_width,
+                mode=mode,
+            )
+        set_tensor_out(tensor_out, x)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+        context,
+        x_t,
+        tensors_dict["x"],
+        custom_pad,
+        1,
+        None,
+    )
+    refs.append(custom_pad)
     return new_tensor
 
 
@@ -3511,6 +4221,32 @@ def ggml_operator_size(
     return new_tensor
 
 
+@ggml_operator("Softmax")
+def ggml_operator_softmax(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Softmax" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    output_name = node.output[0]
+    a = node_inputs[0]
+
+    soft_max_result = ggml.ggml_soft_max(
+        context,
+        a,
+    )
+    tensors_dict[output_name] = soft_max_result
+    return soft_max_result
+
+
 @ggml.ggml_custom1_op_t
 def custom_softplus(
     tensor_out: ggml.ggml_tensor_p,
@@ -3578,12 +4314,37 @@ def ggml_operator_softsign(
     one_plus_abs = ggml.ggml_add(context, one_t, x_abs)
     y = ggml.ggml_div(context, x, one_plus_abs)
     tensors_dict[node.output[0]] = y
-    
+
     return y
 
 
-@ggml_operator("Softmax")
-def ggml_operator_softmax(
+@ggml.ggml_custom2_op_t
+def custom_space_to_depth(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    x = ggml.utils.to_numpy(tensor_in_2)
+    blocksize = ctypes.cast(userdata, ctypes.POINTER(ctypes.c_int)).contents.value
+
+    N, C, H, W = x.shape
+    new_H = H // blocksize
+    new_W = W // blocksize
+
+    reshaped = x.reshape(N, C, new_H, blocksize, new_W, blocksize)
+    transposed = reshaped.transpose(
+        0, 3, 5, 1, 2, 4
+    )  # ONNX specification TODO: Test more examples
+    y = transposed.reshape(N, C * (blocksize**2), new_H, new_W)
+
+    set_tensor_out(tensor_out, y)
+
+
+@ggml_operator("SpaceToDepth")
+def ggml_operator_space_to_depth(
     backend: "GgmlBackendRep",
     node: NodeProto,
     tensors_dict: Dict[str, ggml.ggml_tensor_p],
@@ -3594,18 +4355,156 @@ def ggml_operator_softmax(
 
     if len(node_inputs) != 1:
         raise ValueError(
-            f'Error for node "{node.name}": Operation "Softmax" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+            f'Error for node "{node.name}": Operation "SpaceToDepth" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
         )
 
-    output_name = node.output[0]
-    a = node_inputs[0]
-
-    soft_max_result = ggml.ggml_soft_max(
-        context,
-        a,
+    x = node_inputs[0]
+    blocksize = next(
+        (attr.i for attr in node.attribute if attr.name == "blocksize"), None
     )
-    tensors_dict[output_name] = soft_max_result
-    return soft_max_result
+
+    if blocksize is None:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "SpaceToDepth" requires "blocksize"'
+        )
+
+    N, C, H, W = get_tensor_shape(x)
+    new_H = H // blocksize
+    new_W = W // blocksize
+    output_shape = (N, C * blocksize * blocksize, new_H, new_W)
+
+    x_t = ggml.utils.from_numpy(
+        np.empty(output_shape, dtype=get_tensor_dtype(x)), context
+    )
+
+    blocksize_c = ctypes.c_int(blocksize)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+        context,
+        x_t,
+        x,
+        custom_space_to_depth,
+        1,
+        ctypes.pointer(blocksize_c),
+    )
+
+    refs.append(blocksize_c)
+
+    return new_tensor
+
+
+class SplitUserData(ctypes.Structure):
+    _fields_ = [
+        ("axis", ctypes.c_int),
+        ("split_index", ctypes.c_int),
+    ]
+
+
+@ggml.ggml_custom3_op_t
+def custom_split(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    tensor_in_3: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    userdata_data_ptr = ctypes.cast(userdata, ctypes.POINTER(SplitUserData))
+    userdata_data = userdata_data_ptr.contents
+
+    axis = userdata_data.axis
+    split_index = userdata_data.split_index
+
+    tensor = ggml.utils.to_numpy(tensor_in_2)
+
+    split_shapes = ggml.utils.to_numpy(tensor_in_3)
+    split_shape = list(ggml.utils.to_numpy(tensor_in_1).shape)
+
+    split_size = split_shape[axis]
+    split_start = sum(split_shapes[i][axis] for i in range(split_index))
+    split_end = split_start + split_size
+
+    split_output = np.take(tensor, range(split_start, split_end), axis=axis)
+
+    set_tensor_out(tensor_out, split_output)
+
+
+@ggml_operator("Split")
+def ggml_operator_split(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) < 1 or len(node_inputs) > 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Split" requires 1 - 2 inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    input_tensor = node_inputs.pop(0)
+    split_tensor = node_inputs.pop(0) if len(node_inputs) else None
+
+    axis = next((attr.i for attr in node.attribute if attr.name == "axis"), 0)
+    num_outputs = next(
+        (attr.i for attr in node.attribute if attr.name == "num_outputs"),
+        len(node.output),
+    )
+
+    input_shape = list(get_tensor_shape(input_tensor))
+    dtype = get_tensor_dtype(input_tensor)
+
+    if split_tensor is None:
+        split_size = input_shape[axis] // num_outputs
+        remainder = input_shape[axis] % num_outputs
+        split_shapes = [list(input_shape) for _ in range(num_outputs)]
+
+        for i in range(num_outputs):
+            split_shapes[i][axis] = split_size
+            if i < remainder:
+                split_shapes[i][axis] += 1
+
+        split_shapes = [tuple(split_shape) for split_shape in split_shapes]
+
+    else:
+        split_eval = backend.eval_tensor(split_tensor, context)
+        split_values = ggml.utils.to_numpy(split_eval)
+        split_shapes = [list(input_shape) for _ in range(num_outputs)]
+
+        for i, split_value in enumerate(split_values):
+            split_shapes[i][axis] = split_value
+
+        split_shapes = tuple(map(tuple, split_shapes))
+
+    split_shapes_np = np.array(split_shapes, dtype=np.int32)
+    split_shapes_t = ggml.utils.from_numpy(split_shapes_np, context)
+
+    outputs = []
+
+    for split_index, split_shape in enumerate(split_shapes):
+        split_userdata = SplitUserData(axis, split_index)
+        userdata_p = ctypes.cast(ctypes.pointer(split_userdata), ctypes.c_void_p)
+
+        x_t = ggml.utils.from_numpy(np.empty(split_shape, dtype=dtype), context)
+        new_tensor = tensors_dict[
+            node.output[split_index]
+        ] = ggml.ggml_map_custom3_inplace(
+            context,
+            x_t,
+            input_tensor,
+            split_shapes_t,
+            custom_split,
+            1,
+            userdata_p,
+        )
+
+        refs.append(split_userdata)
+        outputs.append(new_tensor)
+
+    return outputs
 
 
 @ggml_operator("Sqrt")
@@ -3845,6 +4744,144 @@ def ggml_operator_tile(
     )
 
     return new_tensor
+
+
+class TopKUserData(ctypes.Structure):
+    _fields_ = [
+        ("axis", ctypes.c_int),
+        ("largest", ctypes.c_int),
+        ("sorted", ctypes.c_int),
+        ("k", ctypes.c_int),
+    ]
+
+
+@ggml.ggml_custom2_op_t
+def custom_top_k_indices(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    x = ggml.utils.to_numpy(tensor_in_2)
+
+    userdata_data_ptr = ctypes.cast(userdata, ctypes.POINTER(TopKUserData))
+    userdata_data = userdata_data_ptr.contents
+
+    axis = userdata_data.axis
+    largest = bool(userdata_data.largest)
+
+    k = userdata_data.k
+
+    if largest:
+        sorted_indices = np.argsort(x, axis=axis)[:, ::-1]
+    else:
+        sorted_indices = np.argsort(x, axis=axis)
+
+    topk_indices = sorted_indices[:, :k]
+
+    set_tensor_out(tensor_out, topk_indices)
+
+
+@ggml.ggml_custom3_op_t
+def custom_top_k_values(
+    tensor_out: ggml.ggml_tensor_p,
+    tensor_in_1: ggml.ggml_tensor_p,
+    tensor_in_2: ggml.ggml_tensor_p,
+    tensor_in_3: ggml.ggml_tensor_p,
+    ith: int,
+    nth: int,
+    userdata: Optional[ctypes.c_void_p],
+):
+    x = ggml.utils.to_numpy(tensor_in_2)
+    topk_indices = ggml.utils.to_numpy(tensor_in_3).astype(np.int32)
+
+    userdata_data_ptr = ctypes.cast(userdata, ctypes.POINTER(TopKUserData))
+    userdata_data = userdata_data_ptr.contents
+
+    axis = userdata_data.axis
+    sorted_flag = bool(userdata_data.sorted)
+
+    topk_values = np.take_along_axis(x, topk_indices, axis=axis)
+    if sorted_flag:
+        topk_values_sorted = np.sort(topk_values, axis=axis)
+    else:
+        topk_values_sorted = topk_values
+
+    set_tensor_out(tensor_out, topk_values_sorted)
+
+
+@ggml_operator("TopK")
+def ggml_operator_top_k(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    node_inputs = [tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "TopK" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    x, k = node_inputs
+
+    input_shape = get_tensor_shape(x)
+
+    axis = next((attr.i for attr in node.attribute if attr.name == "axis"), -1)
+    largest = next((attr.i for attr in node.attribute if attr.name == "largest"), 1)
+    sorted_flag = next((attr.i for attr in node.attribute if attr.name == "sorted"), 0)
+
+    k_eval = backend.eval_tensor(k, context)
+    k_np = ggml.utils.to_numpy(k_eval)[0]
+
+    topk_userdata = TopKUserData(axis, largest, sorted_flag, k_np)
+    userdata_p = ctypes.cast(ctypes.pointer(topk_userdata), ctypes.c_void_p)
+
+    output_shape = list(input_shape)
+    output_shape[axis] = k_np
+    output_shape = tuple(output_shape)
+
+    indices_t = ggml.utils.from_numpy(
+        np.empty(output_shape, dtype=np.int32),
+        context,
+    )
+
+    values_t = ggml.utils.from_numpy(
+        np.empty(output_shape, dtype=get_tensor_dtype(x)),
+        context,
+    )
+
+    indices = ggml.ggml_map_custom2_inplace(
+        context,
+        indices_t,
+        x,
+        custom_top_k_indices,
+        1,
+        userdata_p,
+    )
+
+    values = ggml.ggml_map_custom3_inplace(
+        context,
+        values_t,
+        x,
+        indices,
+        custom_top_k_values,
+        1,
+        userdata_p,
+    )
+
+    tensors_dict[node.output[0]] = values
+    tensors_dict[node.output[1]] = indices
+
+    refs.append(topk_userdata)
+
+    ggml.ggml_set_name(indices, (node.output[1] + f"<int64>").encode())
+
+    return values, indices
 
 
 @ggml_operator("Transpose")
@@ -4163,6 +5200,10 @@ class GgmlBackendRep(BackendRep):
             ggml_type = map_to_ggml_type(input_data.dtype)
             shape = tuple(reversed(input_data.shape))
 
+            # Handle scalars
+            if len(shape) == 0:
+                shape = (1,)
+
             tensor = ggml.ggml_new_tensor(
                 context,
                 ggml_type.value,
@@ -4174,7 +5215,7 @@ class GgmlBackendRep(BackendRep):
 
         # Set user inputs
         for key, value in inputs.items():
-            set_tensor_out(ggml_tensors[key], value)
+            set_tensor_out(ggml_tensors[key], np.array(value))
 
         gf = ggml.ggml_cgraph()
         gf_p = ctypes.pointer(gf)

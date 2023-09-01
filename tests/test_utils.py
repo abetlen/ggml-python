@@ -59,9 +59,6 @@ def test_slice_tensor():
     with ggml.utils.ggml_context_manager(params) as ctx:
         x = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int32)
         t = ggml.utils.from_numpy(x, ctx)
-        t_slice = ggml.utils.slice_tensor(ctx, t, [
-            slice(0, 2),
-            slice(0, 1)
-        ])
+        t_slice = ggml.utils.slice_tensor(ctx, t, [slice(0, 2), slice(0, 1)])
         x_slice = ggml.utils.to_numpy(t_slice)
         assert np.array_equal(x_slice, x[:1, :2])
