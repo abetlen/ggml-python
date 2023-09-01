@@ -275,7 +275,6 @@ backend_test.include("test_concat_")
 backend_test.include("test_operator_concat")
 
 backend_test.include("test_constant_")
-backend_test.exclude(".*constant.*.*pad.*")
 
 backend_test.include("test_constantofshape")
 

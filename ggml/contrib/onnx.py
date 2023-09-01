@@ -905,7 +905,6 @@ def ggml_operator_conv(
     if len(strides) != 2:
         raise NotImplementedError("Cannot handle other than 2 strides")
 
-    
     raise NotImplementedError(f'Operator "Conv" not implemented')
     # FIXME: ggml can only work with F16
     conv_result = ggml.ggml_conv_2d(
@@ -1164,6 +1163,7 @@ def ggml_operator_div(
     tensors_dict[output_name] = div_result
     return div_result
 
+
 class DropoutUserData(ctypes.Structure):
     _fields_ = [
         ("seed", ctypes.c_int),
@@ -1243,7 +1243,6 @@ def ggml_operator_dropout(
             f'Error for node "{node.name}": Operation "Dropout" requires 1 - 3 inputs. Actual number of inputs: {len(node_inputs)}'
         )
 
-
     # Ref = https://github.com/onnx/onnx/blob/main/onnx/backend/test/case/node/dropout.py
 
     node_inputs_iter = iter(node_inputs)
@@ -1297,6 +1296,7 @@ def ggml_operator_dropout(
 
     tensors_dict[node.output[0]] = output
     return output
+
 
 @ggml_operator("Elu")
 def ggml_operator_elu(
@@ -2726,17 +2726,15 @@ def ggml_operator_pad(
     if "axes" not in tensors_dict:
         axes = list(range(input_rank))
     else:
-        # axes_eval = backend.eval_tensor(tensors_dict["axes"], context)
-        # axes = ggml.utils.to_numpy(axes_eval)
-        axes = ggml.utils.to_numpy(tensors_dict["axes"])
+        axes_eval = backend.eval_tensor(tensors_dict["axes"], context)
+        axes = ggml.utils.to_numpy(axes_eval)
         axes = [axis if axis >= 0 else axis + input_rank for axis in axes]
     num_axes = len(axes)
     pad_width = []
     for _ in range(input_rank):
         pad_width += [[0, 0]]  # init to zero
 
-    # raw_pads = ggml.utils.to_numpy(backend.eval_tensor(tensors_dict["pads"], context))
-    raw_pads = ggml.utils.to_numpy(tensors_dict["pads"])
+    raw_pads = ggml.utils.to_numpy(backend.eval_tensor(tensors_dict["pads"], context))
 
     # re-order to np.pad accepted order ((x1_begin, x1_end), (x2_begin, x2_end), ...)
     for i in range(num_axes):
@@ -2754,8 +2752,9 @@ def ggml_operator_pad(
 
     constant_value = None
     if "value" in tensors_dict:
-        # constant_value = ggml.utils.to_numpy(backend.eval_tensor(tensors_dict["value"], context))
-        constant_values = ggml.utils.to_numpy(tensors_dict["value"])
+        constant_values = ggml.utils.to_numpy(
+            backend.eval_tensor(tensors_dict["value"], context)
+        )
 
     @ggml.ggml_custom2_op_t
     def custom_pad(
@@ -2786,11 +2785,12 @@ def ggml_operator_pad(
     new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
         context,
         x_t,
-        x,
+        tensors_dict["x"],
         custom_pad,
         1,
         None,
     )
+    refs.append(custom_pad)
     return new_tensor
 
 
@@ -5199,6 +5199,10 @@ class GgmlBackendRep(BackendRep):
             # Create the input tensors with the correct type/shape
             ggml_type = map_to_ggml_type(input_data.dtype)
             shape = tuple(reversed(input_data.shape))
+
+            # Handle scalars
+            if len(shape) == 0:
+                shape = (1,)
 
             tensor = ggml.ggml_new_tensor(
                 context,
