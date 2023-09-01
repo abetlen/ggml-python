@@ -2373,6 +2373,95 @@ def ggml_operator_or(
     return new_tensor
 
 
+@ggml_operator("Pad")
+def ggml_operator_pad(
+    backend: "GgmlBackendRep",
+    node: NodeProto,
+    tensors_dict: Dict[str, ggml.ggml_tensor_p],
+    context: ggml.ggml_context_p,
+    refs: List[Any],
+):
+    # x, pads, value, axes
+    if len(tensors_dict) < 2:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Pad" requires at least two inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+    input_rank = tensors_dict["x"].contents.n_dims
+    mode = next(
+        (attr.s for attr in node.attribute if attr.name == "mode"), b"constant"
+    ).decode("utf-8")
+
+    if "axes" not in tensors_dict:
+        axes = list(range(input_rank))
+    else:
+        # axes_eval = backend.eval_tensor(tensors_dict["axes"], context)
+        # axes = ggml.utils.to_numpy(axes_eval)
+        axes = ggml.utils.to_numpy(tensors_dict["axes"])
+        axes = [axis if axis >= 0 else axis + input_rank for axis in axes]
+    num_axes = len(axes)
+    pad_width = []
+    for _ in range(input_rank):
+        pad_width += [[0, 0]]  # init to zero
+
+    # raw_pads = ggml.utils.to_numpy(backend.eval_tensor(tensors_dict["pads"], context))
+    raw_pads = ggml.utils.to_numpy(tensors_dict["pads"])
+
+    # re-order to np.pad accepted order ((x1_begin, x1_end), (x2_begin, x2_end), ...)
+    for i in range(num_axes):
+        axis = axes[i]
+        if axis < 0:
+            axis = input_rank + axis
+        pad_width[axis] = [raw_pads[i], raw_pads[i + num_axes]]
+
+    expand_by = [sum(pad) for pad in pad_width]
+    prev_shape = get_tensor_shape(tensors_dict["x"])
+    output_shape = [sum(x) for x in zip(prev_shape, expand_by)]
+    a_dtype = get_tensor_dtype(tensors_dict["x"])
+    x = np.empty(output_shape, dtype=a_dtype)
+    x_t = ggml.utils.from_numpy(x, context)
+
+    constant_value = None
+    if "value" in tensors_dict:
+        # constant_value = ggml.utils.to_numpy(backend.eval_tensor(tensors_dict["value"], context))
+        constant_values = ggml.utils.to_numpy(tensors_dict["value"])
+
+    @ggml.ggml_custom2_op_t
+    def custom_pad(
+        tensor_out: ggml.ggml_tensor_p,
+        tensor_in_1: ggml.ggml_tensor_p,
+        tensor_in_2: ggml.ggml_tensor_p,
+        ith: int,
+        nth: int,
+        userdata: Optional[ctypes.c_void_p],
+    ):
+        a = ggml.utils.to_numpy(tensor_in_2)
+        if mode == "constant":
+            x = np.pad(
+                a,
+                pad_width=pad_width,
+                mode=mode,
+                constant_values=constant_values,
+            )
+
+        else:
+            x = np.pad(
+                a,
+                pad_width=pad_width,
+                mode=mode,
+            )
+        set_tensor_out(tensor_out, x)
+
+    new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+        context,
+        x_t,
+        x,
+        custom_pad,
+        1,
+        None,
+    )
+    return new_tensor
+
+
 @ggml.ggml_custom2_op_t
 def custom_leaky_prelu(
     tensor_out: ggml.ggml_tensor_p,
