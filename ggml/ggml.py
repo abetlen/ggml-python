@@ -6490,6 +6490,7 @@ lib.gguf_get_val_f32.argtypes = [
 ]
 lib.gguf_get_val_f32.restype = ctypes.c_float
 
+
 # GGML_API uint64_t     gguf_get_val_u64 (struct gguf_context * ctx, int i);
 def gguf_get_val_u64(
     ctx: gguf_context_p,
@@ -6503,6 +6504,7 @@ lib.gguf_get_val_u64.argtypes = [
     ctypes.c_int,
 ]
 lib.gguf_get_val_u64.restype = ctypes.c_uint64
+
 
 # GGML_API int64_t      gguf_get_val_i64 (struct gguf_context * ctx, int i);
 def gguf_get_val_i64(
@@ -6518,6 +6520,7 @@ lib.gguf_get_val_i64.argtypes = [
 ]
 lib.gguf_get_val_i64.restype = ctypes.c_int64
 
+
 # GGML_API double       gguf_get_val_f64 (struct gguf_context * ctx, int i);
 def gguf_get_val_f64(
     ctx: gguf_context_p,
@@ -6531,6 +6534,7 @@ lib.gguf_get_val_f64.argtypes = [
     ctypes.c_int,
 ]
 lib.gguf_get_val_f64.restype = ctypes.c_double
+
 
 # GGML_API bool         gguf_get_val_bool(struct gguf_context * ctx, int i);
 def gguf_get_val_bool(
@@ -6786,6 +6790,7 @@ lib.gguf_set_val_f32.argtypes = [
 ]
 lib.gguf_set_val_f32.restype = None
 
+
 # GGML_API void gguf_set_val_u64 (struct gguf_context * ctx, const char * key, uint64_t val);
 def gguf_set_val_u64(
     ctx: gguf_context_p,
@@ -6801,6 +6806,7 @@ lib.gguf_set_val_u64.argtypes = [
     ctypes.c_uint64,
 ]
 lib.gguf_set_val_u64.restype = None
+
 
 # GGML_API void gguf_set_val_i64 (struct gguf_context * ctx, const char * key, int64_t  val);
 def gguf_set_val_i64(
@@ -6818,6 +6824,7 @@ lib.gguf_set_val_i64.argtypes = [
 ]
 lib.gguf_set_val_i64.restype = None
 
+
 # GGML_API void gguf_set_val_f64 (struct gguf_context * ctx, const char * key, double   val);
 def gguf_set_val_f64(
     ctx: gguf_context_p,
@@ -6833,6 +6840,7 @@ lib.gguf_set_val_f64.argtypes = [
     ctypes.c_double,
 ]
 lib.gguf_set_val_f64.restype = None
+
 
 # GGML_API void gguf_set_val_bool(struct gguf_context * ctx, const char * key, bool     val);
 def gguf_set_val_bool(
@@ -7189,6 +7197,7 @@ def ggml_cpu_has_sse3() -> int:
 lib.ggml_cpu_has_sse3.argtypes = []
 lib.ggml_cpu_has_sse3.restype = ctypes.c_int
 
+
 # GGML_API int ggml_cpu_has_ssse3      (void);
 def ggml_cpu_has_ssse3() -> int:
     return lib.ggml_cpu_has_ssse3()
@@ -7516,17 +7525,20 @@ if GGML_USE_CUBLAS:
     ]
     lib.ggml_cuda_assign_buffers_force_inplace.restype = None
 
+
 # GGML_API void   ggml_cuda_assign_buffers_no_alloc(struct ggml_tensor * tensor);
 def ggml_cuda_assign_buffers_no_alloc(
     tensor: ggml_tensor_p,
 ):
     return lib.ggml_cuda_assign_buffers_no_alloc(tensor)
 
+
 if GGML_USE_CUBLAS:
     lib.ggml_cuda_assign_buffers_no_alloc.argtypes = [
         ctypes.POINTER(ggml_tensor),
     ]
     lib.ggml_cuda_assign_buffers_no_alloc.restype = None
+
 
 # GGML_API void   ggml_cuda_assign_scratch_offset(struct ggml_tensor * tensor, size_t offset);
 def ggml_cuda_assign_scratch_offset(
@@ -7535,12 +7547,14 @@ def ggml_cuda_assign_scratch_offset(
 ):
     return lib.ggml_cuda_assign_scratch_offset(tensor, offset)
 
+
 if GGML_USE_CUBLAS:
     lib.ggml_cuda_assign_scratch_offset.argtypes = [
         ctypes.POINTER(ggml_tensor),
         ctypes.c_size_t,
     ]
     lib.ggml_cuda_assign_scratch_offset.restype = None
+
 
 # void   ggml_cuda_set_main_device(int main_device);
 def ggml_cuda_set_main_device(

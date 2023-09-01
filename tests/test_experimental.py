@@ -10,6 +10,7 @@ def test_tensor():
     assert t.ggml_type == GGML_TYPE.F32
     assert np.allclose(t.numpy(), x)
 
+
 def test_tensor_compute():
     x = Tensor.from_numpy(np.array([2.0], dtype=np.float32))
     a = Tensor.from_numpy(np.array([3.0], dtype=np.float32))
