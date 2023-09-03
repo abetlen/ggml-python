@@ -12,7 +12,7 @@ build: ${submodules} update-pip
 	python3 -m pip install --verbose --editable .
 
 build.debug: ${submodules} update-pip
-	CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Debug" python3 -m pip install --verbose --editable .
+	CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Debug" python3 -m pip install --verbose --config-settings=cmake.verbose=true --config-settings=logging.level=INFO --config-settings=install.strip=false  --editable .
 
 build.openblas: ${submodules} update-pip
 	CMAKE_ARGS="-DGGML_OPENBLAS=On" python3 -m pip install --verbose --editable .
@@ -36,7 +36,7 @@ test.gdb:
 	gdb -ex r -ex "thread apply all bt" --args python -m pytest -s -vvvv
 
 clean:
-	- rm -rf _skbuild
+	- rm -rf build
 	- rm -rf dist
 	- rm ggml/*.so
 	- rm ggml/*.dll
