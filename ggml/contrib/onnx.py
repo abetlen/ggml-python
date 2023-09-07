@@ -726,22 +726,9 @@ def ggml_operator_constant(
     )
 
     tensor_shape = data_value.shape
-
     x = np.empty(tensor_shape, dtype=np_data_type_limit)
-    x_t = None
-
-    if tensor_shape == ():
-        ggml_type = map_to_ggml_type(np_data_type_limit)
-
-        x_t = ggml.ggml_new_tensor(
-            context,
-            ggml_type.value,
-            len(tensor_shape),
-            (ctypes.c_int64 * len(tensor_shape))(*tensor_shape),
-        )
-
-    else:
-        x_t = ggml.utils.from_numpy(x, context)
+    
+    x_t = ggml.utils.from_numpy(x, context)
 
     new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
         context,
@@ -2803,6 +2790,8 @@ def custom_leaky_prelu(
     nth: int,
     userdata: Optional[ctypes.c_void_p],
 ):
+
+
     x = ggml.utils.to_numpy(tensor_in_1)
     slope = ggml.utils.to_numpy(tensor_in_2)
 
@@ -2825,8 +2814,8 @@ def ggml_operator_leaky_relu(
         raise ValueError(
             f'Error for node "{node.name}": Operation "PRelu" requires exactly two inputs. Actual number of inputs: {len(node_inputs)}'
         )
-
     x, slope = node_inputs
+
     new_tensor = tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
         context,
         x,
@@ -4205,7 +4194,8 @@ def ggml_operator_size(
     tensor_size_t = ggml.utils.from_numpy(np.array([tensor_size_np]), context)
 
     ggml_type = map_to_ggml_type(tensor_size_np.dtype).value
-    x_t = ggml.ggml_new_tensor(context, ggml_type, 0, (ctypes.c_int64 * 0)(*()))
+    x = np.empty(tensor_shape, dtype=tensor_size_np.dtype)
+    x_t = ggml.utils.from_numpy(x, context)
 
     new_tensor = tensors_dict[name] = ggml.ggml_map_custom2_inplace(
         context,
