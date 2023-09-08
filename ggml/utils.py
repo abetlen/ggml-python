@@ -77,6 +77,9 @@ def from_numpy(x: npt.NDArray[Any], ctx: ggml.ggml_context_p) -> ggml.ggml_tenso
     if x.dtype.type == np.bool_:
         x = x.astype(np.int32)
 
+    if x.shape == ():
+        x = x.reshape((1,))
+
     ggml_type = NUMPY_DTYPE_TO_GGML_TYPE[x.dtype.type]
     shape = tuple(reversed(x.shape))
     tensor = ggml.ggml_new_tensor(
