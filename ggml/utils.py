@@ -48,14 +48,19 @@ def to_numpy(
     Returns:
         Numpy array with a view of data from tensor
     """
+    data = ggml.ggml_get_data(tensor)
+    if data is None:
+        return np.array([])
+
     ggml_type = GGML_TYPE(tensor.contents.type)
     if ggml_type == GGML_TYPE.F16:
         ctypes_type = ctypes.c_uint16
     else:
         ctypes_type = np.ctypeslib.as_ctypes_type(GGML_TYPE_TO_NUMPY_DTYPE[ggml_type])
 
-    array = ctypes.cast(ggml.ggml_get_data(tensor), ctypes.POINTER(ctypes_type))
+    array = ctypes.cast(data, ctypes.POINTER(ctypes_type))
     shape = tuple(reversed(tensor.contents.ne[: tensor.contents.n_dims]))
+
     output = np.ctypeslib.as_array(array, shape=shape)
     if ggml_type == GGML_TYPE.F16:
         output.dtype = np.float16
