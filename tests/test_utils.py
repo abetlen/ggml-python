@@ -1,3 +1,5 @@
+import ctypes
+
 import ggml
 import ggml.utils
 
@@ -65,3 +67,59 @@ def test_slice_tensor():
         ])
         x_slice = ggml.utils.to_numpy(t_slice)
         assert np.array_equal(x_slice, x[:1, :2])
+
+
+def test_alloc_graph_measure():
+    overhead = ggml.ggml_tensor_overhead()
+    max_overhead = overhead * 2 * ggml.GGML_MAX_NODES
+    assert max_overhead < 16 * 1024 * 1024  # 16MB
+    params = ggml.ggml_init_params(
+        mem_size=max_overhead, mem_buffer=None, no_alloc=True
+    )
+    ctx = ggml.ggml_init(params=params)
+
+    # define the graph
+    x = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
+    a = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
+    b = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
+
+    x2 = ggml.ggml_mul(ctx, x, x)
+    tmp = ggml.ggml_mul(ctx, a, x2)
+
+    # outputs
+    f = ggml.ggml_add(ctx, tmp, b)
+
+    # build graph
+    gf = ggml.ggml_build_forward(f)
+
+    # create measure allocator
+    tensor_alignment = 32
+    input_tensors = [x, a, b]
+    alloc_size = ggml.utils.alloc_graph_measure(gf, tensor_alignment, input_tensors)
+
+    # allocate tensor memory
+    buffer = (ctypes.c_uint8 * alloc_size)()
+    alloc = ggml.ggml_allocr_new(
+        ctypes.cast(buffer, ctypes.c_void_p), alloc_size, tensor_alignment
+    )
+    ggml.ggml_allocr_alloc(alloc, x)
+    ggml.ggml_allocr_alloc(alloc, a)
+    ggml.ggml_allocr_alloc(alloc, b)
+    ggml.ggml_allocr_alloc_graph(alloc, ctypes.pointer(gf))
+
+    # set input values
+    ggml.ggml_set_f32(x, 2.0)
+    ggml.ggml_set_f32(a, 3.0)
+    ggml.ggml_set_f32(b, 4.0)
+
+    gp = ggml.ggml_graph_plan(ctypes.pointer(gf), 1)
+    assert gp.work_size == 0
+
+    # compute
+    ggml.ggml_graph_compute(ctypes.pointer(gf), ctypes.pointer(gp))
+
+    output = ggml.ggml_get_f32_1d(f, 0)
+    assert output == 16.0
+
+    ggml.ggml_free(ctx)
+    ggml.ggml_allocr_free(alloc)
