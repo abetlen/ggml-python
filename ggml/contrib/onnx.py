@@ -5136,7 +5136,11 @@ class GgmlBackendRep(BackendRep):
 
     def eval_tensor(self, tensor: ggml.ggml_tensor_p, context: ggml.ggml_context_p):
         gf = ggml.ggml_build_forward(tensor)
-        ggml.ggml_graph_compute_with_ctx(context, ctypes.pointer(gf), 1)
+        gp = ggml.ggml_graph_plan(ctypes.pointer(gf), 1)
+        work_buffer = (ctypes.c_uint8 * gp.work_size)() if gp.work_size else None
+        if gp.work_size:
+            gp.work = ctypes.cast(ctypes.addressof(work_buffer), ctypes.c_void_p)
+        ggml.ggml_graph_compute(ctypes.byref(gf), ctypes.byref(gp))
 
         return tensor
 
@@ -5244,7 +5248,11 @@ class GgmlBackendRep(BackendRep):
                     ggml.ggml_build_forward_expand(gf_p, ggml_tensors[output])
 
         # Compute graph
-        ggml.ggml_graph_compute_with_ctx(context, gf_p, 1)
+        gp = ggml.ggml_graph_plan(ctypes.pointer(gf), 1)
+        work_buffer = (ctypes.c_uint8 * gp.work_size)() if gp.work_size else None
+        if gp.work_size:
+            gp.work = ctypes.cast(ctypes.addressof(work_buffer), ctypes.c_void_p)
+        ggml.ggml_graph_compute(gf_p, ctypes.byref(gp))
 
         graph_outputs = []
         for output in self.outputs:
