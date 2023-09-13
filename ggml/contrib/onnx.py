@@ -5152,11 +5152,11 @@ class GgmlBackendRep(BackendRep):
         exit_node = None
         ggml_tensors = self.weights
 
-        # Define context
-        params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
-        context = ggml.ggml_init(params=params)
-
-        refs: List[Any] = []
+        input_context = ggml.ggml_init(params=ggml.ggml_init_params(
+            mem_size=2 * ggml.GGML_MAX_NODES * ggml.ggml_tensor_overhead(), # FIXME: Reduce to n inputs or combine with tensors context
+            no_alloc=True,
+        ))
+        input_buffer_size = 0
 
         # Create entry inputs
         for model_input in model_graph.input:
@@ -5195,17 +5195,31 @@ class GgmlBackendRep(BackendRep):
                 shape = (1,)
 
             tensor = ggml.ggml_new_tensor(
-                context,
+                input_context,
                 ggml_type.value,
                 len(shape),
                 (ctypes.c_int64 * len(shape))(*shape),
             )
+            input_buffer_size += ggml.ggml_nbytes_pad(tensor)
 
             ggml_tensors[input_name] = tensor
+        
+        input_buffer = (ctypes.c_uint8 * input_buffer_size)()
+        input_buffer_offset = 0
 
         # Set user inputs
         for key, value in inputs.items():
-            set_tensor_out(ggml_tensors[key], np.array(value))
+            tensor = ggml_tensors[key]
+            tensor.contents.data = ctypes.cast(
+                ctypes.addressof(input_buffer) + input_buffer_offset, ctypes.c_void_p
+            )
+            input_buffer_offset += ggml.ggml_nbytes_pad(tensor)
+            set_tensor_out(tensor, np.array(value))
+
+        # Define context
+        context = ggml.ggml_init(params=ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None))
+
+        refs: List[Any] = []
 
         gf = ggml.ggml_cgraph()
         gf_p = ctypes.pointer(gf)
@@ -5244,6 +5258,7 @@ class GgmlBackendRep(BackendRep):
             graph_outputs.append(graph_output)
 
         ggml.ggml_free(context)
+        ggml.ggml_free(input_context)
 
         return graph_outputs
 
