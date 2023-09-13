@@ -190,6 +190,89 @@ def test_ggml_alloc():
     ggml.ggml_free(ctx)
     ggml.ggml_allocr_free(alloc)
 
+def test_ggml_alloc_one_pass():
+    overhead = ggml.ggml_tensor_overhead()
+    max_overhead = overhead * 2 * ggml.GGML_MAX_NODES
+    assert max_overhead < 16 * 1024 * 1024  # 16MB
+    params = ggml.ggml_init_params(
+        mem_size=max_overhead, mem_buffer=None, no_alloc=True
+    )
+    ctx = ggml.ggml_init(params=params)
+
+    # define the graph
+    x = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
+    ggml.ggml_set_name(x, b"x")
+    a = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
+    ggml.ggml_set_name(a, b"a")
+    b = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
+    ggml.ggml_set_name(b, b"b")
+
+    x2 = ggml.ggml_mul(ctx, x, x)
+    tmp = ggml.ggml_mul(ctx, a, x2)
+
+    # outputs
+    f = ggml.ggml_add(ctx, tmp, b)
+    ggml.ggml_set_name(f, b"f")
+
+    # build graph
+    gf = ggml.ggml_build_forward(f)
+
+    # save old data pointers
+    leaf_data = [ggml.ggml_get_data(gf.leafs[i]) for i in range(gf.n_leafs)]
+    node_data = [ggml.ggml_get_data(gf.nodes[i]) for i in range(gf.n_nodes)]
+
+    # create measure allocator
+    tensor_alignment = 32
+    alloc = ggml.ggml_allocr_new_measure(tensor_alignment)
+    assert alloc is not None
+    assert ggml.ggml_allocr_is_measure(alloc)
+
+    # allocate input tensors
+    ggml.ggml_allocr_alloc(alloc, x)
+    ggml.ggml_allocr_alloc(alloc, a)
+    ggml.ggml_allocr_alloc(alloc, b)
+    # allocate graph
+    alloc_size = (
+        ggml.ggml_allocr_alloc_graph(alloc, ctypes.pointer(gf)) + tensor_alignment
+    )
+    assert alloc_size > 0
+
+    # restore old data pointers
+    for i in range(gf.n_leafs):
+        gf.leafs[i].contents.data = leaf_data[i]
+    
+    for i in range(gf.n_nodes):
+        gf.nodes[i].contents.data = node_data[i]
+
+    # free measure allocator
+    ggml.ggml_allocr_free(alloc)
+
+    # allocate tensor memory
+    buffer = (ctypes.c_uint8 * alloc_size)()
+    alloc = ggml.ggml_allocr_new(
+        ctypes.cast(buffer, ctypes.c_void_p), alloc_size, tensor_alignment
+    )
+    ggml.ggml_allocr_alloc(alloc, x)
+    ggml.ggml_allocr_alloc(alloc, a)
+    ggml.ggml_allocr_alloc(alloc, b)
+    ggml.ggml_allocr_alloc_graph(alloc, ctypes.pointer(gf))
+
+    # set input values
+    ggml.ggml_set_f32(x, 2.0)
+    ggml.ggml_set_f32(a, 3.0)
+    ggml.ggml_set_f32(b, 4.0)
+
+    gp = ggml.ggml_graph_plan(ctypes.pointer(gf), 1)
+    assert gp.work_size == 0
+
+    # compute
+    ggml.ggml_graph_compute(ctypes.pointer(gf), ctypes.pointer(gp))
+
+    output = ggml.ggml_get_f32_1d(f, 0)
+    assert output == 16.0
+
+    ggml.ggml_free(ctx)
+    ggml.ggml_allocr_free(alloc)
 
 def test_quantize():
     ne0 = 32
