@@ -7164,6 +7164,15 @@ lib.ggml_cpu_has_arm_fma.argtypes = []
 lib.ggml_cpu_has_arm_fma.restype = ctypes.c_int
 
 
+# GGML_API int ggml_cpu_has_metal      (void);
+def ggml_cpu_has_metal() -> int:
+    return lib.ggml_cpu_has_metal()
+
+
+lib.ggml_cpu_has_metal.argtypes = []
+lib.ggml_cpu_has_metal.restype = ctypes.c_int
+
+
 # GGML_API int ggml_cpu_has_f16c       (void);
 def ggml_cpu_has_f16c() -> int:
     return lib.ggml_cpu_has_f16c()
