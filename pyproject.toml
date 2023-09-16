@@ -1,10 +1,10 @@
 [build-system]
-requires = ["scikit-build-core>=0.4.5"]
+requires = ["scikit-build-core[pyproject]>=0.5.0"]
 build-backend = "scikit_build_core.build"
 
 [project]
 name = "ggml_python"
-version = "0.0.18"
+dynamic = ["version"]
 description = "Python bindings for ggml"
 readme = "README.md"
 license = { text = "MIT" }
@@ -28,6 +28,10 @@ classifiers = [
 wheel.packages = ["ggml"]
 wheel.expand-macos-universal-tags = true
 cmake.verbose = true
+
+[tool.scikit-build.metadata.version]
+provider = "scikit_build_core.metadata.regex"
+input = "ggml/__init__.py"
 
 [tool.pytest.ini_options]
 addopts = "--ignore=vendor"
