@@ -52,4 +52,5 @@ convert = [
 
 [project.urls]
 Homepage = "https://github.com/abetlen/ggml-python"
+Documentation = "https://ggml-python.readthedocs.io/en/latest/"
 Issues = "https://github.com/abetlen/ggml-python/issues"
