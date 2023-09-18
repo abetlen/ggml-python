@@ -4686,7 +4686,11 @@ class GgmlBackendRep(BackendRep):
         self, tensor: ggml.ggml_tensor_p, ggml_context: ggml.ggml_context_p
     ):
         gf = ggml.ggml_build_forward(tensor)
-        ggml.ggml_graph_compute_with_ctx(ggml_context, ctypes.pointer(gf), 1)
+        gp = ggml.ggml_graph_plan(ctypes.pointer(gf), 1)
+        work_buffer = (ctypes.c_uint8 * gp.work_size)() if gp.work_size else None
+        if gp.work_size:
+            gp.work = ctypes.cast(ctypes.addressof(work_buffer), ctypes.c_void_p)
+        ggml.ggml_graph_compute(ctypes.byref(gf), ctypes.byref(gp))
 
         return tensor
 
@@ -4702,11 +4706,11 @@ class GgmlBackendRep(BackendRep):
         exit_node = None
         ggml_tensors = self.weights
 
-        # Define ggml_context
-        params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
-        ggml_context = ggml.ggml_init(params=params)
-
-        refs: List[Any] = []
+        input_context = ggml.ggml_init(params=ggml.ggml_init_params(
+            mem_size=2 * ggml.GGML_MAX_NODES * ggml.ggml_tensor_overhead(), # FIXME: Reduce to n inputs or combine with tensors context
+            no_alloc=True,
+        ))
+        input_buffer_size = 0
 
         # Create entry inputs
         for model_input in model_graph.input:
@@ -4745,17 +4749,31 @@ class GgmlBackendRep(BackendRep):
                 shape = (1,)
 
             tensor = ggml.ggml_new_tensor(
-                ggml_context,
+                input_context,
                 ggml_type.value,
                 len(shape),
                 (ctypes.c_int64 * len(shape))(*shape),
             )
+            input_buffer_size += ggml.ggml_nbytes_pad(tensor)
 
             ggml_tensors[input_name] = tensor
+        
+        input_buffer = (ctypes.c_uint8 * input_buffer_size)()
+        input_buffer_offset = 0
 
         # Set user inputs
         for key, value in inputs.items():
-            set_tensor_out(ggml_tensors[key], np.array(value))
+            tensor = ggml_tensors[key]
+            tensor.contents.data = ctypes.cast(
+                ctypes.addressof(input_buffer) + input_buffer_offset, ctypes.c_void_p
+            )
+            input_buffer_offset += ggml.ggml_nbytes_pad(tensor)
+            set_tensor_out(tensor, np.array(value))
+
+        # Define context
+        context = ggml.ggml_init(params=ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None))
+
+        refs: List[Any] = []
 
         gf = ggml.ggml_cgraph()
         gf_p = ctypes.pointer(gf)
@@ -4779,7 +4797,11 @@ class GgmlBackendRep(BackendRep):
                     ggml.ggml_build_forward_expand(gf_p, ggml_tensors[output])
 
         # Compute graph
-        ggml.ggml_graph_compute_with_ctx(ggml_context, gf_p, 1)
+        gp = ggml.ggml_graph_plan(ctypes.pointer(gf), 1)
+        work_buffer = (ctypes.c_uint8 * gp.work_size)() if gp.work_size else None
+        if gp.work_size:
+            gp.work = ctypes.cast(ctypes.addressof(work_buffer), ctypes.c_void_p)
+        ggml.ggml_graph_compute(gf_p, ctypes.byref(gp))
 
         graph_outputs = []
         for output in self.outputs:
@@ -4792,7 +4814,8 @@ class GgmlBackendRep(BackendRep):
             )  # TODO: add a second dict to keep track of types and use that instead
             graph_outputs.append(graph_output)
 
-        ggml.ggml_free(ggml_context)
+        ggml.ggml_free(context)
+        ggml.ggml_free(input_context)
 
         return graph_outputs
 
