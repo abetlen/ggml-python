@@ -4771,7 +4771,7 @@ class GgmlBackendRep(BackendRep):
             set_tensor_out(tensor, np.array(value))
 
         # Define context
-        context = ggml.ggml_init(params=ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None))
+        ggml_context = ggml.ggml_init(params=ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None))
 
         refs: List[Any] = []
 
@@ -4814,7 +4814,7 @@ class GgmlBackendRep(BackendRep):
             )  # TODO: add a second dict to keep track of types and use that instead
             graph_outputs.append(graph_output)
 
-        ggml.ggml_free(context)
+        ggml.ggml_free(ggml_context)
         ggml.ggml_free(input_context)
 
         return graph_outputs
