@@ -4,7 +4,7 @@ import enum
 import ctypes
 import contextlib
 
-from typing import Any, Optional, Sequence, Tuple
+from typing import Any, List, Optional, Sequence, Tuple
 
 from ggml import ggml
 
@@ -96,11 +96,13 @@ def from_numpy(x: npt.NDArray[Any], ctx: ggml.ggml_context_p) -> ggml.ggml_tenso
     tensor.contents.nb[: len(shape)] = (ctypes.c_int64 * len(shape))(
         *tuple(reversed(x.strides))
     )
-    if tensor.contents.data is not None:
+
+    if ggml.ggml_get_data(tensor) is not None:
         if shape == ():
             to_numpy(tensor)[()] = x
         else:
             to_numpy(tensor)[:] = x
+
     return tensor
 
 
@@ -349,3 +351,37 @@ def slice_tensor(
         raise NotImplementedError(
             f"ggml tensors with {ndims} dimensions are not supported"
         )
+
+
+def alloc_graph_measure(
+    graph: ggml.ggml_cgraph,
+    alignment: int,
+    alloc_tensors: Optional[List[ggml.ggml_tensor_p]] = None,
+) -> int:
+    """Returns the number of bytes required by a ggml_allocr allocator to allocate the tensors in the graph.
+
+    NOTE: This implementation saves a copy of the current data pointers of all graph nodes and leafs and restores them
+    after measuring the allocation size so that the graph can be re-used.
+
+    Parameters:
+        graph: ggml graph
+        alignment: alignment of the allocation
+        alloc_tensors: list of tensors to allocate individually using ggml_allocr_alloc
+
+    Returns:
+        Size of the required allocation buffer in bytes"""
+    alloc_tensors = alloc_tensors or []
+    leaf_data = [ggml.ggml_get_data(graph.leafs[i]) for i in range(graph.n_leafs)]
+    node_data = [ggml.ggml_get_data(graph.nodes[i]) for i in range(graph.n_nodes)]
+    alloc = ggml.ggml_allocr_new_measure(alignment)
+    for tensor in alloc_tensors:
+        ggml.ggml_allocr_alloc(alloc, tensor)
+    alloc_size = (
+        ggml.ggml_allocr_alloc_graph(alloc, ctypes.byref(graph)) + alignment  # type: ignore
+    )
+    ggml.ggml_allocr_free(alloc)
+    for i in range(graph.n_leafs):
+        graph.leafs[i].contents.data = leaf_data[i]
+    for i in range(graph.n_nodes):
+        graph.nodes[i].contents.data = node_data[i]
+    return alloc_size
