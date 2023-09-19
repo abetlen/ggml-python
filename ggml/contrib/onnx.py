@@ -587,7 +587,7 @@ def ggml_operator_concat(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     x = np.empty(output_shape, dtype=get_tensor_dtype(node_inputs[0]))
 
     x_t = ctx.from_numpy(x)
-    
+
     @ggml.ggml_custom3_op_t
     def custom_concat(
         tensor_out: ggml.ggml_tensor_p,
@@ -602,13 +602,14 @@ def ggml_operator_concat(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         b = ctx.to_numpy(tensor_in_3)
         x = np.concatenate([a, b], axis=axis)
         set_tensor_out(tensor_out, x)
+
     tensor_a = node_inputs[0]
     tensor_b = node_inputs[1]
     new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom3_inplace(
         ctx.ggml_context,
         x_t,
         tensor_a,
-        tensor_b,        
+        tensor_b,
         custom_concat,
         1,
         None,
@@ -745,9 +746,7 @@ def ggml_operator_constant_of_shape(ctx: "GgmlOnnxExecutionContext", node: NodeP
                 f'Error for node "{node.name}": Constant node not set correctly or incomplete implantation.'
             )
 
-    data_tensor = ctx.from_numpy(
-        data_value.astype(np_data_type_limit)
-    )
+    data_tensor = ctx.from_numpy(data_value.astype(np_data_type_limit))
 
     shape = ctx.to_numpy(node_inputs[0])
 
@@ -3848,9 +3847,9 @@ def ggml_operator_size(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     return new_tensor
 
+
 @ggml_operator("Slice")
 def ggml_operator_slice(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
-
     node_inputs = [ctx.tensors_dict[inp] for inp in node.input]
     a_shape = ctx.get_tensor_shape(node_inputs[0])
     a_dtype = get_tensor_dtype(node_inputs[0])
@@ -3865,14 +3864,13 @@ def ggml_operator_slice(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         axes = list(range(len(starts)))
 
     axes = [a + dims if a < 0 else a for a in axes]
-    
+
     if len(node_inputs) == 5:
         steps = ctx.to_numpy(ctx.backend.eval_tensor(node_inputs[4], ctx.ggml_context))
     else:
         steps = np.ones_like(starts)
 
-
-    slices = [slice(start,end, step) for start, end, step in zip(starts, ends, steps)]
+    slices = [slice(start, end, step) for start, end, step in zip(starts, ends, steps)]
     all_slices = []
     for axis in range(dims):
         if axis not in axes:
@@ -3882,30 +3880,28 @@ def ggml_operator_slice(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     x = np.empty(a_shape, dtype=a_dtype)[tuple(all_slices)].copy()
     x_t = ctx.from_numpy(x)
-    
+
     @ggml.ggml_custom2_op_t
-    def custom_slice(tensor_out: ggml.ggml_tensor_p,
-                     tensor_in_1: ggml.ggml_tensor_p,
-                     tensor_in_2: ggml.ggml_tensor_p,
-                     ith: int,
-                     nth: int,
-                     userdata: Optional[ctypes.c_void_p]):
+    def custom_slice(
+        tensor_out: ggml.ggml_tensor_p,
+        tensor_in_1: ggml.ggml_tensor_p,
+        tensor_in_2: ggml.ggml_tensor_p,
+        ith: int,
+        nth: int,
+        userdata: Optional[ctypes.c_void_p],
+    ):
         x = ggml.utils.to_numpy(tensor_in_2)
         y = x[tuple(all_slices)].copy()
 
         set_tensor_out(tensor_out, y)
 
     new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
-        ctx.ggml_context,
-        x_t,
-        node_inputs[0],
-        custom_slice,
-        1,
-        None
+        ctx.ggml_context, x_t, node_inputs[0], custom_slice, 1, None
     )
     ctx.refs.append(custom_slice)
     return new_tensor
-    
+
+
 @ggml_operator("Softmax")
 def ggml_operator_softmax(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     node_inputs = [ctx.tensors_dict[inp] for inp in node.input]
@@ -4729,7 +4725,7 @@ class GgmlOnnxExecutionContext:
     def set_tensor_shape(self, tensor: ggml.ggml_tensor_p, shape: Tuple[int, ...]):
         data = tensor.contents.data
         self.shapes[data] = shape
-        
+
     def get_tensor_shape(self, tensor: ggml.ggml_tensor_p) -> Tuple[int, ...]:
         data = tensor.contents.data
         if data not in self.shapes:
@@ -4746,6 +4742,7 @@ class GgmlOnnxExecutionContext:
         tensor = ggml.utils.from_numpy(array, self.ggml_context)
         self.set_tensor_shape(tensor, shape)
         return tensor
+
 
 class GgmlBackendRep(BackendRep):
     def __init__(
@@ -4795,10 +4792,14 @@ class GgmlBackendRep(BackendRep):
         exit_node = None
         ggml_tensors = self.weights
 
-        input_context = ggml.ggml_init(params=ggml.ggml_init_params(
-            mem_size=2 * ggml.GGML_MAX_NODES * ggml.ggml_tensor_overhead(), # FIXME: Reduce to n inputs or combine with tensors context
-            no_alloc=True,
-        ))
+        input_context = ggml.ggml_init(
+            params=ggml.ggml_init_params(
+                mem_size=2
+                * ggml.GGML_MAX_NODES
+                * ggml.ggml_tensor_overhead(),  # FIXME: Reduce to n inputs or combine with tensors context
+                no_alloc=True,
+            )
+        )
         input_buffer_size = 0
 
         # Create entry inputs
@@ -4846,7 +4847,7 @@ class GgmlBackendRep(BackendRep):
             input_buffer_size += ggml.ggml_nbytes_pad(tensor)
 
             ggml_tensors[input_name] = tensor
-        
+
         input_buffer = (ctypes.c_uint8 * input_buffer_size)()
         input_buffer_offset = 0
 
@@ -4860,7 +4861,9 @@ class GgmlBackendRep(BackendRep):
             set_tensor_out(tensor, np.array(value))
 
         # Define context
-        ggml_context = ggml.ggml_init(params=ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None))
+        ggml_context = ggml.ggml_init(
+            params=ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
+        )
 
         refs: List[Any] = []
 
