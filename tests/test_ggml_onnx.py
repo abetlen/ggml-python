@@ -345,6 +345,7 @@ backend_test.exclude(".*equal.*.*string.*")
 backend_test.include("test_exp_")
 backend_test.include("test_operator_exp_")
 
+backend_test.include("test_expand_")
 
 backend_test.include("test_flatten_")
 backend_test.include("test_operator_flatten_")

@@ -570,6 +570,7 @@ GGML_OBJECT_SIZE = ctypes.sizeof(ggml_object)
 
 #     void * extra; // extra things e.g. for ggml-cuda.cu
 
+
 #     char padding[4];
 # };
 class ggml_tensor(ctypes.Structure):
@@ -5434,6 +5435,7 @@ lib.ggml_build_forward_expand.argtypes = [
 ]
 lib.ggml_build_forward_expand.restype = None
 
+
 # GGML_API void ggml_build_backward_expand(struct ggml_context * ctx, struct ggml_cgraph * gf, struct ggml_cgraph * gb, bool keep);
 def ggml_build_backward_expand(
     ctx: ggml_context_p,
@@ -5451,6 +5453,7 @@ def ggml_build_backward_expand(
         keep: Whether to keep the tensor."""
     return lib.ggml_build_backward_expand(ctx, gf, gb, keep)
 
+
 lib.ggml_build_backward_expand.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_cgraph),
@@ -5458,6 +5461,7 @@ lib.ggml_build_backward_expand.argtypes = [
     ctypes.c_bool,
 ]
 lib.ggml_build_backward_expand.restype = None
+
 
 # GGML_API struct ggml_cgraph ggml_build_forward (struct ggml_tensor * tensor);
 def ggml_build_forward(
@@ -6006,6 +6010,7 @@ def ggml_opt_init(
 ):
     return lib.ggml_opt_init(ctx, opt, params, nx)
 
+
 lib.ggml_opt_init.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_opt_context),
@@ -6013,6 +6018,7 @@ lib.ggml_opt_init.argtypes = [
     ctypes.c_int64,
 ]
 lib.ggml_opt_init.restype = None
+
 
 # // continue optimizing the function defined by the tensor f
 # GGML_API enum ggml_opt_result ggml_opt_resume(
@@ -6044,6 +6050,7 @@ lib.ggml_opt_resume.restype = ctypes.c_int
 #         ggml_opt_callback callback,
 #         void * callback_data);
 
+
 # // continue optimizing the function defined by the tensor f
 # GGML_API enum ggml_opt_result ggml_opt_resume_g(
 #         struct ggml_context * ctx,
@@ -6061,6 +6068,7 @@ def ggml_opt_resume_g(
     callback_data: ctypes.c_void_p = None,
 ) -> int:
     return lib.ggml_opt_resume_g(ctx, opt, f, gf, gb, callback, callback_data)
+
 
 lib.ggml_opt_resume_g.argtypes = [
     ggml_context_p,
@@ -6536,6 +6544,7 @@ lib.gguf_get_val_f32.argtypes = [
 ]
 lib.gguf_get_val_f32.restype = ctypes.c_float
 
+
 # GGML_API uint64_t     gguf_get_val_u64 (const struct gguf_context * ctx, int i);
 def gguf_get_val_u64(
     ctx: gguf_context_p,
@@ -6549,6 +6558,7 @@ lib.gguf_get_val_u64.argtypes = [
     ctypes.c_int,
 ]
 lib.gguf_get_val_u64.restype = ctypes.c_uint64
+
 
 # GGML_API int64_t      gguf_get_val_i64 (const struct gguf_context * ctx, int i);
 def gguf_get_val_i64(
@@ -6564,6 +6574,7 @@ lib.gguf_get_val_i64.argtypes = [
 ]
 lib.gguf_get_val_i64.restype = ctypes.c_int64
 
+
 # GGML_API double       gguf_get_val_f64 (const struct gguf_context * ctx, int i);
 def gguf_get_val_f64(
     ctx: gguf_context_p,
@@ -6577,6 +6588,7 @@ lib.gguf_get_val_f64.argtypes = [
     ctypes.c_int,
 ]
 lib.gguf_get_val_f64.restype = ctypes.c_double
+
 
 # GGML_API bool         gguf_get_val_bool(const struct gguf_context * ctx, int i);
 def gguf_get_val_bool(
