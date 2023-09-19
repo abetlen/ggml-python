@@ -645,7 +645,7 @@ def ggml_operator_constant(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     if value_attr.HasField("t"):
         tensor = value_attr.t
         data_type = tensor.data_type
-        dims = tensor.dims[0] if tensor.dims else 0
+        dims = tensor.dims
 
         np_data_type = tensor_dtype_to_np_dtype(data_type)
         np_data_type_limit = np.dtype(str(np_data_type).replace("64", "32"))
@@ -653,6 +653,8 @@ def ggml_operator_constant(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
             data_value = np.frombuffer(tensor.raw_data, dtype=np_data_type)
         else:
             data_value = onnx.numpy_helper.to_array(tensor)
+
+        data_value = data_value.reshape(dims)
 
     else:
         data_type = value_attr.type
@@ -688,8 +690,6 @@ def ggml_operator_constant(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         1,
         None,
     )
-    if dims == 0:
-        ctx.set_tensor_shape(new_tensor, ())
 
     ggml.ggml_set_name(new_tensor, (name + f"<{np_data_type}>").encode())
     return new_tensor
@@ -3900,7 +3900,6 @@ def ggml_operator_slice(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     starts = ctx.to_numpy(ctx.backend.eval_tensor(node_inputs[1], ctx.ggml_context))
     ends = ctx.to_numpy(ctx.backend.eval_tensor(node_inputs[2], ctx.ggml_context))
-
     if len(node_inputs) >= 4:
         axes = ctx.to_numpy(ctx.backend.eval_tensor(node_inputs[3], ctx.ggml_context))
     else:
@@ -3911,10 +3910,11 @@ def ggml_operator_slice(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     else:
         steps = np.ones_like(starts)
 
+    axes = [a + dims if a < 0 else a for a in axes]
     axes_sizes = [a_shape[i] for i in axes]
     starts = [a + size if a < 0 else a for a, size in zip(starts, axes_sizes)]
     ends = [a + size if a < 0 else a for a, size in zip(ends, axes_sizes)]
-    axes = [a + dims if a < 0 else a for a in axes]
+
     
     slices = [slice(start, end, step) for start, end, step in zip(starts, ends, steps)]
     all_slices = []
