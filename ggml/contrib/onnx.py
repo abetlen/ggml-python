@@ -5,13 +5,15 @@ This module implements a GGML backend for ONNX models and operators.
 import ctypes
 import math
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Sequence
+from typing_extensions import TypeGuard
 
 import numpy as np
+import numpy.typing as npt
 import onnx
 from onnx.backend.base import Backend, BackendRep
 from onnx.helper import np_dtype_to_tensor_dtype, tensor_dtype_to_np_dtype
-from onnx.onnx_ml_pb2 import GraphProto, ModelProto, NodeProto
+from onnx.onnx_ml_pb2 import GraphProto, ModelProto, NodeProto, ValueInfoProto
 
 import ggml
 import ggml.utils
@@ -4747,13 +4749,13 @@ class GgmlOnnxExecutionContext:
 class GgmlBackendRep(BackendRep):
     def __init__(
         self,
-        graph,
-        weights,
-        weights_buffer,
-        inputs,
-        outputs,
-        ggml_context,
-        ggml_init_params,
+        graph: GraphProto,
+        weights: Dict[str, ggml.ggml_tensor_p],
+        weights_buffer: Any,
+        inputs: Sequence[ValueInfoProto],
+        outputs: Sequence[ValueInfoProto],
+        ggml_context: ggml.ggml_context_p,
+        ggml_init_params: ggml.ggml_init_params,
     ):
         super(GgmlBackendRep, self).__init__()
         self.graph = graph
@@ -4780,13 +4782,25 @@ class GgmlBackendRep(BackendRep):
 
         return tensor
 
+    @staticmethod
+    def _is_list_of_arraylike(x: Any) -> TypeGuard[List[npt.ArrayLike]]:
+        return isinstance(x, list) and all(
+            isinstance(y, (np.ndarray, list)) for y in x
+        )
+
+    @staticmethod
+    def _is_dict_of_arraylike(x: Any) -> TypeGuard[Dict[str,npt.ArrayLike]]:
+        return isinstance(x, dict) and all(
+            isinstance(y, (np.ndarray, list)) for y in x.values()
+        ) and all(isinstance(k, str) for k in x.keys())
+
     def run(self, inputs: Any, **kwargs: Any) -> Tuple[Any, ...]:
         """Run the model with the specified inputs."""
 
-        if isinstance(inputs, list):
+        if self._is_list_of_arraylike(inputs):
             inputs = {k.name: v for k, v in zip(self.inputs, inputs)}
 
-        assert isinstance(inputs, dict)
+        assert self._is_dict_of_arraylike(inputs)
 
         model_graph = self.graph
         exit_node = None
@@ -4935,7 +4949,7 @@ class GgmlRuntimeBackend(Backend):
 
         super(GgmlRuntimeBackend, cls).prepare(model, device, **kwargs)
         graph = model.graph
-        weights = {}
+        weights: Dict[str, ggml.ggml_tensor_p] = {}
 
         n_tensors = len(graph.initializer)
         init_params = ggml.ggml_init_params(
