@@ -235,7 +235,7 @@ def ggml_operator_and(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     output_shape = np.broadcast(np.empty(a_shape), np.empty(b_shape)).shape
 
     x = np.empty(output_shape, dtype=a_dtype)
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     new_tensor = ctx.tensors_dict[name] = ggml.ggml_map_custom3_inplace(
         ctx.ggml_context,
@@ -472,7 +472,7 @@ def ggml_operator_cast(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     np_data_type_limit = np.dtype(str(np_data_type).replace("64", "32"))
     x = np.empty(get_tensor_shape(a), dtype=np_data_type_limit)
 
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
         ctx.ggml_context,
@@ -505,7 +505,7 @@ def ggml_operator_castlike(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     onnx_type_c = ctypes.c_int(onnx_type)
 
     x = np.empty(get_tensor_shape(a), dtype=np_data_type_limit)
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
         ctx.ggml_context,
@@ -533,7 +533,7 @@ def ggml_operator_exp(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     np_dtype = get_tensor_dtype(a)
 
     x = np.empty(get_tensor_shape(a), dtype=np_dtype)
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     @ggml.ggml_custom1_op_t
     def custom_ceil(
@@ -543,7 +543,7 @@ def ggml_operator_exp(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         nth: int,
         userdata: Optional[ctypes.c_void_p],
     ):
-        tensor = ggml.utils.to_numpy(tensor_in_1)
+        tensor = ctx.to_numpy(tensor_in_1)
         x = np.ceil(tensor)
         set_tensor_out(tensor_out, np.array(x))
 
@@ -570,7 +570,7 @@ def ggml_operator_concat(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         )
 
     axis = next((attr.i for attr in node.attribute if attr.name == "axis"), 0)
-    shapes = [get_tensor_shape(tensor) for tensor in node_inputs]
+    shapes = [ctx.get_tensor_shape(tensor) for tensor in node_inputs]
 
     if not all(
         shape[:axis] == shapes[0][:axis] and shape[axis + 1 :] == shapes[0][axis + 1 :]
@@ -585,24 +585,30 @@ def ggml_operator_concat(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     output_shape[axis] = total_dim
 
     x = np.empty(output_shape, dtype=get_tensor_dtype(node_inputs[0]))
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
 
-    @ggml.ggml_custom1_op_t
+    x_t = ctx.from_numpy(x)
+    
+    @ggml.ggml_custom3_op_t
     def custom_concat(
         tensor_out: ggml.ggml_tensor_p,
         tensor_in_1: ggml.ggml_tensor_p,
+        tensor_in_2: ggml.ggml_tensor_p,
+        tensor_in_3: ggml.ggml_tensor_p,
         ith: int,
         nth: int,
         userdata: Optional[ctypes.c_void_p],
     ):
-        tensors = [ggml.utils.to_numpy(node_input) for node_input in node_inputs]
-        x = np.concatenate(tensors, axis=axis)
-
+        a = ctx.to_numpy(tensor_in_2)
+        b = ctx.to_numpy(tensor_in_3)
+        x = np.concatenate([a, b], axis=axis)
         set_tensor_out(tensor_out, x)
-
-    new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom1_inplace(
+    tensor_a = node_inputs[0]
+    tensor_b = node_inputs[1]
+    new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom3_inplace(
         ctx.ggml_context,
         x_t,
+        tensor_a,
+        tensor_b,        
         custom_concat,
         1,
         None,
@@ -639,6 +645,8 @@ def ggml_operator_constant(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     if value_attr.HasField("t"):
         tensor = value_attr.t
         data_type = tensor.data_type
+        dims = tensor.dims[0] if tensor.dims else 0
+
         np_data_type = tensor_dtype_to_np_dtype(data_type)
         np_data_type_limit = np.dtype(str(np_data_type).replace("64", "32"))
 
@@ -668,7 +676,7 @@ def ggml_operator_constant(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     tensor_shape = data_value.shape
     x = np.empty(tensor_shape, dtype=np_data_type_limit)
 
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
         ctx.ggml_context,
@@ -678,6 +686,8 @@ def ggml_operator_constant(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         1,
         None,
     )
+    if dims == 0:
+        ctx.set_tensor_shape(new_tensor, ())
 
     ggml.ggml_set_name(new_tensor, (name + f"<{np_data_type}>").encode())
     return new_tensor
@@ -735,15 +745,14 @@ def ggml_operator_constant_of_shape(ctx: "GgmlOnnxExecutionContext", node: NodeP
                 f'Error for node "{node.name}": Constant node not set correctly or incomplete implantation.'
             )
 
-    data_tensor = ggml.utils.from_numpy(
-        data_value.astype(np_data_type_limit),
-        ctx.ggml_context,
+    data_tensor = ctx.from_numpy(
+        data_value.astype(np_data_type_limit)
     )
 
-    shape = ggml.utils.to_numpy(node_inputs[0])
+    shape = ctx.to_numpy(node_inputs[0])
 
     x = np.empty(shape, dtype=np_data_type_limit)
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
         ctx.ggml_context,
@@ -1158,7 +1167,7 @@ def ggml_operator_dropout(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     if type(training_mode) is ggml.ggml_tensor_p:
         training_mode_eval = ctx.backend.eval_tensor(training_mode, ctx.ggml_context)
-        training_mode = ggml.utils.to_numpy(training_mode_eval)
+        training_mode = ctx.to_numpy(training_mode_eval)
 
     droput_userdata = DropoutUserData(seed, bool(training_mode))
     userdata_p = ctypes.cast(ctypes.pointer(droput_userdata), ctypes.c_void_p)
@@ -1215,10 +1224,10 @@ def ggml_operator_elu(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     if alpha != 1.0:
         Y_eval = ctx.backend.eval_tensor(Y, ctx.ggml_context)
-        Y_np = ggml.utils.to_numpy(Y_eval)
+        Y_np = ctx.to_numpy(Y_eval)
         Y_alpha = np.where(Y_np < 0, alpha * Y_np, Y_np)
 
-        Y = ggml.utils.from_numpy(Y_alpha, ctx.ggml_context)
+        Y = ctx.from_numpy(Y_alpha)
 
     ctx.tensors_dict[output_name] = Y
     return Y
@@ -1259,7 +1268,7 @@ def ggml_operator_equal(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     output_shape = np.broadcast(np.empty(a_shape), np.empty(b_shape)).shape
 
     x = np.empty(output_shape, dtype=a_dtype)
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     new_tensor = ctx.tensors_dict[name] = ggml.ggml_map_custom3_inplace(
         ctx.ggml_context,
@@ -1288,7 +1297,7 @@ def ggml_operator_exp(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     np_dtype = get_tensor_dtype(a)
 
     x = np.empty(get_tensor_shape(a), dtype=np_dtype)
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     @ggml.ggml_custom1_op_t
     def custom_exp(
@@ -1443,9 +1452,9 @@ def ggml_operator_gather(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     axis = next((attr.i for attr in node.attribute if attr.name == "axis"), 0)
     axis_c = ctypes.c_int(axis)
 
-    input_shape = get_tensor_shape(node_inputs[0])
+    input_shape = ctx.get_tensor_shape(node_inputs[0])
     input_dtype = get_tensor_dtype(node_inputs[0])
-    index_shape = get_tensor_shape(node_inputs[1])
+    index_shape = ctx.get_tensor_shape(node_inputs[1])
 
     Ni = input_shape[:axis]
     Nk = input_shape[axis + 1 :]
@@ -1453,7 +1462,7 @@ def ggml_operator_gather(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     output_shape = tuple(list(Ni) + list(Nj) + list(Nk))
     x = np.empty(output_shape, dtype=input_dtype)
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom3_inplace(
         ctx.ggml_context,
@@ -1466,6 +1475,9 @@ def ggml_operator_gather(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     )
 
     ctx.refs.append(axis_c)
+
+    if output_shape == ():
+        ctx.set_tensor_shape(new_tensor, ())
 
     return new_tensor
 
@@ -1622,7 +1634,7 @@ def ggml_operator_greater(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     output_shape = np.broadcast(np.empty(a_shape), np.empty(b_shape)).shape
 
     x = np.empty(output_shape, dtype=a_dtype)
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     new_tensor = ctx.tensors_dict[name] = ggml.ggml_map_custom3_inplace(
         ctx.ggml_context,
@@ -1965,7 +1977,7 @@ def ggml_operator_greater_or_equal(ctx: "GgmlOnnxExecutionContext", node: NodePr
     output_shape = np.broadcast(np.empty(a_shape), np.empty(b_shape)).shape
 
     x = np.empty(output_shape, dtype=a_dtype)
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     new_tensor = ctx.tensors_dict[name] = ggml.ggml_map_custom3_inplace(
         ctx.ggml_context,
@@ -2017,7 +2029,7 @@ def ggml_operator_less(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     output_shape = np.broadcast(np.empty(a_shape), np.empty(b_shape)).shape
 
     x = np.empty(output_shape, dtype=a_dtype)
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     new_tensor = ctx.tensors_dict[name] = ggml.ggml_map_custom3_inplace(
         ctx.ggml_context,
@@ -2069,7 +2081,7 @@ def ggml_operator_less_or_equal(ctx: "GgmlOnnxExecutionContext", node: NodeProto
     output_shape = np.broadcast(np.empty(a_shape), np.empty(b_shape)).shape
 
     x = np.empty(output_shape, dtype=a_dtype)
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     new_tensor = ctx.tensors_dict[name] = ggml.ggml_map_custom3_inplace(
         ctx.ggml_context,
@@ -2425,7 +2437,7 @@ def ggml_operator_or(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     output_shape = np.broadcast(np.empty(a_shape), np.empty(b_shape)).shape
 
     x = np.empty(output_shape, dtype=a_dtype)
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     new_tensor = ctx.tensors_dict[name] = ggml.ggml_map_custom3_inplace(
         ctx.ggml_context,
@@ -2458,14 +2470,14 @@ def ggml_operator_pad(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         axes = list(range(input_rank))
     else:
         axes_eval = ctx.backend.eval_tensor(ctx.tensors_dict["axes"], ctx.ggml_context)
-        axes = ggml.utils.to_numpy(axes_eval)
+        axes = ctx.to_numpy(axes_eval)
         axes = [axis if axis >= 0 else axis + input_rank for axis in axes]
     num_axes = len(axes)
     pad_width = []
     for _ in range(input_rank):
         pad_width += [[0, 0]]  # init to zero
 
-    raw_pads = ggml.utils.to_numpy(
+    raw_pads = ctx.to_numpy(
         ctx.backend.eval_tensor(ctx.tensors_dict["pads"], ctx.ggml_context)
     )
 
@@ -2481,11 +2493,11 @@ def ggml_operator_pad(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     output_shape = [sum(x) for x in zip(prev_shape, expand_by)]
     a_dtype = get_tensor_dtype(ctx.tensors_dict["x"])
     x = np.empty(output_shape, dtype=a_dtype)
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     constant_value = None
     if "value" in ctx.tensors_dict:
-        constant_values = ggml.utils.to_numpy(
+        constant_values = ctx.to_numpy(
             ctx.backend.eval_tensor(ctx.tensors_dict["value"], ctx.ggml_context)
         )
 
@@ -2674,7 +2686,7 @@ def ggml_operator_range(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     output_shape = (int(np.ceil((stop - start) / step)),)
 
     x = np.empty(output_shape, dtype=step.dtype)
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     input_tensors = ggml.utils.from_numpy(np.array(tensors), ctx.ggml_context)
 
@@ -2781,7 +2793,7 @@ def ggml_operator_reduce_l1(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     output_shape = tuple(output_shape)
     x = np.empty(output_shape, dtype=tensor_dtype)
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
         ctx.ggml_context,
@@ -2869,7 +2881,7 @@ def ggml_operator_reduce_l2(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     output_shape = tuple(output_shape)
     x = np.empty(output_shape, dtype=tensor_dtype)
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
         ctx.ggml_context,
@@ -2956,7 +2968,7 @@ def ggml_operator_reduce_log_sum(ctx: "GgmlOnnxExecutionContext", node: NodeProt
 
     output_shape = tuple(output_shape)
     x = np.empty(output_shape, dtype=tensor_dtype)
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
         ctx.ggml_context,
@@ -3046,7 +3058,7 @@ def ggml_operator_reduce_log_sum_exp(ctx: "GgmlOnnxExecutionContext", node: Node
 
     output_shape = tuple(output_shape)
     x = np.empty(output_shape, dtype=tensor_dtype)
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
         ctx.ggml_context,
@@ -3133,7 +3145,7 @@ def ggml_operator_reduce_max(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     output_shape = tuple(output_shape)
     x = np.empty(output_shape, dtype=tensor_dtype)
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
         ctx.ggml_context,
@@ -3220,7 +3232,7 @@ def ggml_operator_reduce_mean(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     output_shape = tuple(output_shape)
     x = np.empty(output_shape, dtype=tensor_dtype)
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
         ctx.ggml_context,
@@ -3307,7 +3319,7 @@ def ggml_operator_reduce_mean(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     output_shape = tuple(output_shape)
     x = np.empty(output_shape, dtype=tensor_dtype)
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
         ctx.ggml_context,
@@ -3394,7 +3406,7 @@ def ggml_operator_reduce_prod(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     output_shape = tuple(output_shape)
     x = np.empty(output_shape, dtype=tensor_dtype)
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
         ctx.ggml_context,
@@ -3480,7 +3492,7 @@ def ggml_operator_reduce_sum(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     output_shape = tuple(output_shape)
     x = np.empty(output_shape, dtype=tensor_dtype)
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
         ctx.ggml_context,
@@ -3567,7 +3579,7 @@ def ggml_operator_reduce_sum_square(ctx: "GgmlOnnxExecutionContext", node: NodeP
 
     output_shape = tuple(output_shape)
     x = np.empty(output_shape, dtype=tensor_dtype)
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
         ctx.ggml_context,
@@ -3632,7 +3644,7 @@ def ggml_operator_reshape(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     temp_a = np.empty(old_shape, dtype=get_tensor_dtype(a))
     x = temp_a.reshape(new_shape)
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     @ggml.ggml_custom2_op_t
     def custom_reshape(
@@ -3821,7 +3833,7 @@ def ggml_operator_size(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ggml_type = map_to_ggml_type(tensor_size_np.dtype).value
     x = np.empty(tensor_shape, dtype=tensor_size_np.dtype)
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     new_tensor = ctx.tensors_dict[name] = ggml.ggml_map_custom2_inplace(
         ctx.ggml_context,
@@ -4511,7 +4523,7 @@ def ggml_operator_unsqueeze(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     data = node_inputs[0]
     axes_input = node_inputs[1]
 
-    x_shape = get_tensor_shape(data)
+    x_shape = ctx.get_tensor_shape(data)
     x_dtype = get_tensor_dtype(data)
     x_ndims = ggml.utils.get_ndims(data)
 
@@ -4549,7 +4561,6 @@ def ggml_operator_unsqueeze(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         1,
         None,
     )
-
     return new_tensor
 
 
@@ -4627,7 +4638,7 @@ def ggml_operator_xor(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     output_shape = np.broadcast(np.empty(a_shape), np.empty(b_shape)).shape
 
     x = np.empty(output_shape, dtype=a_dtype)
-    x_t = ggml.utils.from_numpy(x, ctx.ggml_context)
+    x_t = ctx.from_numpy(x)
 
     new_tensor = ctx.tensors_dict[name] = ggml.ggml_map_custom3_inplace(
         ctx.ggml_context,
@@ -4656,7 +4667,28 @@ class GgmlOnnxExecutionContext:
         self.tensors_dict = tensors_dict
         self.ggml_context = ggml_context
         self.refs = refs
+        self.shapes = {}
 
+    def set_tensor_shape(self, tensor: ggml.ggml_tensor_p, shape: Tuple[int, ...]):
+        data = tensor.contents.data
+        self.shapes[data] = shape
+        
+    def get_tensor_shape(self, tensor: ggml.ggml_tensor_p) -> Tuple[int, ...]:
+        data = tensor.contents.data
+        if data not in self.shapes:
+            self.shapes[data] = get_tensor_shape(tensor)
+        return self.shapes[data]
+
+    def to_numpy(self, tensor: ggml.ggml_tensor_p) -> np.ndarray:
+        shape = self.get_tensor_shape(tensor)
+        array = ggml.utils.to_numpy(tensor)
+        return array.reshape(shape)
+
+    def from_numpy(self, array: np.ndarray) -> ggml.ggml_tensor_p:
+        shape = array.shape
+        tensor = ggml.utils.from_numpy(array, self.ggml_context)
+        self.set_tensor_shape(tensor, shape)
+        return tensor
 
 class GgmlBackendRep(BackendRep):
     def __init__(
@@ -4812,6 +4844,10 @@ class GgmlBackendRep(BackendRep):
             graph_output = graph_output.astype(
                 get_final_dtype(exit_node)
             )  # TODO: add a second dict to keep track of types and use that instead
+
+            shape = ctx.get_tensor_shape(exit_node)
+            graph_output = graph_output.reshape(shape)
+
             graph_outputs.append(graph_output)
 
         ggml.ggml_free(ggml_context)
