@@ -3848,7 +3848,64 @@ def ggml_operator_size(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     return new_tensor
 
+@ggml_operator("Slice")
+def ggml_operator_slice(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
+    node_inputs = [ctx.tensors_dict[inp] for inp in node.input]
+    a_shape = ctx.get_tensor_shape(node_inputs[0])
+    a_dtype = get_tensor_dtype(node_inputs[0])
+
+    starts = ctx.to_numpy(ctx.backend.eval_tensor(node_inputs[1], ctx.ggml_context))
+    ends = ctx.to_numpy(ctx.backend.eval_tensor(node_inputs[2], ctx.ggml_context))
+
+    dims = len(a_shape)
+    if len(node_inputs) >= 4:
+        axes = ctx.to_numpy(ctx.backend.eval_tensor(node_inputs[3], ctx.ggml_context))
+    else:
+        axes = list(range(len(starts)))
+
+    axes = [a + dims if a < 0 else a for a in axes]
+    
+    if len(node_inputs) == 5:
+        steps = ctx.to_numpy(ctx.backend.eval_tensor(node_inputs[4], ctx.ggml_context))
+    else:
+        steps = np.ones_like(starts)
+
+
+    slices = [slice(start,end, step) for start, end, step in zip(starts, ends, steps)]
+    all_slices = []
+    for axis in range(dims):
+        if axis not in axes:
+            all_slices.append(slice(None))
+        else:
+            all_slices.append(slices.pop(0))
+
+    x = np.empty(a_shape, dtype=a_dtype)[tuple(all_slices)].copy()
+    x_t = ctx.from_numpy(x)
+    
+    @ggml.ggml_custom2_op_t
+    def custom_slice(tensor_out: ggml.ggml_tensor_p,
+                     tensor_in_1: ggml.ggml_tensor_p,
+                     tensor_in_2: ggml.ggml_tensor_p,
+                     ith: int,
+                     nth: int,
+                     userdata: Optional[ctypes.c_void_p]):
+        x = ggml.utils.to_numpy(tensor_in_2)
+        y = x[tuple(all_slices)].copy()
+
+        set_tensor_out(tensor_out, y)
+
+    new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+        ctx.ggml_context,
+        x_t,
+        node_inputs[0],
+        custom_slice,
+        1,
+        None
+    )
+    ctx.refs.append(custom_slice)
+    return new_tensor
+    
 @ggml_operator("Softmax")
 def ggml_operator_softmax(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     node_inputs = [ctx.tensors_dict[inp] for inp in node.input]
@@ -4161,7 +4218,7 @@ def ggml_operator_squeeze(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     axes_eval = ctx.backend.eval_tensor(axes_input, ctx.ggml_context)
     axes = ggml.utils.to_numpy(axes_eval).astype(dtype=np.int32)
-
+    # breakpoint()
     dummy_data = np.empty(x_shape, dtype=x_dtype)
     dummy_data = np.squeeze(dummy_data, axis=axes[0])
 

@@ -176,11 +176,14 @@ def test_ggml_onnx_graph_optimization():
                     break
             else:
                 return None
-            
+
             # find a transpose node that transposes the output of the first transpose node
             transpose_transpose_node: Optional[NodeProto] = None
             for node in model.graph.node:
-                if node.op_type == "Transpose" and node.input[0] == transpose_node.output[0]:
+                if (
+                    node.op_type == "Transpose"
+                    and node.input[0] == transpose_node.output[0]
+                ):
                     transpose_transpose_node = node
                     break
             else:
@@ -194,7 +197,6 @@ def test_ggml_onnx_graph_optimization():
             transpose_transpose_node.output[0] = transpose_node.input[0]
 
             return model
-
 
     input_data = {"x": np.random.randn(1, 32).astype(np.float32)}
 
@@ -458,7 +460,7 @@ backend_test.include("test_Sigmoid_")
 
 backend_test.include("test_size_")
 
-# backend_test.include("test_slice_")
+backend_test.include("test_slice_")
 
 backend_test.include("test_softmax_")
 backend_test.exclude("test_softmax_axis_0")  # not supported
