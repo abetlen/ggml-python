@@ -4769,17 +4769,19 @@ class GgmlBackendRep(BackendRep):
     def __del__(self):
         if hasattr(self, "ggml_context"):
             ggml.ggml_free(self.ggml_context)
-
-    def eval_tensor(
-        self, tensor: ggml.ggml_tensor_p, ggml_context: ggml.ggml_context_p
-    ):
-        gf = ggml.ggml_build_forward(tensor)
+    
+    def _compute_graph(self, gf: ggml.ggml_cgraph):
         gp = ggml.ggml_graph_plan(ctypes.pointer(gf), 1)
         work_buffer = (ctypes.c_uint8 * gp.work_size)() if gp.work_size else None
         if gp.work_size:
             gp.work = ctypes.cast(ctypes.addressof(work_buffer), ctypes.c_void_p)
         ggml.ggml_graph_compute(ctypes.byref(gf), ctypes.byref(gp))
 
+    def eval_tensor(
+        self, tensor: ggml.ggml_tensor_p, ggml_context: ggml.ggml_context_p
+    ):
+        gf = ggml.ggml_build_forward(tensor)
+        self._compute_graph(gf)
         return tensor
 
     @staticmethod
@@ -4903,11 +4905,7 @@ class GgmlBackendRep(BackendRep):
                     ggml.ggml_build_forward_expand(gf_p, ggml_tensors[output])
 
         # Compute graph
-        gp = ggml.ggml_graph_plan(ctypes.pointer(gf), 1)
-        work_buffer = (ctypes.c_uint8 * gp.work_size)() if gp.work_size else None
-        if gp.work_size:
-            gp.work = ctypes.cast(ctypes.addressof(work_buffer), ctypes.c_void_p)
-        ggml.ggml_graph_compute(gf_p, ctypes.byref(gp))
+        self._compute_graph(gf)
 
         graph_outputs = []
         for output in self.outputs:
