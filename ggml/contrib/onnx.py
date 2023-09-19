@@ -1167,7 +1167,7 @@ def ggml_operator_dropout(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     seed = next((attr.i for attr in node.attribute if attr.name == "seed"), 6)
 
     if type(training_mode) is ggml.ggml_tensor_p:
-        training_mode_eval = ctx.backend.eval_tensor(training_mode, ctx.ggml_context)
+        training_mode_eval = ctx.eval_tensor(training_mode, ctx.ggml_context)
         training_mode = ctx.to_numpy(training_mode_eval)
 
     droput_userdata = DropoutUserData(seed, bool(training_mode))
@@ -1224,7 +1224,7 @@ def ggml_operator_elu(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     )
 
     if alpha != 1.0:
-        Y_eval = ctx.backend.eval_tensor(Y, ctx.ggml_context)
+        Y_eval = ctx.eval_tensor(Y, ctx.ggml_context)
         Y_np = ctx.to_numpy(Y_eval)
         Y_alpha = np.where(Y_np < 0, alpha * Y_np, Y_np)
 
@@ -2470,7 +2470,7 @@ def ggml_operator_pad(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     if "axes" not in ctx.tensors_dict:
         axes = list(range(input_rank))
     else:
-        axes_eval = ctx.backend.eval_tensor(ctx.tensors_dict["axes"], ctx.ggml_context)
+        axes_eval = ctx.eval_tensor(ctx.tensors_dict["axes"], ctx.ggml_context)
         axes = ctx.to_numpy(axes_eval)
         axes = [axis if axis >= 0 else axis + input_rank for axis in axes]
     num_axes = len(axes)
@@ -2479,7 +2479,7 @@ def ggml_operator_pad(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         pad_width += [[0, 0]]  # init to zero
 
     raw_pads = ctx.to_numpy(
-        ctx.backend.eval_tensor(ctx.tensors_dict["pads"], ctx.ggml_context)
+        ctx.eval_tensor(ctx.tensors_dict["pads"], ctx.ggml_context)
     )
 
     # re-order to np.pad accepted order ((x1_begin, x1_end), (x2_begin, x2_end), ...)
@@ -2499,7 +2499,7 @@ def ggml_operator_pad(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     constant_value = None
     if "value" in ctx.tensors_dict:
         constant_values = ctx.to_numpy(
-            ctx.backend.eval_tensor(ctx.tensors_dict["value"], ctx.ggml_context)
+            ctx.eval_tensor(ctx.tensors_dict["value"], ctx.ggml_context)
         )
 
     @ggml.ggml_custom2_op_t
@@ -2770,7 +2770,7 @@ def ggml_operator_reduce_l1(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     axes = next((attr.ints for attr in node.attribute if attr.name == "axes"), None)
     if not axes:
         if len(node_inputs) > 1:
-            axes_eval = ctx.backend.eval_tensor(node_inputs[1], ctx.ggml_context)
+            axes_eval = ctx.eval_tensor(node_inputs[1], ctx.ggml_context)
             axes = ggml.utils.to_numpy(axes_eval)
         else:
             axes = []
@@ -2858,7 +2858,7 @@ def ggml_operator_reduce_l2(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     axes = next((attr.ints for attr in node.attribute if attr.name == "axes"), None)
     if not axes:
         if len(node_inputs) > 1:
-            axes_eval = ctx.backend.eval_tensor(node_inputs[1], ctx.ggml_context)
+            axes_eval = ctx.eval_tensor(node_inputs[1], ctx.ggml_context)
             axes = ggml.utils.to_numpy(axes_eval)
         else:
             axes = []
@@ -2945,7 +2945,7 @@ def ggml_operator_reduce_log_sum(ctx: "GgmlOnnxExecutionContext", node: NodeProt
     axes = next((attr.ints for attr in node.attribute if attr.name == "axes"), None)
     if not axes:
         if len(node_inputs) > 1:
-            axes_eval = ctx.backend.eval_tensor(node_inputs[1], ctx.ggml_context)
+            axes_eval = ctx.eval_tensor(node_inputs[1], ctx.ggml_context)
             axes = ggml.utils.to_numpy(axes_eval)
         else:
             axes = []
@@ -3035,7 +3035,7 @@ def ggml_operator_reduce_log_sum_exp(ctx: "GgmlOnnxExecutionContext", node: Node
     axes = next((attr.ints for attr in node.attribute if attr.name == "axes"), None)
     if not axes:
         if len(node_inputs) > 1:
-            axes_eval = ctx.backend.eval_tensor(node_inputs[1], ctx.ggml_context)
+            axes_eval = ctx.eval_tensor(node_inputs[1], ctx.ggml_context)
             axes = ggml.utils.to_numpy(axes_eval)
         else:
             axes = []
@@ -3122,7 +3122,7 @@ def ggml_operator_reduce_max(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     axes = next((attr.ints for attr in node.attribute if attr.name == "axes"), None)
     if not axes:
         if len(node_inputs) > 1:
-            axes_eval = ctx.backend.eval_tensor(node_inputs[1], ctx.ggml_context)
+            axes_eval = ctx.eval_tensor(node_inputs[1], ctx.ggml_context)
             axes = ggml.utils.to_numpy(axes_eval)
         else:
             axes = []
@@ -3209,7 +3209,7 @@ def ggml_operator_reduce_mean(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     axes = next((attr.ints for attr in node.attribute if attr.name == "axes"), None)
     if not axes:
         if len(node_inputs) > 1:
-            axes_eval = ctx.backend.eval_tensor(node_inputs[1], ctx.ggml_context)
+            axes_eval = ctx.eval_tensor(node_inputs[1], ctx.ggml_context)
             axes = ggml.utils.to_numpy(axes_eval)
         else:
             axes = []
@@ -3296,7 +3296,7 @@ def ggml_operator_reduce_mean(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     axes = next((attr.ints for attr in node.attribute if attr.name == "axes"), None)
     if not axes:
         if len(node_inputs) > 1:
-            axes_eval = ctx.backend.eval_tensor(node_inputs[1], ctx.ggml_context)
+            axes_eval = ctx.eval_tensor(node_inputs[1], ctx.ggml_context)
             axes = ggml.utils.to_numpy(axes_eval)
         else:
             axes = []
@@ -3383,7 +3383,7 @@ def ggml_operator_reduce_prod(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     axes = next((attr.ints for attr in node.attribute if attr.name == "axes"), None)
     if not axes:
         if len(node_inputs) > 1:
-            axes_eval = ctx.backend.eval_tensor(node_inputs[1], ctx.ggml_context)
+            axes_eval = ctx.eval_tensor(node_inputs[1], ctx.ggml_context)
             axes = ggml.utils.to_numpy(axes_eval)
         else:
             axes = []
@@ -3469,7 +3469,7 @@ def ggml_operator_reduce_sum(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     axes = next((attr.ints for attr in node.attribute if attr.name == "axes"), None)
     if not axes:
         if len(node_inputs) > 1:
-            axes_eval = ctx.backend.eval_tensor(node_inputs[1], ctx.ggml_context)
+            axes_eval = ctx.eval_tensor(node_inputs[1], ctx.ggml_context)
             axes = ggml.utils.to_numpy(axes_eval)
         else:
             axes = []
@@ -3556,7 +3556,7 @@ def ggml_operator_reduce_sum_square(ctx: "GgmlOnnxExecutionContext", node: NodeP
     axes = next((attr.ints for attr in node.attribute if attr.name == "axes"), None)
     if not axes:
         if len(node_inputs) > 1:
-            axes_eval = ctx.backend.eval_tensor(node_inputs[1], ctx.ggml_context)
+            axes_eval = ctx.eval_tensor(node_inputs[1], ctx.ggml_context)
             axes = ggml.utils.to_numpy(axes_eval)
         else:
             axes = []
@@ -3634,7 +3634,7 @@ def ggml_operator_reshape(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     a = node_inputs[0]
     b = node_inputs[1]
-    eval_b = ctx.backend.eval_tensor(b, ctx.ggml_context)
+    eval_b = ctx.eval_tensor(b, ctx.ggml_context)
 
     new_shape = ggml.utils.to_numpy(eval_b).astype(dtype=np.int32)
 
@@ -3856,19 +3856,19 @@ def ggml_operator_slice(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     a_shape = ctx.get_tensor_shape(node_inputs[0])
     a_dtype = get_tensor_dtype(node_inputs[0])
 
-    starts = ctx.to_numpy(ctx.backend.eval_tensor(node_inputs[1], ctx.ggml_context))
-    ends = ctx.to_numpy(ctx.backend.eval_tensor(node_inputs[2], ctx.ggml_context))
+    starts = ctx.to_numpy(ctx.eval_tensor(node_inputs[1], ctx.ggml_context))
+    ends = ctx.to_numpy(ctx.eval_tensor(node_inputs[2], ctx.ggml_context))
 
     dims = len(a_shape)
     if len(node_inputs) >= 4:
-        axes = ctx.to_numpy(ctx.backend.eval_tensor(node_inputs[3], ctx.ggml_context))
+        axes = ctx.to_numpy(ctx.eval_tensor(node_inputs[3], ctx.ggml_context))
     else:
         axes = list(range(len(starts)))
 
     axes = [a + dims if a < 0 else a for a in axes]
 
     if len(node_inputs) == 5:
-        steps = ctx.to_numpy(ctx.backend.eval_tensor(node_inputs[4], ctx.ggml_context))
+        steps = ctx.to_numpy(ctx.eval_tensor(node_inputs[4], ctx.ggml_context))
     else:
         steps = np.ones_like(starts)
 
@@ -4123,7 +4123,7 @@ def ggml_operator_split(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         split_shapes = [tuple(split_shape) for split_shape in split_shapes]
 
     else:
-        split_eval = ctx.backend.eval_tensor(split_tensor, ctx.ggml_context)
+        split_eval = ctx.eval_tensor(split_tensor, ctx.ggml_context)
         split_values = ggml.utils.to_numpy(split_eval)
         split_shapes = [list(input_shape) for _ in range(num_outputs)]
 
@@ -4214,7 +4214,7 @@ def ggml_operator_squeeze(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     x_shape = get_tensor_shape(data)
     x_dtype = get_tensor_dtype(data)
 
-    axes_eval = ctx.backend.eval_tensor(axes_input, ctx.ggml_context)
+    axes_eval = ctx.eval_tensor(axes_input, ctx.ggml_context)
     axes = ggml.utils.to_numpy(axes_eval).astype(dtype=np.int32)
     # breakpoint()
     dummy_data = np.empty(x_shape, dtype=x_dtype)
@@ -4340,7 +4340,7 @@ def ggml_operator_tile(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     x, repeats = node_inputs
 
-    repeats_eval = ctx.backend.eval_tensor(repeats, ctx.ggml_context)
+    repeats_eval = ctx.eval_tensor(repeats, ctx.ggml_context)
     repeats_vals = ggml.utils.to_numpy(repeats_eval).astype(dtype=np.int32)
 
     output_shape = list(get_tensor_shape(x))
@@ -4448,7 +4448,7 @@ def ggml_operator_top_k(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     largest = next((attr.i for attr in node.attribute if attr.name == "largest"), 1)
     sorted_flag = next((attr.i for attr in node.attribute if attr.name == "sorted"), 0)
 
-    k_eval = ctx.backend.eval_tensor(k, ctx.ggml_context)
+    k_eval = ctx.eval_tensor(k, ctx.ggml_context)
     k_np = ggml.utils.to_numpy(k_eval)[0]
 
     topk_userdata = TopKUserData(axis, largest, sorted_flag, k_np)
@@ -4582,7 +4582,7 @@ def ggml_operator_unsqueeze(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     x_dtype = get_tensor_dtype(data)
     x_ndims = ggml.utils.get_ndims(data)
 
-    axes_eval = ctx.backend.eval_tensor(axes_input, ctx.ggml_context)
+    axes_eval = ctx.eval_tensor(axes_input, ctx.ggml_context)
     axes = ggml.utils.to_numpy(axes_eval).astype(dtype=np.int32)
 
     axes_values = [ax if ax >= 0 else ax + x_ndims + 1 for ax in axes]
@@ -4745,6 +4745,20 @@ class GgmlOnnxExecutionContext:
         self.set_tensor_shape(tensor, shape)
         return tensor
 
+    def compute_graph(self, gf: ggml.ggml_cgraph):
+        gp = ggml.ggml_graph_plan(ctypes.pointer(gf), 1)
+        work_buffer = (ctypes.c_uint8 * gp.work_size)() if gp.work_size else None
+        if gp.work_size:
+            gp.work = ctypes.cast(ctypes.addressof(work_buffer), ctypes.c_void_p)
+        ggml.ggml_graph_compute(ctypes.byref(gf), ctypes.byref(gp))
+
+    def eval_tensor(
+        self, tensor: ggml.ggml_tensor_p, ggml_context: ggml.ggml_context_p
+    ):
+        gf = ggml.ggml_build_forward(tensor)
+        self.compute_graph(gf)
+        return tensor
+
 
 class GgmlBackendRep(BackendRep):
     def __init__(
@@ -4770,20 +4784,6 @@ class GgmlBackendRep(BackendRep):
         if hasattr(self, "ggml_context"):
             ggml.ggml_free(self.ggml_context)
     
-    def _compute_graph(self, gf: ggml.ggml_cgraph):
-        gp = ggml.ggml_graph_plan(ctypes.pointer(gf), 1)
-        work_buffer = (ctypes.c_uint8 * gp.work_size)() if gp.work_size else None
-        if gp.work_size:
-            gp.work = ctypes.cast(ctypes.addressof(work_buffer), ctypes.c_void_p)
-        ggml.ggml_graph_compute(ctypes.byref(gf), ctypes.byref(gp))
-
-    def eval_tensor(
-        self, tensor: ggml.ggml_tensor_p, ggml_context: ggml.ggml_context_p
-    ):
-        gf = ggml.ggml_build_forward(tensor)
-        self._compute_graph(gf)
-        return tensor
-
     @staticmethod
     def _is_list_of_arraylike(x: Any) -> TypeGuard[List[npt.ArrayLike]]:
         return isinstance(x, list) and all(
@@ -4905,7 +4905,7 @@ class GgmlBackendRep(BackendRep):
                     ggml.ggml_build_forward_expand(gf_p, ggml_tensors[output])
 
         # Compute graph
-        self._compute_graph(gf)
+        ctx.compute_graph(gf)
 
         graph_outputs = []
         for output in self.outputs:
