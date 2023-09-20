@@ -251,7 +251,7 @@ def ggml_operator_and(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     )
     ctx.refs.append(custom_and)
 
-    ggml.ggml_set_name(new_tensor, (name + f"<bool>").encode())
+    ctx.set_tensor_dtype(name, np.dtype(np.bool_))
 
     return new_tensor
 
@@ -350,7 +350,7 @@ def ggml_operator_arg_max(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     )
     ctx.refs.append(custom_arg_max)
 
-    ggml.ggml_set_name(new_tensor, (name + "<int64>").encode())
+    ctx.set_tensor_dtype(name, np.dtype(np.int64))
     ctx.refs.append(argmax_userdata)
 
     return new_tensor
@@ -440,7 +440,7 @@ def ggml_operator_arg_max(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     )
     ctx.refs.append(custom_arg_min)
 
-    ggml.ggml_set_name(new_tensor, (name + "<int64>").encode())
+    ctx.set_tensor_dtype(name, np.dtype(np.int64))
     ctx.refs.append(argmax_userdata)
 
     return new_tensor
@@ -726,7 +726,7 @@ def ggml_operator_constant(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     )
     ctx.refs.append(custom_constant)
 
-    ggml.ggml_set_name(new_tensor, (name + f"<{np_data_type}>").encode())
+    ctx.set_tensor_dtype(name, np_data_type)
     return new_tensor
 
 
@@ -1239,7 +1239,7 @@ def ggml_operator_dropout(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     ctx.refs.append(droput_userdata)
 
     if len(node.output) == 2:
-        ggml.ggml_set_name(mask, (node.output[1] + f"<bool>").encode())
+        ctx.set_tensor_dtype(node.output[1], np.dtype(np.bool_))
         ctx.tensors_dict[node.output[0]] = output
         ctx.tensors_dict[node.output[1]] = mask
 
@@ -1328,7 +1328,7 @@ def ggml_operator_equal(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.refs.append(custom_equal)
 
-    ggml.ggml_set_name(new_tensor, (name + f"<bool>").encode())
+    ctx.set_tensor_dtype(name, np.dtype(np.bool_))
 
     return new_tensor
 
@@ -1741,7 +1741,7 @@ def ggml_operator_greater(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.refs.append(custom_greater)
 
-    ggml.ggml_set_name(new_tensor, (name + f"<bool>").encode())
+    ctx.set_tensor_dtype(name, np.dtype(np.bool_))
 
     return new_tensor
 
@@ -1865,7 +1865,6 @@ def ggml_operator_floor(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     y = ggml.ggml_dup(
         ctx.ggml_context, x
     )  # NOTE: This will freeze the tensor in time, may not be expected.
-    ggml.ggml_set_name(y, output_name.encode())
 
     ctx.tensors_dict[output_name] = y
 
@@ -2097,7 +2096,7 @@ def ggml_operator_greater_or_equal(ctx: "GgmlOnnxExecutionContext", node: NodePr
 
     ctx.refs.append(custom_greater_equal)
 
-    ggml.ggml_set_name(new_tensor, (name + f"<bool>").encode())
+    ctx.set_tensor_dtype(name, np.dtype(np.bool_))
 
     return new_tensor
 
@@ -2152,7 +2151,7 @@ def ggml_operator_less(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.refs.append(custom_less)
 
-    ggml.ggml_set_name(new_tensor, (name + f"<bool>").encode())
+    ctx.set_tensor_dtype(name, np.dtype(np.bool_))
 
     return new_tensor
 
@@ -2207,7 +2206,7 @@ def ggml_operator_less_or_equal(ctx: "GgmlOnnxExecutionContext", node: NodeProto
 
     ctx.refs.append(custom_less_equal)
 
-    ggml.ggml_set_name(new_tensor, (name + f"<bool>").encode())
+    ctx.set_tensor_dtype(name, np.dtype(np.bool_))
 
     return new_tensor
 
@@ -2514,7 +2513,7 @@ def ggml_operator_not(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.refs.append(custom_not)
 
-    ggml.ggml_set_name(new_tensor, (name + f"<bool>").encode())
+    ctx.set_tensor_dtype(name, np.dtype(np.bool_))
 
     return new_tensor
 
@@ -2569,7 +2568,7 @@ def ggml_operator_or(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.refs.append(custom_or)
 
-    ggml.ggml_set_name(new_tensor, (name + f"<bool>").encode())
+    ctx.set_tensor_dtype(name, np.dtype(np.bool_))
 
     return new_tensor
 
@@ -3928,7 +3927,7 @@ def ggml_operator_shape(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         shape_slice
     )
 
-    ggml.ggml_set_name(new_tensor, (name + f"<int64>").encode())
+    ctx.set_tensor_dtype(name, np.dtype(np.int64))
 
     return new_tensor
 
@@ -4020,7 +4019,7 @@ def ggml_operator_size(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.refs.append(custom_size)
 
-    ggml.ggml_set_name(new_tensor, (name + f"<int64>").encode())
+    ctx.set_tensor_dtype(name, np.dtype(np.int64))
 
     return new_tensor
 
@@ -4682,7 +4681,7 @@ def ggml_operator_top_k(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.refs.append(topk_userdata)
 
-    ggml.ggml_set_name(indices, (node.output[1] + f"<int64>").encode())
+    ctx.set_tensor_dtype(node.output[1], np.dtype(np.int64))
 
     return values, indices
 
@@ -4902,7 +4901,7 @@ def ggml_operator_xor(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.refs.append(custom_xor)
 
-    ggml.ggml_set_name(new_tensor, (name + f"<bool>").encode())
+    ctx.set_tensor_dtype(name, np.dtype(np.bool_))
 
     return new_tensor
 
@@ -4920,6 +4919,7 @@ class GgmlOnnxExecutionContext:
         self.ggml_context = ggml_context
         self.refs = refs
         self.shapes = {}
+        self.dtypes = {}
 
     def set_tensor_shape(self, tensor: ggml.ggml_tensor_p, shape: Tuple[int, ...]):
         data = tensor.contents.data
@@ -4930,6 +4930,25 @@ class GgmlOnnxExecutionContext:
         if data not in self.shapes:
             self.shapes[data] = get_tensor_shape(tensor)
         return self.shapes[data]
+
+    def set_tensor_dtype(self, name: str, dtype: np.dtype):
+        self.dtypes[name] = dtype
+
+    def get_tensor_dtype(self, name: str) -> np.dtype:
+        tensor_dtype = get_tensor_dtype(self.tensors_dict[name])
+        return self.dtypes.get(name, tensor_dtype)
+
+    def get_final_dtype(self, tensor: ggml.ggml_tensor_p, pattern: str = r"<(.*?)>"):
+        tensor_name = tensor.contents.name.decode()
+        tensor_dtype = get_tensor_dtype(tensor)
+
+        match = re.search(pattern, tensor_name)
+
+        if match:
+            dtype_str = match.group(1)
+            tensor_dtype = np.dtype(dtype_str)
+
+        return tensor_dtype
 
     def to_numpy(self, tensor: ggml.ggml_tensor_p) -> np.ndarray:
         shape = self.get_tensor_shape(tensor)
@@ -5148,7 +5167,7 @@ class GgmlBackendRep(BackendRep):
                 exit_node
             ) if size > 0 else np.empty((0)) # TODO: Add checks to convert values back to bool or etc types
             graph_output = graph_output.astype(
-                get_final_dtype(exit_node)
+                ctx.get_tensor_dtype(output.name)
             )  # TODO: add a second dict to keep track of types and use that instead
 
             shape = ctx.get_tensor_shape(exit_node)
