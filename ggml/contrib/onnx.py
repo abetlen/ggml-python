@@ -95,33 +95,54 @@ def can_quantize(
 
 
 def broadcast_tensor(
-    ctx: ggml.ggml_context_p, tensor: ggml.ggml_tensor_p, shape: Tuple
+    ctx: "GgmlOnnxExecutionContext", tensor: ggml.ggml_tensor_p, shape: Tuple
 ):
     ggml_type = ggml.utils.GGML_TYPE(tensor.contents.type)
 
-    new_tensor = ggml.ggml_new_tensor(
-        ctx,
-        ggml_type.value,
-        len(shape),
-        (ctypes.c_int64 * len(shape))(*shape),
-    )
+    if ggml_type == ggml.utils.GGML_TYPE.F32:
+        new_tensor = ggml.ggml_new_tensor(
+            ctx.ggml_context,
+            ggml_type.value,
+            len(shape),
+            (ctypes.c_int64 * len(shape))(*shape),
+        )
 
-    new_tensor = ggml.ggml_repeat(
-        ctx,
-        tensor,
-        new_tensor,
-    )
+        new_tensor = ggml.ggml_repeat(
+            ctx.ggml_context,
+            tensor,
+            new_tensor,
+        )
+    else:
+        @ggml.ggml_custom2_op_t
+        def custom_broadcast_to(
+            tensor_out: ggml.ggml_tensor_p,
+            tensor_in_1: ggml.ggml_tensor_p,
+            tensor_in_2: ggml.ggml_tensor_p,
+            ith: int,
+            nth: int,
+            userdata: Optional[ctypes.c_void_p],
+):
+            a = ctx.to_numpy(tensor_in_2)
 
-    # if ggml.utils.get_shape(tensor) == ():
-    #     ggml.utils.to_numpy(new_tensor)[()] = ggml.utils.to_numpy(tensor)
-    # else:
-    #     ggml.utils.to_numpy(new_tensor)[:] = ggml.utils.to_numpy(tensor)
-
+            x = np.broadcast_to(a, shape)
+            ctx.set_tensor_out(tensor_out, x)
+            
+        x = np.empty(shape, dtype=get_tensor_dtype(tensor))
+        x_t = ctx.from_numpy(x)
+        new_tensor = ggml.ggml_map_custom2_inplace(
+            ctx.ggml_context,
+            x_t,
+            tensor,
+            custom_broadcast_to,
+            1,
+            None,
+        )
+        ctx.refs.append(custom_broadcast_to)
     return new_tensor
 
 
 def broadcast_shapes(
-    ctx: ggml.ggml_context_p,
+    ctx: "GgmlOnnxExecutionContext",
     a: ggml.ggml_tensor_p,
     b: ggml.ggml_tensor_p,
 ):
@@ -191,7 +212,7 @@ def ggml_operator_add(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     output_name = node.output[0]
 
     a, b = node_inputs
-    a, b = broadcast_shapes(ctx.ggml_context, a, b)
+    a, b = broadcast_shapes(ctx, a, b)
 
     add_result = ggml.ggml_add(
         ctx.ggml_context,
@@ -1104,7 +1125,7 @@ def ggml_operator_div(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     a = node_inputs[0]
     b = node_inputs[1]
 
-    a, b = broadcast_shapes(ctx.ggml_context, a, b)
+    a, b = broadcast_shapes(ctx, a, b)
 
     div_result = ggml.ggml_div(
         ctx.ggml_context,
@@ -1671,7 +1692,7 @@ def ggml_operator_gemm(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
             ),
         )
 
-    c, mul_mat_result = broadcast_shapes(ctx.ggml_context, c, mul_mat_result)
+    c, mul_mat_result = broadcast_shapes(ctx, c, mul_mat_result)
 
     beta_t = ctx.from_numpy(
         np.full(
@@ -2270,7 +2291,7 @@ def ggml_operator_mat_mul(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     try:
         np.matmul(np.empty(a_shape), np.empty(b_shape))
     except:
-        a, b = broadcast_shapes(ctx.ggml_context, a, b)
+        a, b = broadcast_shapes(ctx, a, b)
 
     b_dtype = get_tensor_dtype(b)
 
@@ -2447,13 +2468,42 @@ def ggml_operator_mul(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     a = node_inputs[0]
     b = node_inputs[1]
 
-    a, b = broadcast_shapes(ctx.ggml_context, a, b)
+    a, b = broadcast_shapes(ctx, a, b)
+    a_dtype = get_tensor_dtype(a)
 
-    mul_result = ggml.ggml_mul(
-        ctx.ggml_context,
-        a,
-        b,
-    )
+    if a_dtype == np.float32:
+        mul_result = ggml.ggml_mul(
+            ctx.ggml_context,
+            a,
+            b,
+        )
+    else:
+        @ggml.ggml_custom3_op_t
+        def custom_mul(
+            tensor_out: ggml.ggml_tensor_p,
+            tensor_in_1: ggml.ggml_tensor_p,
+            tensor_in_2: ggml.ggml_tensor_p,
+            tensor_in_3: ggml.ggml_tensor_p,
+            ith: int,
+            nth: int,
+            userdata: Optional[ctypes.c_void_p],
+        ):
+            x = ggml.utils.to_numpy(tensor_in_2)
+            y = ggml.utils.to_numpy(tensor_in_3)
+            z = x * y
+            ctx.set_tensor_out(tensor_out, np.array(z))
+        x = np.empty(get_tensor_shape(a), dtype=a_dtype)
+        x_t = ctx.from_numpy(x)
+        mul_result = ggml.ggml_map_custom3_inplace(
+            ctx.ggml_context,
+            x_t,
+            node_inputs[0],
+            node_inputs[1],
+            custom_mul,
+            1,
+            None,
+        )
+        ctx.refs.append(custom_mul)
 
     ctx.tensors_dict[output_name] = mul_result
     return mul_result
@@ -4435,7 +4485,7 @@ def ggml_operator_sub(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     output_name = node.output[0]
     a, b = node_inputs
-    a, b = broadcast_shapes(ctx.ggml_context, a, b)
+    a, b = broadcast_shapes(ctx, a, b)
 
     sub_result = ggml.ggml_sub(
         ctx.ggml_context,
@@ -4463,7 +4513,7 @@ def ggml_operator_sum(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     next_item = ctx.from_numpy(empty_np)
 
     for tensor in node_inputs:
-        tensor, next_item = broadcast_shapes(ctx.ggml_context, tensor, next_item)
+        tensor, next_item = broadcast_shapes(ctx, tensor, next_item)
         next_item = ggml.ggml_add(
             ctx.ggml_context,
             tensor,
