@@ -2795,7 +2795,7 @@ def ggml_operator_range(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         )
 
     for node_input in node_inputs:
-        ctx.backend.eval_tensor(node_input)
+        ctx.eval_tensor(node_input)
 
     tensors = [ggml.utils.to_numpy(node_input) for node_input in node_inputs]
     start, stop, step = tensors
