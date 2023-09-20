@@ -5,7 +5,7 @@ This module implements a GGML backend for ONNX models and operators.
 import ctypes
 import math
 import re
-from typing import Any, Dict, List, Optional, Tuple, Sequence
+from typing import Any, Callable, Dict, List, Optional, Tuple, Sequence
 from typing_extensions import TypeGuard
 
 import numpy as np
@@ -13,27 +13,29 @@ import numpy.typing as npt
 import onnx
 from onnx.backend.base import Backend, BackendRep
 from onnx.helper import np_dtype_to_tensor_dtype, tensor_dtype_to_np_dtype
-from onnx.onnx_ml_pb2 import GraphProto, ModelProto, NodeProto, ValueInfoProto
+from onnx.onnx_ml_pb2 import GraphProto, ModelProto, NodeProto, ValueInfoProto, TensorProto
 
 import ggml
 import ggml.utils
 
-ggml_operators = {}
-onnx_dtype_map = {
+GgmlOperator = Callable[["GgmlOnnxExecutionContext", NodeProto], ggml.ggml_tensor_p]
+
+ggml_operators: Dict[str, GgmlOperator] = {}
+onnx_dtype_map: Dict[int, npt.DTypeLike] = {
     elem_type: np_dtype
-    for elem_type, np_dtype in onnx.mapping.TENSOR_TYPE_TO_NP_TYPE.items()
+    for elem_type, np_dtype in onnx.mapping.TENSOR_TYPE_TO_NP_TYPE.items() # type: ignore
 }
 
 
-def ggml_operator(operator):
-    def inner(func):
+def ggml_operator(operator: str):
+    def inner(func: GgmlOperator):
         ggml_operators[operator] = func
         return func
 
     return inner
 
 
-def map_to_ggml_type(dtype: np.dtype):
+def map_to_ggml_type(dtype: npt.DTypeLike):
     np_data_type_limit = np.dtype(str(dtype).replace("64", "32"))
     ggml_type = ggml.utils.NUMPY_DTYPE_TO_GGML_TYPE.get(
         np_data_type_limit.type,
@@ -43,11 +45,11 @@ def map_to_ggml_type(dtype: np.dtype):
     return ggml_type
 
 
-def get_tensor_shape(tensor):
+def get_tensor_shape(tensor: ggml.ggml_tensor_p) -> Tuple[int, ...]:
     return tuple(reversed(ggml.utils.get_shape(tensor)))
 
 
-def set_tensor_out(tensor, ndarray):
+def set_tensor_out(tensor: ggml.ggml_tensor_p, ndarray: npt.NDArray[Any]):
     output_shape = get_tensor_shape(tensor)
 
     if output_shape == ():
@@ -56,7 +58,7 @@ def set_tensor_out(tensor, ndarray):
         ggml.utils.to_numpy(tensor)[:] = ndarray
 
 
-def get_tensor_dtype(tensor):
+def get_tensor_dtype(tensor: ggml.ggml_tensor_p) -> npt.DTypeLike:
     ggml_type = ggml.utils.GGML_TYPE(tensor.contents.type)
     if ggml_type == ggml.utils.GGML_TYPE.F16:
         ctypes_type = ctypes.c_uint16
@@ -68,7 +70,7 @@ def get_tensor_dtype(tensor):
 
 
 def can_quantize(
-    np_array: np.ndarray,
+    np_array: npt.NDArray[Any],
     name: str,
     graph_def: GraphProto,
 ):
@@ -95,7 +97,7 @@ def can_quantize(
 
 
 def broadcast_tensor(
-    ctx: ggml.ggml_context_p, tensor: ggml.ggml_tensor_p, shape: Tuple
+    ctx: ggml.ggml_context_p, tensor: ggml.ggml_tensor_p, shape: Tuple[int, ...]
 ):
     ggml_type = ggml.utils.GGML_TYPE(tensor.contents.type)
 
@@ -111,11 +113,6 @@ def broadcast_tensor(
         tensor,
         new_tensor,
     )
-
-    # if ggml.utils.get_shape(tensor) == ():
-    #     ggml.utils.to_numpy(new_tensor)[()] = ggml.utils.to_numpy(tensor)
-    # else:
-    #     ggml.utils.to_numpy(new_tensor)[:] = ggml.utils.to_numpy(tensor)
 
     return new_tensor
 
@@ -141,19 +138,6 @@ def broadcast_shapes(
         b_shaped = broadcast_tensor(ctx, b, output_shape)
 
     return a_shaped, b_shaped
-
-
-def get_final_dtype(tensor: ggml.ggml_tensor_p, pattern: str = r"<(.*?)>"):
-    tensor_name = tensor.contents.name.decode()
-    tensor_dtype = get_tensor_dtype(tensor)
-
-    match = re.search(pattern, tensor_name)
-
-    if match:
-        dtype_str = match.group(1)
-        tensor_dtype = np.dtype(dtype_str)
-
-    return tensor_dtype
 
 
 # ------ Operators ------
@@ -359,7 +343,7 @@ def ggml_operator_arg_max(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
 
 @ggml_operator("ArgMin")
-def ggml_operator_arg_max(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
+def ggml_operator_arg_min(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     node_inputs = [ctx.tensors_dict[inp] for inp in node.input]
 
     if len(node_inputs) != 1:
@@ -4918,8 +4902,8 @@ class GgmlOnnxExecutionContext:
         self.tensors_dict = tensors_dict
         self.ggml_context = ggml_context
         self.refs = refs
-        self.shapes = {}
-        self.dtypes = {}
+        self.shapes: Dict[str, Tuple[int, ...]] = {}
+        self.dtypes: Dict[str, npt.DTypeLike] = {}
 
     def set_tensor_shape(self, tensor: ggml.ggml_tensor_p, shape: Tuple[int, ...]):
         data = tensor.contents.data
@@ -4931,26 +4915,14 @@ class GgmlOnnxExecutionContext:
             self.shapes[data] = get_tensor_shape(tensor)
         return self.shapes[data]
 
-    def set_tensor_dtype(self, name: str, dtype: np.dtype):
+    def set_tensor_dtype(self, name: str, dtype: npt.DTypeLike):
         self.dtypes[name] = dtype
 
-    def get_tensor_dtype(self, name: str) -> np.dtype:
+    def get_tensor_dtype(self, name: str) -> npt.DTypeLike:
         tensor_dtype = get_tensor_dtype(self.tensors_dict[name])
         return self.dtypes.get(name, tensor_dtype)
 
-    def get_final_dtype(self, tensor: ggml.ggml_tensor_p, pattern: str = r"<(.*?)>"):
-        tensor_name = tensor.contents.name.decode()
-        tensor_dtype = get_tensor_dtype(tensor)
-
-        match = re.search(pattern, tensor_name)
-
-        if match:
-            dtype_str = match.group(1)
-            tensor_dtype = np.dtype(dtype_str)
-
-        return tensor_dtype
-
-    def to_numpy(self, tensor: ggml.ggml_tensor_p) -> np.ndarray:
+    def to_numpy(self, tensor: ggml.ggml_tensor_p) -> npt.NDArray[Any]:
         shape = self.get_tensor_shape(tensor)
         array = ggml.utils.to_numpy(tensor)
         return array.reshape(shape)
@@ -4962,7 +4934,7 @@ class GgmlOnnxExecutionContext:
         self.refs.append(buffer)
         tensor.contents.data = ctypes.cast(ctypes.addressof(buffer), ctypes.c_void_p)
 
-    def from_numpy(self, array: np.ndarray) -> ggml.ggml_tensor_p:
+    def from_numpy(self, array: npt.NDArray[Any]) -> ggml.ggml_tensor_p:
         shape = array.shape
         tensor = ggml.utils.from_numpy(array, self.ggml_context)
         if array.size > 0:
@@ -4973,9 +4945,9 @@ class GgmlOnnxExecutionContext:
 
     def compute_graph(self, gf: ggml.ggml_cgraph):
         gp = ggml.ggml_graph_plan(ctypes.pointer(gf), 1)
-        work_buffer = (ctypes.c_uint8 * gp.work_size)() if gp.work_size else None
-        if gp.work_size:
-            gp.work = ctypes.cast(ctypes.addressof(work_buffer), ctypes.c_void_p)
+        work_buffer = (ctypes.c_uint8 * gp.work_size)() if gp.work_size > 0 else None
+        if gp.work_size > 0:
+            gp.work = ctypes.cast(work_buffer, ctypes.c_void_p)
         ggml.ggml_graph_compute(ctypes.byref(gf), ctypes.byref(gp))
 
     def eval_tensor(
@@ -4989,7 +4961,7 @@ class GgmlOnnxExecutionContext:
         alloc_buffer = (ctypes.c_uint8 * alloc_size)()
         leaf_data = [ggml.ggml_get_data(gf.leafs[i]) for i in range(gf.n_leafs)]
         node_data = [ggml.ggml_get_data(gf.nodes[i]) for i in range(gf.n_nodes)]
-        allocr = ggml.ggml_allocr_new(alloc_buffer, alloc_size, alignment)
+        allocr = ggml.ggml_allocr_new(ctypes.cast(alloc_buffer, ctypes.c_void_p), alloc_size, alignment)
         ggml.ggml_allocr_alloc_graph(allocr, ctypes.byref(gf))
         self.compute_graph(gf)
         ggml.ggml_allocr_free(allocr)
@@ -4999,7 +4971,7 @@ class GgmlOnnxExecutionContext:
             gf.nodes[i].contents.data = node_data[i]
         return tensor
 
-    def set_tensor_out(self, tensor: ggml.ggml_tensor_p, array: np.ndarray):
+    def set_tensor_out(self, tensor: ggml.ggml_tensor_p, array: npt.NDArray[Any]):
         output_shape = self.get_tensor_shape(tensor)
 
         if array.size == 0:
@@ -5143,7 +5115,7 @@ class GgmlBackendRep(BackendRep):
 
         # Build layers
         for node in model_graph.node:
-            operator_func = ggml_operators.get(node.op_type)
+            operator_func: Optional[GgmlOperator] = ggml_operators.get(node.op_type)
             if operator_func is None:
                 raise NotImplementedError(f'Operator "{node.op_type}" not implemented')
 
@@ -5158,12 +5130,12 @@ class GgmlBackendRep(BackendRep):
                     ctx.eval_tensor(ggml_tensors[output])
 
 
-        graph_outputs = []
+        graph_outputs: List[npt.NDArray[Any]] = []
         for output in self.outputs:
             exit_node = ggml_tensors[output.name]
             # NOTE: 0 dimension in ggml may cause bugs
             size = np.prod(ctx.get_tensor_shape(exit_node))
-            graph_output = ggml.utils.to_numpy(
+            graph_output: npt.NDArray[Any] = ggml.utils.to_numpy(
                 exit_node
             ) if size > 0 else np.empty((0)) # TODO: Add checks to convert values back to bool or etc types
             graph_output = graph_output.astype(
@@ -5211,11 +5183,11 @@ class GgmlRuntimeBackend(Backend):
         ggml_context = ggml.ggml_init(init_params)
         total_nbytes = 0
 
-        pairs = []
+        pairs: List[Tuple[ggml.ggml_tensor_p, TensorProto]] = []
 
         for initializer in graph.initializer:
             name = initializer.name
-            np_array = onnx.numpy_helper.to_array(initializer)
+            np_array: npt.NDArray[Any] = onnx.numpy_helper.to_array(initializer) # type: ignore
             tensor = ggml.utils.from_numpy(x=np_array, ctx=ggml_context)
             ggml.ggml_set_name(tensor=tensor, name=name.encode())
             total_nbytes += ggml.ggml_nbytes_pad(tensor)
