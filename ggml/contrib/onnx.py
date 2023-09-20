@@ -609,15 +609,6 @@ def ggml_operator_concat(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         raise ValueError(
             "All tensors must have the same shape along the specified axis."
         )
-
-    total_dim = sum(shape[axis] for shape in shapes)
-    output_shape = list(shapes[0])
-    output_shape[axis] = total_dim
-
-    x = np.empty(output_shape, dtype=get_tensor_dtype(node_inputs[0]))
-
-    x_t = ctx.from_numpy(x)
-
     @ggml.ggml_custom3_op_t
     def custom_concat(
         tensor_out: ggml.ggml_tensor_p,
@@ -633,20 +624,33 @@ def ggml_operator_concat(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         x = np.concatenate([a, b], axis=axis)
         ctx.set_tensor_out(tensor_out, x)
 
-    tensor_a = node_inputs[0]
-    tensor_b = node_inputs[1]
-    new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom3_inplace(
-        ctx.ggml_context,
-        x_t,
-        tensor_a,
-        tensor_b,
-        custom_concat,
-        1,
-        None,
-    )
+    def concat_2(tensor_a, tensor_b):
+        shape_a = ctx.get_tensor_shape(tensor_a)
+        shape_b = ctx.get_tensor_shape(tensor_b)
+        total_dim = shape_a[axis] + shape_b[axis]
+        output_shape = list(shape_a)
+        output_shape[axis] = total_dim
 
-    ctx.refs.append(custom_concat)
+        x = np.empty(output_shape, dtype=get_tensor_dtype(tensor_a))
+        x_t = ctx.from_numpy(x)
+        
 
+        new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom3_inplace(
+            ctx.ggml_context,
+            x_t,
+            tensor_a,
+            tensor_b,
+            custom_concat,
+            1,
+            None,
+        )
+
+        ctx.refs.append(custom_concat)
+        return new_tensor
+
+    new_tensor = node_inputs[0]
+    for tensor in node_inputs[1:]:
+        new_tensor = concat_2(new_tensor, tensor)
     return new_tensor
 
 
@@ -709,9 +713,8 @@ def ggml_operator_constant(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     ):
         shape = get_tensor_shape(tensor_in_1)
         constant_data = ggml.utils.to_numpy(tensor_in_2)
-        new_tenor = constant_data.reshape(shape)
-
-        ctx.set_tensor_out(tensor_out, new_tenor)
+        new_tensor = constant_data.reshape(shape)
+        ctx.set_tensor_out(tensor_out, new_tensor)
 
     new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
         ctx.ggml_context,
@@ -4965,7 +4968,7 @@ class GgmlOnnxExecutionContext:
         return tensor
 
     def set_tensor_out(self, tensor: ggml.ggml_tensor_p, array: np.ndarray):
-        output_shape = get_tensor_shape(tensor)
+        output_shape = self.get_tensor_shape(tensor)
 
         if output_shape == ():
             self.to_numpy(tensor)[()] = array
