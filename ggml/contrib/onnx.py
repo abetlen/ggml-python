@@ -4,7 +4,6 @@ This module implements a GGML backend for ONNX models and operators.
 """
 import ctypes
 import math
-import re
 from typing import Any, Callable, Dict, List, Optional, Tuple, Sequence
 from typing_extensions import TypeGuard
 
