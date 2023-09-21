@@ -17,7 +17,7 @@ from onnx.onnx_ml_pb2 import GraphProto, ModelProto, NodeProto, ValueInfoProto, 
 import ggml
 import ggml.utils
 
-GgmlOperator = Callable[["GgmlOnnxExecutionContext", NodeProto], ggml.ggml_tensor_p]
+GgmlOperator = Callable[["GgmlOnnxExecutionContext", NodeProto], None]
 
 ggml_operators: Dict[str, GgmlOperator] = {}
 onnx_dtype_map: Dict[int, npt.DTypeLike] = {
@@ -159,7 +159,6 @@ def ggml_operator_abs(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         a,
     )
     ctx.tensors_dict[output_name] = abs_result
-    return abs_result
 
 
 @ggml_operator("Add")
@@ -182,7 +181,6 @@ def ggml_operator_add(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         b,
     )
     ctx.tensors_dict[output_name] = add_result
-    return add_result
 
 
 
@@ -235,8 +233,6 @@ def ggml_operator_and(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     ctx.refs.append(custom_and)
 
     ctx.set_tensor_dtype(name, np.dtype(np.bool_))
-
-    return new_tensor
 
 
 class ArgOpsUserData(ctypes.Structure):
@@ -336,8 +332,6 @@ def ggml_operator_arg_max(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     ctx.set_tensor_dtype(name, np.dtype(np.int64))
     ctx.refs.append(argmax_userdata)
 
-    return new_tensor
-
 
 
 
@@ -426,8 +420,6 @@ def ggml_operator_arg_min(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     ctx.set_tensor_dtype(name, np.dtype(np.int64))
     ctx.refs.append(argmax_userdata)
 
-    return new_tensor
-
 
 
 
@@ -479,8 +471,6 @@ def ggml_operator_cast(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.refs.append(onnx_type_c)
 
-    return new_tensor
-
 
 @ggml_operator("CastLike")
 def ggml_operator_castlike(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
@@ -531,8 +521,6 @@ def ggml_operator_castlike(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.refs.append(onnx_type_c)
 
-    return new_tensor
-
 
 @ggml_operator("Ceil")
 def ggml_operator_ceil(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
@@ -569,8 +557,6 @@ def ggml_operator_ceil(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     )
 
     ctx.refs.append(custom_ceil)
-
-    return new_tensor
 
 
 @ggml_operator("Concat")
@@ -629,12 +615,10 @@ def ggml_operator_concat(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         )
 
         ctx.refs.append(custom_concat)
-        return new_tensor
 
     new_tensor = node_inputs[0]
     for tensor in node_inputs[1:]:
         new_tensor = concat_2(new_tensor, tensor)
-    return new_tensor
 
 
 
@@ -710,7 +694,6 @@ def ggml_operator_constant(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     ctx.refs.append(custom_constant)
 
     ctx.set_tensor_dtype(name, np_data_type)
-    return new_tensor
 
 
 
@@ -783,8 +766,6 @@ def ggml_operator_constant_of_shape(ctx: "GgmlOnnxExecutionContext", node: NodeP
     )
 
     ctx.refs.append(custom_constant_of_shape)
-
-    return new_tensor
 
 
 @ggml_operator("Conv")
@@ -867,7 +848,6 @@ def ggml_operator_conv(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     )
 
     ctx.tensors_dict[node.output[0]] = conv_result
-    return conv_result
 
 
 @ggml_operator("ConvTranspose")
@@ -1071,8 +1051,6 @@ def ggml_operator_depth_to_space(ctx: "GgmlOnnxExecutionContext", node: NodeProt
 
     ctx.refs.append(depthtospace_userdata)
 
-    return new_tensor
-
 
 @ggml_operator("Div")
 def ggml_operator_div(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
@@ -1229,7 +1207,6 @@ def ggml_operator_dropout(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         return output, mask
 
     ctx.tensors_dict[node.output[0]] = output
-    return output
 
 
 @ggml_operator("Elu")
@@ -1258,7 +1235,6 @@ def ggml_operator_elu(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         Y = ctx.from_numpy(Y_alpha)
 
     ctx.tensors_dict[output_name] = Y
-    return Y
 
 
 
@@ -1313,8 +1289,6 @@ def ggml_operator_equal(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.set_tensor_dtype(name, np.dtype(np.bool_))
 
-    return new_tensor
-
 
 @ggml_operator("Exp")
 def ggml_operator_exp(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
@@ -1351,8 +1325,6 @@ def ggml_operator_exp(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     )
 
     ctx.refs.append(custom_exp)
-
-    return new_tensor
 
 
 @ggml_operator("Expand")
@@ -1391,7 +1363,6 @@ def ggml_operator_expand(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         None,
     )
     ctx.refs.append(custom_expand)
-    return new_tensor
 
 
 
@@ -1454,8 +1425,6 @@ def ggml_operator_flatten(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     ctx.refs.append(custom_flatten)
     ctx.refs.append(axis_c)
 
-    return new_tensor
-
 
 
 
@@ -1492,8 +1461,6 @@ def ggml_operator_floor(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     )
 
     ctx.refs.append(custom_floor)
-
-    return new_tensor
 
 
 
@@ -1556,8 +1523,6 @@ def ggml_operator_gather(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     if output_shape == ():
         ctx.set_tensor_shape(new_tensor, ())
-
-    return new_tensor
 
 
 @ggml_operator("Gemm")
@@ -1671,8 +1636,6 @@ def ggml_operator_gemm(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     )
 
     ctx.tensors_dict[node.output[0]] = mul_mat_result
-    return mul_mat_result
-
 
 
 
@@ -1725,8 +1688,6 @@ def ggml_operator_greater(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     ctx.refs.append(custom_greater)
 
     ctx.set_tensor_dtype(name, np.dtype(np.bool_))
-
-    return new_tensor
 
 
 class HardSigmoidUserData(ctypes.Structure):
@@ -1784,8 +1745,6 @@ def ggml_operator_hardsigmoid(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.refs.append(hsig_userdata)
 
-    return new_tensor
-
 
 
 
@@ -1831,8 +1790,6 @@ def ggml_operator_hardmax(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.refs.append(axis_c)
 
-    return new_tensor
-
 
 @ggml_operator("Identity")
 def ggml_operator_floor(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
@@ -1850,8 +1807,6 @@ def ggml_operator_floor(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     )  # NOTE: This will freeze the tensor in time, may not be expected.
 
     ctx.tensors_dict[output_name] = y
-
-    return y
 
 
 
@@ -1900,7 +1855,6 @@ def ggml_operator_instancenorm(ctx: "GgmlOnnxExecutionContext", node: NodeProto)
     )
     ctx.refs.append(custom_instancenorm)
     ctx.refs.append(epsilon_c)
-    return new_tensor
 
 
 class LRNUserData(ctypes.Structure):
@@ -1982,8 +1936,6 @@ def ggml_operator_leaky_relu(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     ctx.refs.append(custom_leaky_lrn)
     ctx.refs.append(lrn_userdata)
 
-    return new_tensor
-
 
 
 
@@ -2025,8 +1977,6 @@ def ggml_operator_leaky_relu(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.refs.append(custom_leaky_relu)
     ctx.refs.append(axis_c)
-
-    return new_tensor
 
 
 
@@ -2081,8 +2031,6 @@ def ggml_operator_greater_or_equal(ctx: "GgmlOnnxExecutionContext", node: NodePr
 
     ctx.set_tensor_dtype(name, np.dtype(np.bool_))
 
-    return new_tensor
-
 
 
 
@@ -2135,8 +2083,6 @@ def ggml_operator_less(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     ctx.refs.append(custom_less)
 
     ctx.set_tensor_dtype(name, np.dtype(np.bool_))
-
-    return new_tensor
 
 
 
@@ -2191,8 +2137,6 @@ def ggml_operator_less_or_equal(ctx: "GgmlOnnxExecutionContext", node: NodeProto
 
     ctx.set_tensor_dtype(name, np.dtype(np.bool_))
 
-    return new_tensor
-
 
 @ggml_operator("Log")
 def ggml_operator_log(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
@@ -2211,7 +2155,6 @@ def ggml_operator_log(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         a,
     )
     ctx.tensors_dict[output_name] = log_result
-    return log_result
 
 
 @ggml_operator("LogSoftmax")
@@ -2231,7 +2174,6 @@ def ggml_operator_log_soft_max(ctx: "GgmlOnnxExecutionContext", node: NodeProto)
         soft_max_result,
     )
     ctx.tensors_dict[output_name] = log_result
-    return log_result
 
 
 @ggml_operator("MatMul")
@@ -2281,7 +2223,6 @@ def ggml_operator_mat_mul(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     )
 
     ctx.tensors_dict[output_name] = mul_mat_result
-    return mul_mat_result
 
 
 @ggml_operator("Max")
@@ -2333,8 +2274,6 @@ def ggml_operator_max(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.refs.append(custom_max)
 
-    return new_tensor
-
 
 @ggml_operator("Mean")
 def ggml_operator_mean(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
@@ -2361,7 +2300,6 @@ def ggml_operator_mean(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     )
 
     ctx.tensors_dict[output_name] = mean
-    return mean
 
 
 @ggml_operator("Min")
@@ -2413,8 +2351,6 @@ def ggml_operator_min(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.refs.append(custom_min)
 
-    return new_tensor
-
 
 @ggml_operator("Mul")
 def ggml_operator_mul(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
@@ -2438,7 +2374,6 @@ def ggml_operator_mul(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     )
 
     ctx.tensors_dict[output_name] = mul_result
-    return mul_result
 
 
 @ggml_operator("Neg")
@@ -2458,9 +2393,6 @@ def ggml_operator_neg(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         x,
     )
     ctx.tensors_dict[output_name] = x_neg
-    return x_neg
-
-
 
 
 @ggml_operator("Not")
@@ -2497,10 +2429,6 @@ def ggml_operator_not(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     ctx.refs.append(custom_not)
 
     ctx.set_tensor_dtype(name, np.dtype(np.bool_))
-
-    return new_tensor
-
-
 
 
 @ggml_operator("Or")
@@ -2552,8 +2480,6 @@ def ggml_operator_or(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     ctx.refs.append(custom_or)
 
     ctx.set_tensor_dtype(name, np.dtype(np.bool_))
-
-    return new_tensor
 
 
 @ggml_operator("Pad")
@@ -2638,9 +2564,6 @@ def ggml_operator_pad(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         None,
     )
     ctx.refs.append(custom_pad)
-    return new_tensor
-
-
 
 
 @ggml_operator("PRelu")
@@ -2679,9 +2602,6 @@ def ggml_operator_leaky_relu(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     )
 
     ctx.refs.append(custom_leaky_prelu)
-
-    return new_tensor
-
 
 
 
@@ -2724,9 +2644,6 @@ def ggml_operator_pow(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.refs.append(custom_pow)
 
-    return new_tensor
-
-
 
 
 @ggml_operator("Reciprocal")
@@ -2762,9 +2679,6 @@ def ggml_operator_reciprocal(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     )
 
     ctx.refs.append(custom_reciprocal)
-
-    return new_tensor
-
 
 
 
@@ -2815,8 +2729,6 @@ def ggml_operator_range(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     )
 
     ctx.refs.append(custom_range)
-
-    return new_tensor
 
 
 class ReduceOpsUserData(ctypes.Structure):
@@ -2926,9 +2838,6 @@ def ggml_operator_reduce_l1(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.refs.append(rmean_userdata)
 
-    return new_tensor
-
-
 
 
 @ggml_operator("ReduceL2")
@@ -3017,9 +2926,6 @@ def ggml_operator_reduce_l2(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.refs.append(rmean_userdata)
 
-    return new_tensor
-
-
 
 
 @ggml_operator("ReduceLogSum")
@@ -3106,9 +3012,6 @@ def ggml_operator_reduce_log_sum(ctx: "GgmlOnnxExecutionContext", node: NodeProt
     ctx.refs.append(custom_reduce_log_sum)
 
     ctx.refs.append(rmean_userdata)
-
-    return new_tensor
-
 
 
 
@@ -3200,10 +3103,6 @@ def ggml_operator_reduce_log_sum_exp(ctx: "GgmlOnnxExecutionContext", node: Node
 
     ctx.refs.append(rmean_userdata)
 
-    return new_tensor
-
-
-
 
 @ggml_operator("ReduceMax")
 def ggml_operator_reduce_max(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
@@ -3290,8 +3189,6 @@ def ggml_operator_reduce_max(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.refs.append(rmean_userdata)
 
-    return new_tensor
-
 
 
 
@@ -3312,7 +3209,7 @@ def ggml_operator_reduce_mean(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     if noop_with_empty_axes == 1:
         ctx.tensors_dict[node.output[0]] = input_tensor
-        return input_tensor
+        return
 
     tensor_shape = get_tensor_shape(input_tensor)
     tensor_dtype = get_tensor_dtype(input_tensor)
@@ -3380,9 +3277,6 @@ def ggml_operator_reduce_mean(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.refs.append(rmean_userdata)
 
-    return new_tensor
-
-
 
 
 @ggml_operator("ReduceMin")
@@ -3402,7 +3296,7 @@ def ggml_operator_reduce_mean(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     if noop_with_empty_axes == 1:
         ctx.tensors_dict[node.output[0]] = input_tensor
-        return input_tensor
+        return
 
     tensor_shape = get_tensor_shape(input_tensor)
     tensor_dtype = get_tensor_dtype(input_tensor)
@@ -3470,10 +3364,6 @@ def ggml_operator_reduce_mean(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.refs.append(rmean_userdata)
 
-    return new_tensor
-
-
-
 
 @ggml_operator("ReduceProd")
 def ggml_operator_reduce_prod(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
@@ -3492,7 +3382,7 @@ def ggml_operator_reduce_prod(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     if noop_with_empty_axes == 1:
         ctx.tensors_dict[node.output[0]] = input_tensor
-        return input_tensor
+        return
 
     tensor_shape = get_tensor_shape(input_tensor)
     tensor_dtype = get_tensor_dtype(input_tensor)
@@ -3560,10 +3450,6 @@ def ggml_operator_reduce_prod(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.refs.append(rmean_userdata)
 
-    return new_tensor
-
-
-
 
 @ggml_operator("ReduceSum")
 def ggml_operator_reduce_sum(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
@@ -3582,7 +3468,7 @@ def ggml_operator_reduce_sum(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     if noop_with_empty_axes == 1:
         ctx.tensors_dict[node.output[0]] = input_tensor
-        return input_tensor
+        return
 
     tensor_shape = get_tensor_shape(input_tensor)
     tensor_dtype = get_tensor_dtype(input_tensor)
@@ -3649,10 +3535,6 @@ def ggml_operator_reduce_sum(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.refs.append(rmean_userdata)
 
-    return new_tensor
-
-
-
 
 @ggml_operator("ReduceSumSquare")
 def ggml_operator_reduce_sum_square(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
@@ -3671,7 +3553,7 @@ def ggml_operator_reduce_sum_square(ctx: "GgmlOnnxExecutionContext", node: NodeP
 
     if noop_with_empty_axes == 1:
         ctx.tensors_dict[node.output[0]] = input_tensor
-        return input_tensor
+        return
 
     tensor_shape = get_tensor_shape(input_tensor)
     tensor_dtype = get_tensor_dtype(input_tensor)
@@ -3739,8 +3621,6 @@ def ggml_operator_reduce_sum_square(ctx: "GgmlOnnxExecutionContext", node: NodeP
 
     ctx.refs.append(rmean_userdata)
 
-    return new_tensor
-
 
 @ggml_operator("Relu")
 def ggml_operator_relu(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
@@ -3759,7 +3639,6 @@ def ggml_operator_relu(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         a,
     )
     ctx.tensors_dict[output_name] = relu_result
-    return relu_result
 
 
 @ggml_operator("Reshape")
@@ -3816,8 +3695,6 @@ def ggml_operator_reshape(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     )
 
     ctx.refs.append(custom_reshape)
-
-    return new_tensor
 
 
 class SeluUserData(ctypes.Structure):
@@ -3886,8 +3763,6 @@ def ggml_operator_selu(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.refs.append(selu_userdata)
 
-    return new_tensor
-
 
 @ggml_operator("Shape")
 def ggml_operator_shape(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
@@ -3911,10 +3786,6 @@ def ggml_operator_shape(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     )
 
     ctx.set_tensor_dtype(name, np.dtype(np.int64))
-
-    return new_tensor
-
-
 
 
 @ggml_operator("Sigmoid")
@@ -3951,10 +3822,6 @@ def ggml_operator_sigmoid(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     )
 
     ctx.refs.append(custom_sigmoid)
-
-    return new_tensor
-
-
 
 
 @ggml_operator("Size")
@@ -4003,8 +3870,6 @@ def ggml_operator_size(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     ctx.refs.append(custom_size)
 
     ctx.set_tensor_dtype(name, np.dtype(np.int64))
-
-    return new_tensor
 
 
 @ggml_operator("Slice")
@@ -4063,7 +3928,6 @@ def ggml_operator_slice(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         ctx.ggml_context, x_t, node_inputs[0], custom_slice, 1, None
     )
     ctx.refs.append(custom_slice)
-    return new_tensor
 
 
 @ggml_operator("Softmax")
@@ -4083,9 +3947,6 @@ def ggml_operator_softmax(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         a,
     )
     ctx.tensors_dict[output_name] = soft_max_result
-    return soft_max_result
-
-
 
 
 @ggml_operator("Softplus")
@@ -4121,8 +3982,6 @@ def ggml_operator_softplus(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.refs.append(custom_softplus)
 
-    return new_tensor
-
 
 @ggml_operator("Softsign")
 def ggml_operator_softsign(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
@@ -4144,10 +4003,6 @@ def ggml_operator_softsign(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     one_plus_abs = ggml.ggml_add(ctx.ggml_context, one_t, x_abs)
     y = ggml.ggml_div(ctx.ggml_context, x, one_plus_abs)
     ctx.tensors_dict[node.output[0]] = y
-
-    return y
-
-
 
 
 @ggml_operator("SpaceToDepth")
@@ -4217,16 +4072,12 @@ def ggml_operator_space_to_depth(ctx: "GgmlOnnxExecutionContext", node: NodeProt
 
     ctx.refs.append(blocksize_c)
 
-    return new_tensor
-
 
 class SplitUserData(ctypes.Structure):
     _fields_ = [
         ("axis", ctypes.c_int),
         ("split_index", ctypes.c_int),
     ]
-
-
 
 
 @ggml_operator("Split")
@@ -4330,8 +4181,6 @@ def ggml_operator_split(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         ctx.refs.append(split_userdata)
         outputs.append(new_tensor)
 
-    return outputs
-
 
 @ggml_operator("Sqrt")
 def ggml_operator_sqrt(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
@@ -4350,7 +4199,6 @@ def ggml_operator_sqrt(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         a,
     )
     ctx.tensors_dict[output_name] = sqrt_result
-    return sqrt_result
 
 
 @ggml_operator("Squeeze")
@@ -4403,7 +4251,6 @@ def ggml_operator_squeeze(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         None,
     )
     ctx.refs.append(custom_squeeze)
-    return new_tensor
 
 
 @ggml_operator("Sub")
@@ -4425,7 +4272,6 @@ def ggml_operator_sub(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         b,
     )
     ctx.tensors_dict[output_name] = sub_result
-    return sub_result
 
 
 @ggml_operator("Sum")
@@ -4454,8 +4300,6 @@ def ggml_operator_sum(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.tensors_dict[output_name] = next_item
 
-    return next_item
-
 
 @ggml_operator("Tanh")
 def ggml_operator_tanh(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
@@ -4473,10 +4317,6 @@ def ggml_operator_tanh(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     )
 
     ctx.tensors_dict[node.output[0]] = tanh_result
-
-    return tanh_result
-
-
 
 
 @ggml_operator("Tile")
@@ -4530,8 +4370,6 @@ def ggml_operator_tile(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.refs.append(custom_tile)
 
-    return new_tensor
-
 
 class TopKUserData(ctypes.Structure):
     _fields_ = [
@@ -4540,10 +4378,6 @@ class TopKUserData(ctypes.Structure):
         ("sorted", ctypes.c_int),
         ("k", ctypes.c_int),
     ]
-
-
-
-
 
 
 @ggml_operator("TopK")
@@ -4666,8 +4500,6 @@ def ggml_operator_top_k(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     ctx.set_tensor_dtype(node.output[1], np.dtype(np.int64))
 
-    return values, indices
-
 
 @ggml_operator("Transpose")
 def ggml_operator_transpose(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
@@ -4713,9 +4545,6 @@ def ggml_operator_transpose(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         )
 
     ctx.tensors_dict[output_name] = transpose_result
-    return transpose_result
-
-
 
 
 @ggml_operator("Unsqueeze")
@@ -4790,9 +4619,6 @@ def ggml_operator_unsqueeze(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         None,
     )
     ctx.refs.append(custom_unsqueeze)
-    return new_tensor
-
-
 
 
 @ggml_operator("Where")
@@ -4830,10 +4656,6 @@ def ggml_operator_where(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         None,
     )
     ctx.refs.append(custom_where)
-
-    return new_tensor
-
-
 
 
 @ggml_operator("Xor")
@@ -4885,8 +4707,6 @@ def ggml_operator_xor(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     ctx.refs.append(custom_xor)
 
     ctx.set_tensor_dtype(name, np.dtype(np.bool_))
-
-    return new_tensor
 
 
 class GgmlOnnxExecutionContext:
