@@ -48,15 +48,6 @@ def get_tensor_shape(tensor: ggml.ggml_tensor_p) -> Tuple[int, ...]:
     return tuple(reversed(ggml.utils.get_shape(tensor)))
 
 
-def set_tensor_out(tensor: ggml.ggml_tensor_p, ndarray: npt.NDArray[Any]):
-    output_shape = get_tensor_shape(tensor)
-
-    if output_shape == ():
-        ggml.utils.to_numpy(tensor)[()] = ndarray
-    else:
-        ggml.utils.to_numpy(tensor)[:] = ndarray
-
-
 def get_tensor_dtype(tensor: ggml.ggml_tensor_p) -> npt.DTypeLike:
     ggml_type = ggml.utils.GGML_TYPE(tensor.contents.type)
     if ggml_type == ggml.utils.GGML_TYPE.F16:
@@ -4791,15 +4782,7 @@ class GgmlOnnxExecutionContext:
         return tensor
 
     def set_tensor_out(self, tensor: ggml.ggml_tensor_p, array: npt.NDArray[Any]):
-        output_shape = self.get_tensor_shape(tensor)
-
-        if array.size == 0:
-            return
-
-        if output_shape == ():
-            self.to_numpy(tensor)[()] = array
-        else:
-            self.to_numpy(tensor)[:] = array
+        np.copyto(self.to_numpy(tensor), array, casting="unsafe")
 
 
 class GgmlBackendRep(BackendRep):
@@ -4916,7 +4899,7 @@ class GgmlBackendRep(BackendRep):
                 ctypes.addressof(input_buffer) + input_buffer_offset, ctypes.c_void_p
             )
             input_buffer_offset += ggml.ggml_nbytes_pad(tensor)
-            set_tensor_out(tensor, np.array(value))
+            np.copyto(ggml.utils.to_numpy(tensor), np.array(value))
 
         # Define context
         max_overhead = 2 * ggml.GGML_MAX_NODES * ggml.ggml_tensor_overhead()
@@ -5022,7 +5005,7 @@ class GgmlRuntimeBackend(Backend):
                 ctypes.addressof(buffer) + offset, ctypes.c_void_p
             )
             np_array = onnx.numpy_helper.to_array(initializer)
-            set_tensor_out(tensor, np_array)
+            np.copyto(ggml.utils.to_numpy(tensor), np_array)
 
             offset += nbytes
 
