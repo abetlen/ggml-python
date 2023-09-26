@@ -164,6 +164,12 @@ def test_ggml_onnx_graph_optimization():
     from onnx.onnx_ml_pb2 import ModelProto, NodeProto
 
     class TransposeIdentityRule(GgmlOnnxGraphOptimizerRule):
+        """Transpose Identity Rewrite Rule
+        
+        This rules removes two consecutive transpose nodes that transpose the same tensor.
+        
+        ie Transpose(Transpose(x)) -> x"""
+
         def __init__(self):
             super().__init__()
 
