@@ -5048,8 +5048,8 @@ class GgmlRuntimeBackend(Backend):
 class GgmlOnnxGraphOptimizerRule:
     """Base class for a graph optimization rule."""
 
-    def __init__(self, name: str):
-        self.name = name
+    def __init__(self):
+        pass
 
     def apply(self, model: ModelProto) -> Optional[ModelProto]:
         """Apply the optimization rule to the given ONNX model."""

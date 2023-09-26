@@ -159,15 +159,15 @@ def test_ggml_onnx_graph_optimization():
 
     model_def = helper.make_model(graph_def, producer_name="onnx-simple-expression")
 
-    from typing import Optional
+    from typing import Optional, List
     from ggml.contrib.onnx import GgmlOnnxGraphOptimizer, GgmlOnnxGraphOptimizerRule
-    from onnx.onnx_ml_pb2 import GraphProto, ModelProto, NodeProto
+    from onnx.onnx_ml_pb2 import ModelProto, NodeProto
 
     class TransposeTransposeRule(GgmlOnnxGraphOptimizerRule):
         def __init__(self):
             super().__init__()
 
-        def apply(self, model: onnx.ModelProto) -> Optional[ModelProto]:
+        def apply(self, model: ModelProto) -> Optional[ModelProto]:
             # find first transpose node
             transpose_node: Optional[NodeProto] = None
             for node in model.graph.node:
@@ -189,14 +189,31 @@ def test_ggml_onnx_graph_optimization():
             else:
                 return None
 
-            # remove the transpose nodes
-            model.graph.node.remove(transpose_node)
-            model.graph.node.remove(transpose_transpose_node)
+            # Create a new node list without the two transpose nodes
+            new_nodes: List[NodeProto] = []
+            for node in model.graph.node:
+                if node not in [transpose_node, transpose_transpose_node]:
+                    new_node = NodeProto()
+                    new_node.CopyFrom(node)
+                    new_node.input[:] = [transpose_node.input[0] if inp == transpose_transpose_node.output[0] else inp for inp in node.input]
+                    new_nodes.append(new_node)
+            
+            # Create the new graph
+            new_graph = helper.make_graph(
+                new_nodes,
+                model.graph.name,
+                model.graph.input,
+                model.graph.output,
+                model.graph.initializer,
+            )
 
-            # update the connections
-            transpose_transpose_node.output[0] = transpose_node.input[0]
+            # create a new model
+            new_model = helper.make_model(
+                new_graph, producer_name=model.producer_name
+            )
 
-            return model
+            return new_model
+
 
     input_data = {"x": np.random.randn(1, 32).astype(np.float32)}
 
@@ -208,6 +225,16 @@ def test_ggml_onnx_graph_optimization():
     ggml_dummy_model = GgmlRuntimeBackend.prepare(model_def)
     ggml_result = ggml_dummy_model.run(input_data)
     assert np.allclose(ggml_result[0], runtime_result[0], rtol=1e-03, atol=1e-05)
+
+    optimizer = GgmlOnnxGraphOptimizer(
+        model=model_def, rules=[TransposeTransposeRule()]
+    )
+    new_model = optimizer.optimize()
+    assert new_model is not None
+    ggml_dummy_model_new = GgmlRuntimeBackend.prepare(new_model)
+    assert ggml_dummy_model_new is not None
+    ggml_result_new = ggml_dummy_model_new.run(input_data)
+    assert np.allclose(ggml_result_new[0], runtime_result[0], rtol=1e-03, atol=1e-05)
 
 
 def test_ggml_onnx_runtime_quantized():
