@@ -163,7 +163,7 @@ def test_ggml_onnx_graph_optimization():
     from ggml.contrib.onnx import GgmlOnnxGraphOptimizer, GgmlOnnxGraphOptimizerRule
     from onnx.onnx_ml_pb2 import ModelProto, NodeProto
 
-    class TransposeTransposeRule(GgmlOnnxGraphOptimizerRule):
+    class TransposeIdentityRule(GgmlOnnxGraphOptimizerRule):
         def __init__(self):
             super().__init__()
 
@@ -227,7 +227,7 @@ def test_ggml_onnx_graph_optimization():
     assert np.allclose(ggml_result[0], runtime_result[0], rtol=1e-03, atol=1e-05)
 
     optimizer = GgmlOnnxGraphOptimizer(
-        model=model_def, rules=[TransposeTransposeRule()]
+        model=model_def, rules=[TransposeIdentityRule()]
     )
     new_model = optimizer.optimize()
     assert new_model is not None
@@ -235,6 +235,7 @@ def test_ggml_onnx_graph_optimization():
     assert ggml_dummy_model_new is not None
     ggml_result_new = ggml_dummy_model_new.run(input_data)
     assert np.allclose(ggml_result_new[0], runtime_result[0], rtol=1e-03, atol=1e-05)
+    assert sum([node.op_type == "Transpose" for node in new_model.graph.node]) == 0
 
 
 def test_ggml_onnx_runtime_quantized():
