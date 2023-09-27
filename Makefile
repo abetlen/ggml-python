@@ -35,6 +35,9 @@ test:
 test.gdb:
 	gdb -ex r -ex "thread apply all bt" --args python -m pytest -s -vvvv
 
+docs:
+	mkdocs serve
+
 clean:
 	- rm -rf build
 	- rm -rf dist
@@ -46,4 +49,4 @@ clean:
 	- rm ${submodules}/*.dylib
 	- cd ${submodules} && make clean
 
-.PHONY: all update-pip build build.openblas build.cuda sdist deploy test clean
+.PHONY: all update-pip build build.openblas build.cuda sdist deploy test test.gdb docs clean
