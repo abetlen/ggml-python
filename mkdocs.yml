@@ -1,10 +1,25 @@
 site_name: ggml-python
+site_url: https://ggml-python.readthedocs.io
 repo_url: https://github.com/abetlen/ggml-python
 
 theme:
   name: material
-  palette:
-    primary: white
+  palette: 
+
+    # Palette toggle for light mode
+    - scheme: default
+      primary: white
+      toggle:
+        icon: material/brightness-7 
+        name: Switch to dark mode
+
+    # Palette toggle for dark mode
+    - scheme: slate
+      primary: black
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
   features:
     - navigation.tabs
     - navigation.tabs.sticky
