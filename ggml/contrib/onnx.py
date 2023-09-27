@@ -5045,8 +5045,8 @@ class GgmlRuntimeBackend(Backend):
         )
 
 
-class GgmlOnnxGraphOptimizerRule:
-    """Base class for a graph optimization rule."""
+class OnnxGraphRule:
+    """Base class for a graph rule which is applied to an onnx model."""
 
     def __init__(self):
         pass
@@ -5056,20 +5056,19 @@ class GgmlOnnxGraphOptimizerRule:
         raise NotImplementedError()
 
 
-class GgmlOnnxGraphOptimizer:
-    """Optimize an ONNX graph for the GGML runtime."""
+class OnnxGraphRuleEngine:
+    """Applies a series of OnnxGraphRule's to an ONNX model until
+    no more rules can be applied."""
 
-    def __init__(self, model: ModelProto, rules: List[GgmlOnnxGraphOptimizerRule]):
-        self.model = model
+    def __init__(self, rules: List[OnnxGraphRule]):
         self.rules = rules
 
-    def optimize(self) -> ModelProto:
-        """Apply the optimization rules to the ONNX model until there are no
-        more optimizations left to perform.
+    def optimize(self, model: ModelProto) -> ModelProto:
+        """Apply the rules to the ONNX model until there no more rules
+        can be applied.
 
         NOTE: This is a naive implementation that applies the rules in order until
         no more rules can be applied."""
-        model = self.model
         while True:
             for rule in self.rules:
                 new_model = rule.apply(model)

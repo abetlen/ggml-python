@@ -160,10 +160,10 @@ def test_ggml_onnx_graph_optimization():
     model_def = helper.make_model(graph_def, producer_name="onnx-simple-expression")
 
     from typing import Optional, List
-    from ggml.contrib.onnx import GgmlOnnxGraphOptimizer, GgmlOnnxGraphOptimizerRule
+    from ggml.contrib.onnx import OnnxGraphRuleEngine, OnnxGraphRule
     from onnx.onnx_ml_pb2 import ModelProto, NodeProto
 
-    class TransposeIdentityRule(GgmlOnnxGraphOptimizerRule):
+    class TransposeIdentityRule(OnnxGraphRule):
         """Transpose Identity Rewrite Rule
         
         This rules removes two consecutive transpose nodes that transpose the same tensor.
@@ -232,10 +232,10 @@ def test_ggml_onnx_graph_optimization():
     ggml_result = ggml_dummy_model.run(input_data)
     assert np.allclose(ggml_result[0], runtime_result[0], rtol=1e-03, atol=1e-05)
 
-    optimizer = GgmlOnnxGraphOptimizer(
-        model=model_def, rules=[TransposeIdentityRule()]
+    optimizer = OnnxGraphRuleEngine(
+        rules=[TransposeIdentityRule()]
     )
-    new_model = optimizer.optimize()
+    new_model = optimizer.optimize(model=model_def)
     assert new_model is not None
     ggml_dummy_model_new = GgmlRuntimeBackend.prepare(new_model)
     assert ggml_dummy_model_new is not None
