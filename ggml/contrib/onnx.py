@@ -2346,12 +2346,39 @@ def ggml_operator_mul(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     a, b = broadcast_shapes(ctx, a, b)
 
-    mul_result = ggml.ggml_mul(
-        ctx.ggml_context,
-        a,
-        b,
-    )
+    ggml_type_src1 = ggml.utils.GGML_TYPE(b.contents.type)
 
+    if ggml_type_src1 == ggml.utils.GGML_TYPE.F32:
+        mul_result = ggml.ggml_mul(
+            ctx.ggml_context,
+            a,
+            b,
+        )
+    else:
+        np_dtype = get_tensor_dtype(a)
+        x = np.empty(get_tensor_shape(a), dtype=np_dtype)
+        x_t = ctx.from_numpy(x)
+
+        @ggml.ggml_custom3_op_t
+        def custom_mul(
+            tensor_out: ggml.ggml_tensor_p,
+            tensor_in_1: ggml.ggml_tensor_p,
+            tensor_in_2: ggml.ggml_tensor_p,
+            tensor_in_3: ggml.ggml_tensor_p,
+            ith: int,
+            nth: int,
+            userdata: Optional[ctypes.c_void_p],
+        ):
+            a = ctx.to_numpy(tensor_in_2)
+            b = ctx.to_numpy(tensor_in_3)
+
+            x = np.multiply(a, b)
+            ctx.set_tensor_out(tensor_out, x)
+
+        mul_result = ggml.ggml_map_custom3_inplace(
+            ctx.ggml_context, x_t, a, b, custom_mul, 1, None
+        )
+        ctx.refs.append(custom_mul)
     ctx.tensors_dict[output_name] = mul_result
 
 
