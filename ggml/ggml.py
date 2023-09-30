@@ -369,9 +369,13 @@ GGML_FTYPE_MOSTLY_Q6_K = 14
 #     GGML_OP_CLAMP,
 #     GGML_OP_CONV_1D,
 #     GGML_OP_CONV_2D,
+#     GGML_OP_CONV_TRANSPOSE_1D,
 #     GGML_OP_CONV_TRANSPOSE_2D,
 #     GGML_OP_POOL_1D,
 #     GGML_OP_POOL_2D,
+
+#     GGML_OP_CONV_1D_STAGE_0,  // internal
+#     GGML_OP_CONV_1D_STAGE_1,  // internal
 
 #     GGML_OP_UPSCALE, // nearest interpolate
 
@@ -447,29 +451,32 @@ GGML_OP_ALIBI = 42
 GGML_OP_CLAMP = 43
 GGML_OP_CONV_1D = 44
 GGML_OP_CONV_2D = 45
-GGML_OP_CONV_TRANSPOSE_2D = 46
-GGML_OP_POOL_1D = 47
-GGML_OP_POOL_2D = 48
-GGML_OP_UPSCALE = 49
-GGML_OP_FLASH_ATTN = 50
-GGML_OP_FLASH_FF = 51
-GGML_OP_FLASH_ATTN_BACK = 52
-GGML_OP_WIN_PART = 53
-GGML_OP_WIN_UNPART = 54
-GGML_OP_GET_REL_POS = 55
-GGML_OP_ADD_REL_POS = 56
-GGML_OP_UNARY = 57
-GGML_OP_MAP_UNARY = 58
-GGML_OP_MAP_BINARY = 59
-GGML_OP_MAP_CUSTOM1_F32 = 60
-GGML_OP_MAP_CUSTOM2_F32 = 61
-GGML_OP_MAP_CUSTOM3_F32 = 62
-GGML_OP_MAP_CUSTOM1 = 63
-GGML_OP_MAP_CUSTOM2 = 64
-GGML_OP_MAP_CUSTOM3 = 65
-GGML_OP_CROSS_ENTROPY_LOSS = 66
-GGML_OP_CROSS_ENTROPY_LOSS_BACK = 67
-GGML_OP_COUNT = 68
+GGML_OP_TRANSPOSE_1D = 46
+GGML_OP_TRANSPOSE_2D = 47
+GGML_OP_POOL_1D = 48
+GGML_OP_POOL_2D = 49
+GGML_OP_CONV_1D_STAGE_0 = 50
+GGML_OP_CONV_1D_STAGE_1 = 51
+GGML_OP_UPSCALE = 52
+GGML_OP_FLASH_ATTN = 53
+GGML_OP_FLASH_FF = 54
+GGML_OP_FLASH_ATTN_BACK = 55
+GGML_OP_WIN_PART = 56
+GGML_OP_WIN_UNPART = 57
+GGML_OP_GET_REL_POS = 58
+GGML_OP_ADD_REL_POS = 59
+GGML_OP_UNARY = 60
+GGML_OP_MAP_UNARY = 61
+GGML_OP_MAP_BINARY = 62
+GGML_OP_MAP_CUSTOM1_F32 = 63
+GGML_OP_MAP_CUSTOM2_F32 = 64
+GGML_OP_MAP_CUSTOM3_F32 = 65
+GGML_OP_MAP_CUSTOM1 = 66
+GGML_OP_MAP_CUSTOM2 = 67
+GGML_OP_MAP_CUSTOM3 = 68
+GGML_OP_CROSS_ENTROPY_LOSS = 69
+GGML_OP_CROSS_ENTROPY_LOSS_BACK = 70
+GGML_OP_COUNT = 71
 
 
 # enum ggml_unary_op {
@@ -4190,6 +4197,16 @@ def ggml_clamp(
     min: Union[ctypes.c_float, float],
     max: Union[ctypes.c_float, float],
 ) -> ggml_tensor_p:
+    """Clamp tensor values between min and max
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+        min: minimum value
+        max: maximum value
+
+    Returns:
+        Pointer to ggml_tensor"""
     return lib.ggml_clamp(ctx, a, min, max)
 
 
@@ -4279,6 +4296,43 @@ lib.ggml_conv_1d_ph.argtypes = [
 ]
 lib.ggml_conv_1d_ph.restype = ctypes.POINTER(ggml_tensor)
 
+# GGML_API struct ggml_tensor * ggml_conv_transpose_1d(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b,
+#         int                   s0,
+#         int                   p0,
+#         int                   d0);
+def ggml_conv_transpose_1d(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    s0: Union[ctypes.c_int, int],
+    p0: Union[ctypes.c_int, int],
+    d0: Union[ctypes.c_int, int],
+) -> ggml_tensor_p:
+    """Convolution transpose 1D
+
+    Parameters:
+        a: input tensor
+        b: filter tensor
+        s0: stride
+        p0: padding
+        d0: dilation
+    
+    Returns:
+        output tensor"""
+    return lib.ggml_conv_transpose_1d(ctx, a, b, s0, p0, d0)
+
+lib.ggml_conv_transpose_1d.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+]
+lib.ggml_conv_transpose_1d.restype = ctypes.POINTER(ggml_tensor)
 
 # GGML_API struct ggml_tensor * ggml_conv_2d(
 #         struct ggml_context * ctx,
