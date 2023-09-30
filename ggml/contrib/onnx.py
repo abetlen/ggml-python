@@ -4505,36 +4505,22 @@ def ggml_operator_transpose(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     x = node_inputs[0]
     input_shape = get_tensor_shape(x)
 
-    perm_map = {1: [0, 1, 2, 3], 2: [1, 0, 2, 3], 3: [2, 1, 0, 3], 4: [3, 2, 1, 0]}
-
     perm_attr = next((attr for attr in node.attribute if attr.name == "perm"), None)
 
-    # add special case and -> fix me comments
-
     if perm_attr is None:
-        perms = perm_map.get(len(input_shape), [1, 0, 2, 3])
+        perms = list(reversed(range(len(input_shape))))
     else:
         perms = list(perm_attr.ints)
-        perms += [0, 1, 2, 3][len(perms) :]
 
-    ax0, ax1, ax2, ax3 = perms
-    dims = ggml.utils.get_ndims(x)
+    # TODO: This can probably be simplified
+    idxs = list(reversed(range(len(perms))))
+    new_idxs = [-1] * len(perms)
+    for idx, ax in enumerate(perms):
+        new_idxs[ax] = idxs[idx]
+    axes = list(reversed(new_idxs)) + list(range(4)[len(perms) :])
 
-    if dims > 3:
-        raise ValueError(
-            "n_dims cannot be more than 3. 4D permutations may not work"
-        )  # FIXME: 2,3D permutations are fine 4d is not. Passes ONNX test
-
-    if dims == 3 and f"02" in "".join([str(perm) for perm in perms]):
-        x = ggml.ggml_transpose(ctx.ggml_context, x)
-
+    ax0, ax1, ax2, ax3 = axes
     transpose_result = ggml.ggml_permute(ctx.ggml_context, x, ax0, ax1, ax2, ax3)
-
-    if dims == 3 and f"02" in "".join([str(perm) for perm in perms]):
-        transpose_result = ggml.ggml_permute(
-            ctx.ggml_context, transpose_result, 0, 2, 1, 3
-        )
-
     ctx.tensors_dict[output_name] = transpose_result
 
 
