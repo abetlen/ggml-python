@@ -265,24 +265,31 @@ def test_ggml_onnx_runtime_quantized():
     from ggml.contrib.onnx import OnnxGraphRuleEngine, OnnxGraphRule
     from onnx.onnx_ml_pb2 import ModelProto, NodeProto
 
-    def __ancestors_of(node: NodeProto, model: ModelProto) -> List[NodeProto]:
+    def _depends_on_input(name: str, model: ModelProto) -> bool:
+        # Depth first search to find any node ancestor in model.graph.inputs
+        # that is an ancestor of node
+        initializers = { node.name: node for node in model.graph.initializer }
+        inputs = { node.name: node for node in model.graph.input }
+        outputs = { node.name: node for node in model.graph.output }
         nodes = { node.name: node for node in model.graph.node }
-        visited: Set[str] = set()
-        queue = [node.name]
-        while len(queue) > 0:
-            curr = queue.pop(0)
-            if curr in visited:
-                continue
-            visited.add(curr)
-            queue.extend([inp for inp in nodes[curr].input if inp not in visited])
-        return [nodes[v] for v in visited]
 
-    def __is_weight_or_constant(node: NodeProto, model: ModelProto) -> bool:
-        inputs = { node.name for node in model.graph.input }
-        if node.name in inputs:
-            return True
-        ancestors = __ancestors_of(node, model)
-        return any([ancestor.name in inputs for ancestor in ancestors])
+        def _dfs(name: str, visited: Set[str]) -> bool:
+            if name in visited:
+                return False
+            if name in inputs:
+                return True
+            if name not in nodes:
+                return False
+            visited.add(name)
+            for inp in nodes[name].input:
+                if inp in initializers:
+                    continue
+                if inp in outputs:
+                    continue
+                if _dfs(nodes[inp].name, visited):
+                    return True
+            return False
+        return _dfs(name, set())
 
     class MatMulTransposeRule(OnnxGraphRule):
         def __init__(self):
@@ -297,19 +304,17 @@ def test_ggml_onnx_runtime_quantized():
                     break
             else:
                 return None
-            
+
             # get first and second input of matmul node
             matmul_input_0 = matmul_node.input[0]
             matmul_input_1 = matmul_node.input[1]
 
-            nodes = { node.name: node for node in model.graph.node }
-
             # check that first input is _not_ a weight or constant tensor
-            if __is_weight_or_constant(nodes[matmul_input_0], model):
+            if _depends_on_input(matmul_input_0, model):
                 return None
             
             # check that second input is a weight or constant tensor
-            if not __is_weight_or_constant(nodes[matmul_input_1], model):
+            if not _depends_on_input(matmul_input_1, model):
                 return None
 
             # replace Matmul(matmul_input_0, matmul_input_1) with Transpose(MatMul(Transpose(matmul_input_1), Transpose(matmul_input_0)))
@@ -370,6 +375,155 @@ def test_ggml_onnx_runtime_quantized():
             )
 
             return new_model
+
+    class AddAssociativityRule(OnnxGraphRule):
+        def __init__(self):
+            super().__init__()
+
+        def apply(self, model: ModelProto) -> Optional[ModelProto]:
+            # find an add node
+            add_node: Optional[NodeProto] = None
+            for node in model.graph.node:
+                if node.op_type == "Add":
+                    add_node = node
+                    break
+            else:
+                return None
+            
+            # get first and second input of add node
+            add_input_0 = add_node.input[0]
+            add_input_1 = add_node.input[1]
+
+            # check that first input is _not_ a weight or constant tensor
+            if _depends_on_input(add_input_0, model):
+                return None
+            
+            # check that second input is a weight or constant tensor
+            if not _depends_on_input(add_input_1, model):
+                return None
+
+            # replace Add(add_input_0, add_input_1) with Add(add_input_1, add_input_0)
+
+            # create new add node
+            new_add_node = NodeProto()
+            new_add_node.CopyFrom(add_node)
+            new_add_node.op_type = "Add"
+            new_add_node.name = add_node.name
+            new_add_node.input[:] = [add_input_1, add_input_0]
+            new_add_node.output[:] = [add_node.output[0]]
+
+            # Create the new node list
+            new_nodes: List[NodeProto] = []
+            for node in model.graph.node:
+                if node not in [add_node]:
+                    new_node = NodeProto()
+                    new_node.CopyFrom(node)
+                    new_nodes.append(new_node)
+                else:
+                    new_nodes.extend([new_add_node])
+
+            # Create the new graph
+            new_graph = helper.make_graph(
+                new_nodes,
+                model.graph.name,
+                model.graph.input,
+                model.graph.output,
+                model.graph.initializer,
+            )
+
+            # create a new model
+            new_model = helper.make_model(
+                new_graph, producer_name=model.producer_name
+            )
+
+            return new_model
+
+    engine = OnnxGraphRuleEngine(
+        rules=[MatMulTransposeRule(), AddAssociativityRule()]
+    )
+
+    # The name of the input tensor
+    input_name = "X"
+
+    # The name of the weights tensor
+    weight_name_a = "A"
+    weight_name_b = "B"
+
+    # The name of the output
+    output_name = "Y"
+    
+    # Create the nodes (operations) in our graph Y = X * A + B
+
+    # X * A
+
+    node1 = helper.make_node(
+        "MatMul", [input_name, weight_name_a], ["X_times_A"], name="node1"
+    )  # X * A
+
+    # X * A + B
+
+    node2 = helper.make_node(
+        "Add", ["X_times_A", weight_name_b], [output_name], name="node2"
+    )  # X * A + B
+
+    # Define the tensors (values) in our graph
+    X_value_info = helper.make_tensor_value_info(
+        input_name, TensorProto.FLOAT, [None, 32]
+    )
+
+    output_value_info = helper.make_tensor_value_info(
+        output_name, TensorProto.FLOAT, [None, 32]
+    )
+
+    # Set A and B as parameters/weights
+    weights_a = np.random.randn(32, 32).astype(np.float32)
+
+    weights_b = np.random.randn(32, 32).astype(np.float32)
+
+    A_init = helper.make_tensor(
+        weight_name_a,
+        TensorProto.FLOAT,
+        [
+            32,
+            32,
+        ],
+        weights_a,
+    )
+    B_init = helper.make_tensor(
+        weight_name_b,
+        TensorProto.FLOAT,
+        [
+            32,
+            32,
+        ],
+        weights_b,
+    )
+
+    # Create the graph (model).
+    graph_def = helper.make_graph(
+        [node1, node2],
+        "simple_expression_model",
+        [X_value_info],
+        [output_value_info],
+        [A_init, B_init],
+    )
+
+    model_def = helper.make_model(graph_def, producer_name="onnx-simple-expression")
+
+    input_data = {"X": np.random.randn(1, 32).astype(np.float32)}
+
+    f = io.BytesIO()
+    onnx.save(model_def, f)
+
+    runtime_result = InferenceSession(f.getvalue()).run(None, input_data)
+    
+    # rewrite the graph
+    new_model = engine.optimize(model=model_def)
+    assert new_model is not None
+
+    ggml_dummy_model = GgmlRuntimeBackend.prepare(new_model)
+    ggml_result = ggml_dummy_model.run(input_data)
+    assert np.allclose(ggml_result[0], runtime_result[0], rtol=1e-03, atol=1e-05)
 
 
 backend_test = onnx.backend.test.BackendTest(GgmlRuntimeBackend, __name__)
