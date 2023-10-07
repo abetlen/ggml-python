@@ -2356,7 +2356,7 @@ def ggml_operator_mul(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         )
     else:
         np_dtype = get_tensor_dtype(a)
-        x = np.empty(get_tensor_shape(a), dtype=np_dtype)
+        x = np.empty(ctx.get_tensor_shape(a), dtype=np_dtype)
         x_t = ctx.from_numpy(x)
 
         @ggml.ggml_custom3_op_t
