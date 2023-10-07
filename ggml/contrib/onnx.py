@@ -195,15 +195,41 @@ def ggml_operator_add(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         )
 
     output_name = node.output[0]
-
     a, b = node_inputs
     a, b = broadcast_shapes(ctx, a, b)
 
-    add_result = ggml.ggml_add(
-        ctx.ggml_context,
-        a,
-        b,
-    )
+    if ggml.utils.GGML_TYPE(a.contents.type) == ggml.utils.GGML_TYPE.I32:
+        np_dtype = get_tensor_dtype(a)
+        x = np.empty(ctx.get_tensor_shape(a), dtype=np_dtype)
+        x_t = ctx.from_numpy(x)
+
+        @ggml.ggml_custom3_op_t
+        def custom_add(
+            tensor_out: ggml.ggml_tensor_p,
+            tensor_in_1: ggml.ggml_tensor_p,
+            tensor_in_2: ggml.ggml_tensor_p,
+            tensor_in_3: ggml.ggml_tensor_p,
+            ith: int,
+            nth: int,
+            userdata: Optional[ctypes.c_void_p],
+        ):
+            a = ctx.to_numpy(tensor_in_2)
+            b = ctx.to_numpy(tensor_in_3)
+
+            x = np.add(a, b)
+            ctx.set_tensor_out(tensor_out, x)
+
+        add_result = ggml.ggml_map_custom3_inplace(
+            ctx.ggml_context, x_t, a, b, custom_add, 1, None
+        )
+        ctx.refs.append(custom_add)
+
+    else:
+        add_result = ggml.ggml_add(
+            ctx.ggml_context,
+            a,
+            b,
+        )
     ctx.tensors_dict[output_name] = add_result
 
 
