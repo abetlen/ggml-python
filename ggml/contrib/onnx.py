@@ -4645,16 +4645,17 @@ def ggml_operator_where(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         nth: int,
         userdata: Optional[ctypes.c_void_p],
     ):
-        x = ggml.utils.to_numpy(tensor_in_1)
-        y = ggml.utils.to_numpy(tensor_in_2)
-        condition_array = ggml.utils.to_numpy(tensor_in_3)
+        y = ggml.utils.to_numpy(tensor_in_1)
+        x = ggml.utils.to_numpy(tensor_in_2)
+
+        condition_array = ctx.to_numpy(tensor_in_3)
         new_tensor = np.where(condition_array, x, y)
         ctx.set_tensor_out(tensor_out, new_tensor)
 
     new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom3_inplace(
         ctx.ggml_context,
-        node_inputs[1],
         node_inputs[2],
+        node_inputs[1],
         node_inputs[0],
         custom_where,
         1,
