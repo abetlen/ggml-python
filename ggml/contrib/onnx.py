@@ -775,7 +775,6 @@ def ggml_operator_constant_of_shape(ctx: "GgmlOnnxExecutionContext", node: NodeP
     data_tensor = ctx.from_numpy(data_value.astype(np_data_type_limit))
     ctx.eval_tensor(node_inputs[0])
     shape = ctx.to_numpy(node_inputs[0])
-
     x = np.empty(shape, dtype=np_data_type_limit)
     x_t = ctx.from_numpy(x)
 
@@ -4569,29 +4568,21 @@ def ggml_operator_unsqueeze(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     axes_eval = ctx.eval_tensor(
         axes_input,
     )
-    axes = ggml.utils.to_numpy(axes_eval).astype(dtype=np.int32)
+    axes = ctx.to_numpy(axes_eval).astype(dtype=np.int32)
 
     axes_values = [ax if ax >= 0 else ax + x_ndims + 1 for ax in axes]
     axes_values.sort()
 
-    dummy_data = np.empty(x_shape)
+    x = np.empty(x_shape, dtype=x_dtype)
     for axis in axes_values:
-        dummy_data = np.expand_dims(dummy_data, axis=axis)
+        x = np.expand_dims(x, axis=axis)
 
-    ggml_type = map_to_ggml_type(x_dtype)
-    new_shape = tuple(reversed(dummy_data.shape))
-
+    new_shape = x.shape
     if len(new_shape) > 4:
         raise ValueError(
             f'Error for node "{node.name}": {len(new_shape)}D arrays are not allowed.'
         )
-
-    x_t = ggml.ggml_new_tensor(
-        ctx.ggml_context,
-        ggml_type.value,
-        len(new_shape),
-        (ctypes.c_int64 * len(new_shape))(*new_shape),
-    )
+    x_t = ctx.from_numpy(x)
 
     @ggml.ggml_custom3_op_t
     def custom_unsqueeze(
@@ -4603,15 +4594,15 @@ def ggml_operator_unsqueeze(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         nth: int,
         userdata: Optional[ctypes.c_void_p],
     ):
-        x = ggml.utils.to_numpy(tensor_in_2)
-        axes = ggml.utils.to_numpy(tensor_in_3)
+        x = ctx.to_numpy(tensor_in_2)
+        axes = ctx.to_numpy(tensor_in_3)
 
         axes_values = [ax if ax >= 0 else ax + x.ndim + 1 for ax in axes]
         axes_values.sort()
         axes_values = np.array(axes_values)
         for axis in axes_values:
             x = np.expand_dims(x, axis=axis)
-
+        # print(node)
         ctx.set_tensor_out(tensor_out, x)
 
     new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom3_inplace(
