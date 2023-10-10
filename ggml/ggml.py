@@ -275,7 +275,7 @@ GGML_TYPE_I32 = 18
 GGML_TYPE_COUNT = 19
 
 
-# enum ggml_backend {
+# enum ggml_backend_type {
 #     GGML_BACKEND_CPU = 0,
 #     GGML_BACKEND_GPU = 10,
 #     GGML_BACKEND_GPU_SPLIT = 20,
@@ -368,14 +368,15 @@ GGML_FTYPE_MOSTLY_Q6_K = 14
 #     GGML_OP_ALIBI,
 #     GGML_OP_CLAMP,
 #     GGML_OP_CONV_1D,
-#     GGML_OP_CONV_2D,
+#     GGML_OP_CONV_1D_STAGE_0,  // internal
+#     GGML_OP_CONV_1D_STAGE_1,  // internal
 #     GGML_OP_CONV_TRANSPOSE_1D,
+#     GGML_OP_CONV_2D,
+#     GGML_OP_CONV_2D_STAGE_0, // internal
+#     GGML_OP_CONV_2D_STAGE_1, // internal
 #     GGML_OP_CONV_TRANSPOSE_2D,
 #     GGML_OP_POOL_1D,
 #     GGML_OP_POOL_2D,
-
-#     GGML_OP_CONV_1D_STAGE_0,  // internal
-#     GGML_OP_CONV_1D_STAGE_1,  // internal
 
 #     GGML_OP_UPSCALE, // nearest interpolate
 
@@ -450,33 +451,35 @@ GGML_OP_ROPE_BACK = 41
 GGML_OP_ALIBI = 42
 GGML_OP_CLAMP = 43
 GGML_OP_CONV_1D = 44
-GGML_OP_CONV_2D = 45
-GGML_OP_TRANSPOSE_1D = 46
-GGML_OP_TRANSPOSE_2D = 47
-GGML_OP_POOL_1D = 48
-GGML_OP_POOL_2D = 49
-GGML_OP_CONV_1D_STAGE_0 = 50
-GGML_OP_CONV_1D_STAGE_1 = 51
-GGML_OP_UPSCALE = 52
-GGML_OP_FLASH_ATTN = 53
-GGML_OP_FLASH_FF = 54
-GGML_OP_FLASH_ATTN_BACK = 55
-GGML_OP_WIN_PART = 56
-GGML_OP_WIN_UNPART = 57
-GGML_OP_GET_REL_POS = 58
-GGML_OP_ADD_REL_POS = 59
-GGML_OP_UNARY = 60
-GGML_OP_MAP_UNARY = 61
-GGML_OP_MAP_BINARY = 62
-GGML_OP_MAP_CUSTOM1_F32 = 63
-GGML_OP_MAP_CUSTOM2_F32 = 64
-GGML_OP_MAP_CUSTOM3_F32 = 65
-GGML_OP_MAP_CUSTOM1 = 66
-GGML_OP_MAP_CUSTOM2 = 67
-GGML_OP_MAP_CUSTOM3 = 68
-GGML_OP_CROSS_ENTROPY_LOSS = 69
-GGML_OP_CROSS_ENTROPY_LOSS_BACK = 70
-GGML_OP_COUNT = 71
+GGML_OP_CONV_1D_STAGE_0 = 45
+GGML_OP_CONV_1D_STAGE_1 = 46
+GGML_OP_CONV_TRANSPOSE_1D = 47
+GGML_OP_CONV_2D = 48
+GGML_OP_CONV_2D_STAGE_0 = 49
+GGML_OP_CONV_2D_STAGE_1 = 50
+GGML_OP_CONV_TRANSPOSE_2D = 51
+GGML_OP_POOL_1D = 52
+GGML_OP_POOL_2D = 53
+GGML_OP_UPSCALE = 54
+GGML_OP_FLASH_ATTN = 55
+GGML_OP_FLASH_FF = 56
+GGML_OP_FLASH_ATTN_BACK = 57
+GGML_OP_WIN_PART = 58
+GGML_OP_WIN_UNPART = 59
+GGML_OP_GET_REL_POS = 60
+GGML_OP_ADD_REL_POS = 61
+GGML_OP_UNARY = 62
+GGML_OP_MAP_UNARY = 63
+GGML_OP_MAP_BINARY = 64
+GGML_OP_MAP_CUSTOM1_F32 = 65
+GGML_OP_MAP_CUSTOM2_F32 = 66
+GGML_OP_MAP_CUSTOM3_F32 = 67
+GGML_OP_MAP_CUSTOM1 = 68
+GGML_OP_MAP_CUSTOM2 = 69
+GGML_OP_MAP_CUSTOM3 = 70
+GGML_OP_CROSS_ENTROPY_LOSS = 71
+GGML_OP_CROSS_ENTROPY_LOSS_BACK = 72
+GGML_OP_COUNT = 73
 
 
 # enum ggml_unary_op {
@@ -551,8 +554,10 @@ GGML_OBJECT_SIZE = ctypes.sizeof(ggml_object)
 
 # // n-dimensional tensor
 # struct ggml_tensor {
-#     enum ggml_type    type;
-#     enum ggml_backend backend;
+#     enum ggml_type         type;
+#     enum ggml_backend_type backend;
+
+#     struct ggml_backend_buffer * buffer;
 
 #     int     n_dims;
 #     int64_t ne[GGML_MAX_DIMS]; // number of elements
@@ -586,7 +591,7 @@ GGML_OBJECT_SIZE = ctypes.sizeof(ggml_object)
 
 #     void * extra; // extra things e.g. for ggml-cuda.cu
 
-#     char padding[4];
+#     char padding[12];
 # };
 class ggml_tensor(ctypes.Structure):
     """n-dimensional tensor
@@ -594,6 +599,7 @@ class ggml_tensor(ctypes.Structure):
     Attributes:
         type (int): ggml_type
         backend (int): ggml_backend
+        buffer (ctypes.POINTER(ggml_backend_buffer)): pointer to backend buffer
         n_dims (int): number of dimensions
         ne (ctypes.Array[ctypes.c_int64]): number of elements in each dimension
         nb (ctypes.Array[ctypes.c_size_t]): stride in bytes for each dimension
@@ -618,6 +624,7 @@ class ggml_tensor(ctypes.Structure):
 ggml_tensor._fields_ = [
     ("type", ctypes.c_int),
     ("backend", ctypes.c_int),
+    ("buffer", ctypes.c_void_p),
     ("n_dims", ctypes.c_int),
     ("ne", ctypes.c_int64 * GGML_MAX_DIMS),
     ("nb", ctypes.c_size_t * GGML_MAX_DIMS),
@@ -637,7 +644,7 @@ ggml_tensor._fields_ = [
     ("data", ctypes.c_void_p),
     ("name", ctypes.c_char * GGML_MAX_NAME),
     ("extra", ctypes.c_void_p),
-    ("padding", ctypes.c_char * 4),
+    ("padding", ctypes.c_char * 12),
 ]
 
 GGML_TENSOR_SIZE = ctypes.sizeof(ggml_tensor)
@@ -1620,10 +1627,10 @@ lib.ggml_set_f32.restype = ctypes.POINTER(ggml_tensor)
 def ggml_unravel_index(
     tensor: ggml_tensor_p,
     i: Union[ctypes.c_int64, int],
-    i0, # type: "ctypes._Pointer(ctypes.c_int64)" # type: ignore
-    i1, # type: "ctypes._Pointer(ctypes.c_int64)" # type: ignore
-    i2, # type: "ctypes._Pointer(ctypes.c_int64)" # type: ignore
-    i3, # type: "ctypes._Pointer(ctypes.c_int64)" # type: ignore
+    i0,  # type: "ctypes._Pointer(ctypes.c_int64)" # type: ignore
+    i1,  # type: "ctypes._Pointer(ctypes.c_int64)" # type: ignore
+    i2,  # type: "ctypes._Pointer(ctypes.c_int64)" # type: ignore
+    i3,  # type: "ctypes._Pointer(ctypes.c_int64)" # type: ignore
 ):
     """Convert a flat index into coordinates.
 
@@ -1635,6 +1642,7 @@ def ggml_unravel_index(
         i2: pointer to index 2
         i3: pointer to index 3"""
     return lib.ggml_unravel_index(tensor, i, i0, i1, i2, i3)
+
 
 lib.ggml_unravel_index.argtypes = [
     ctypes.POINTER(ggml_tensor),
@@ -1709,6 +1717,7 @@ def ggml_get_i32_nd(
         integer value of element at coordinates"""
     return lib.ggml_get_i32_nd(tensor, i0, i1, i2, i3)
 
+
 lib.ggml_get_i32_nd.argtypes = [
     ctypes.POINTER(ggml_tensor),
     ctypes.c_int,
@@ -1737,6 +1746,7 @@ def ggml_set_i32_nd(
         i3: index of element in dimension 3
         value: integer value to set element to"""
     return lib.ggml_set_i32_nd(tensor, i0, i1, i2, i3, value)
+
 
 lib.ggml_set_i32_nd.argtypes = [
     ctypes.POINTER(ggml_tensor),
@@ -1810,6 +1820,7 @@ def ggml_get_f32_nd(
         float value of element at coordinates"""
     return lib.ggml_get_f32_nd(tensor, i0, i1, i2, i3)
 
+
 lib.ggml_get_f32_nd.argtypes = [
     ctypes.POINTER(ggml_tensor),
     ctypes.c_int,
@@ -1839,6 +1850,7 @@ def ggml_set_f32_nd(
         i3: index of element in dimension 3
         value: float value to set element to"""
     return lib.ggml_set_f32_nd(tensor, i0, i1, i2, i3, value)
+
 
 lib.ggml_set_f32_nd.argtypes = [
     ctypes.POINTER(ggml_tensor),
@@ -3255,9 +3267,9 @@ lib.ggml_rms_norm_back.argtypes = [
 lib.ggml_rms_norm_back.restype = ctypes.POINTER(ggml_tensor)
 
 
-# // A: m rows, n columns
-# // B: p rows, n columns  (i.e. we transpose it internally)
-# // result is m columns, p rows
+# // A: k columns, n rows => [ne03, ne02, n, k]
+# // B: k columns, m rows  (i.e. we transpose it internally) => [ne03 * x, ne02 * y, m, k]
+# // result is n columns, m rows => [ne03 * x, ne02 * y, m, n]
 # GGML_API struct ggml_tensor * ggml_mul_mat(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a,
@@ -3269,9 +3281,9 @@ def ggml_mul_mat(
 ) -> ggml_tensor_p:
     """Multiply two matrices and return the result.
 
-    A: m rows, n columns
-    B: p rows, n columns  (i.e. we transpose it internally)
-    result is m columns, p rows
+    A: k columns, n rows => [ne03, ne02, n, k]
+    B: k columns, m rows  (i.e. we transpose it internally) => [ne03 * x, ne02 * y, m, k]
+    result is n columns, m rows => [ne03 * x, ne02 * y, m, n]
 
     Parameters:
         ctx: ggml context
@@ -3651,13 +3663,13 @@ def ggml_cont_1d(
 ) -> ggml_tensor_p:
     return lib.ggml_cont_1d(ctx, a, ne0)
 
+
 lib.ggml_cont_1d.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_tensor),
     ctypes.c_int64,
 ]
 lib.ggml_cont_1d.restype = ctypes.POINTER(ggml_tensor)
-
 
 
 # GGML_API struct ggml_tensor * ggml_cont_2d(
@@ -3672,6 +3684,7 @@ def ggml_cont_2d(
     ne1: Union[ctypes.c_int64, int],
 ) -> ggml_tensor_p:
     return lib.ggml_cont_2d(ctx, a, ne0, ne1)
+
 
 lib.ggml_cont_2d.argtypes = [
     ggml_context_p,
@@ -3695,6 +3708,7 @@ def ggml_cont_3d(
     ne2: Union[ctypes.c_int64, int],
 ) -> ggml_tensor_p:
     return lib.ggml_cont_3d(ctx, a, ne0, ne1, ne2)
+
 
 lib.ggml_cont_3d.argtypes = [
     ggml_context_p,
@@ -3721,6 +3735,7 @@ def ggml_cont_4d(
     ne3: Union[ctypes.c_int64, int],
 ) -> ggml_tensor_p:
     return lib.ggml_cont_4d(ctx, a, ne0, ne1, ne2, ne3)
+
 
 lib.ggml_cont_4d.argtypes = [
     ggml_context_p,
@@ -4260,7 +4275,7 @@ def ggml_rope(
     n_ctx: Union[ctypes.c_int, int],
 ) -> ggml_tensor_p:
     """Rotary position embedding
-    
+
     Parameters:
         ctx: ggml context
         a: tensor
@@ -4274,6 +4289,7 @@ def ggml_rope(
     Returns:
         Pointer to ggml_tensor"""
     return lib.ggml_rope(ctx, a, b, n_dims, mode, n_ctx)
+
 
 lib.ggml_rope.argtypes = [
     ggml_context_p,
@@ -4317,6 +4333,7 @@ def ggml_rope_inplace(
         Pointer to ggml_tensor"""
     return lib.ggml_rope_inplace(ctx, a, b, n_dims, mode, n_ctx)
 
+
 lib.ggml_rope_inplace.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_tensor),
@@ -4348,9 +4365,8 @@ def ggml_rope_custom(
     freq_scale: Union[ctypes.c_float, float],
 ) -> ggml_tensor_p:
     """Custom rotary position embedding"""
-    return lib.ggml_rope_custom(
-        ctx, a, b, n_dims, mode, n_ctx, freq_base, freq_scale
-    )
+    return lib.ggml_rope_custom(ctx, a, b, n_dims, mode, n_ctx, freq_base, freq_scale)
+
 
 lib.ggml_rope_custom.argtypes = [
     ggml_context_p,
@@ -4391,6 +4407,7 @@ def ggml_rope_custom_inplace(
         ctx, a, b, n_dims, mode, n_ctx, freq_base, freq_scale
     )
 
+
 lib.ggml_rope_custom_inplace.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_tensor),
@@ -4422,6 +4439,7 @@ def ggml_rope_xpos_inplace(
 ) -> ggml_tensor_p:
     """xPos RoPE, in-place, returns view(a)"""
     return lib.ggml_rope_xpos_inplace(ctx, a, b, n_dims, base, down)
+
 
 lib.ggml_rope_xpos_inplace.argtypes = [
     ggml_context_p,
@@ -4465,6 +4483,7 @@ def ggml_rope_back(
         ctx, a, b, n_dims, mode, n_ctx, freq_base, freq_scale, xpos_base, xpos_down
     )
 
+
 lib.ggml_rope_back.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_tensor),
@@ -4482,7 +4501,7 @@ lib.ggml_rope_back.restype = ctypes.POINTER(ggml_tensor)
 
 # // alibi position embedding
 # // in-place, returns view(a)
-# struct ggml_tensor * ggml_alibi(
+# GGML_API struct ggml_tensor * ggml_alibi(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a,
 #         int                   n_past,
@@ -4510,7 +4529,7 @@ lib.ggml_alibi.restype = ctypes.POINTER(ggml_tensor)
 
 # // clamp
 # // in-place, returns view(a)
-# struct ggml_tensor * ggml_clamp(
+# GGML_API struct ggml_tensor * ggml_clamp(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a,
 #         float                 min,
@@ -4643,10 +4662,11 @@ def ggml_conv_transpose_1d(
         s0: stride
         p0: padding
         d0: dilation
-    
+
     Returns:
         output tensor"""
     return lib.ggml_conv_transpose_1d(ctx, a, b, s0, p0, d0)
+
 
 lib.ggml_conv_transpose_1d.argtypes = [
     ggml_context_p,
@@ -5830,6 +5850,7 @@ def ggml_build_backward_expand(
         keep: Whether to keep the tensor."""
     return lib.ggml_build_backward_expand(ctx, gf, gb, keep)
 
+
 lib.ggml_build_backward_expand.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_cgraph),
@@ -6112,6 +6133,7 @@ def ggml_build_backward_gradient_checkpointing(
         ctx, gf, gb, gb_tmp, checkpoints, n_checkpoints
     )
 
+
 lib.ggml_build_backward_gradient_checkpointing.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_cgraph),
@@ -6177,7 +6199,11 @@ GGML_LINESEARCH_INVALID_PARAMETERS = -124
 
 # typedef void (*ggml_opt_callback)(void * data, int accum_step, float * sched, bool * cancel);
 ggml_opt_callback = ctypes.CFUNCTYPE(
-    None, ctypes.c_void_p, ctypes.c_int, ctypes.POINTER(ctypes.c_float), ctypes.POINTER(ctypes.c_bool)
+    None,
+    ctypes.c_void_p,
+    ctypes.c_int,
+    ctypes.POINTER(ctypes.c_float),
+    ctypes.POINTER(ctypes.c_bool),
 )
 
 # typedef void (*ggml_log_callback)(enum ggml_log_level level, const char * text, void * user_data);
@@ -6427,6 +6453,7 @@ def ggml_opt_init(
 ):
     return lib.ggml_opt_init(ctx, opt, params, nx)
 
+
 lib.ggml_opt_init.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ggml_opt_context),
@@ -6464,24 +6491,17 @@ lib.ggml_opt_resume.restype = ctypes.c_int
 #         struct ggml_cgraph * gb,
 #         ggml_opt_callback callback,
 #         void * callback_data);
-
-# // continue optimizing the function defined by the tensor f
-# GGML_API enum ggml_opt_result ggml_opt_resume_g(
-#         struct ggml_context * ctx,
-#         struct ggml_opt_context * opt,
-#         struct ggml_tensor * f,
-#         struct ggml_cgraph * gf,
-#         struct ggml_cgraph * gb);
 def ggml_opt_resume_g(
     ctx: ggml_context_p,
     opt: "ctypes._Pointer[ggml_opt_context]",  # type: ignore
     f: ggml_tensor_p,
     gf: ggml_cgraph_p,
     gb: ggml_cgraph_p,
-    callback: ggml_opt_callback = None,
-    callback_data: ctypes.c_void_p = None,
+    callback: "ctypes._CFuncPtr[None, ctypes.c_void_p, ctypes.c_int, ctypes.POINTER(ctypes.c_float), ctypes.POINTER(ctypes.c_bool)]",  # type: ignore
+    callback_data: ctypes.c_void_p,
 ) -> int:
     return lib.ggml_opt_resume_g(ctx, opt, f, gf, gb, callback, callback_data)
+
 
 lib.ggml_opt_resume_g.argtypes = [
     ggml_context_p,
@@ -7728,7 +7748,7 @@ class ggml_type_traits_t(ctypes.Structure):
     ]
 
 
-# ggml_type_traits_t ggml_internal_get_type_traits(enum ggml_type type);
+# GGML_API ggml_type_traits_t ggml_internal_get_type_traits(enum ggml_type type);
 def ggml_internal_get_type_traits(type: Union[ctypes.c_int, int]) -> ggml_type_traits_t:
     return lib.ggml_internal_get_type_traits(type)
 
@@ -7736,6 +7756,535 @@ def ggml_internal_get_type_traits(type: Union[ctypes.c_int, int]) -> ggml_type_t
 lib.ggml_internal_get_type_traits.argtypes = [ctypes.c_int]
 lib.ggml_internal_get_type_traits.restype = ggml_type_traits_t
 
+#####################################################
+# GGML Backend API
+# source: ggml-backend.h
+#####################################################
+
+
+# struct ggml_backend;
+# struct ggml_backend_buffer;
+
+# // type-erased backend-specific types / wrappers
+# typedef void * ggml_backend_context_t;
+ggml_backend_context_t = ctypes.c_void_p
+# typedef void * ggml_backend_graph_plan_t;
+ggml_backend_graph_plan_t = ctypes.c_void_p
+# typedef void * ggml_backend_buffer_context_t;
+ggml_backend_buffer_context_t = ctypes.c_void_p
+
+# // avoid accessing internals of these types
+# typedef struct ggml_backend        * ggml_backend_t;
+ggml_backend_t = ctypes.c_void_p
+# typedef struct ggml_backend_buffer * ggml_backend_buffer_t;
+ggml_backend_buffer_t = ctypes.c_void_p
+
+# //
+# // backend buffer
+# //
+
+# struct ggml_backend_buffer_i {
+#     void   (*free_buffer)   (ggml_backend_buffer_t buffer);
+#     void * (*get_base)      (ggml_backend_buffer_t buffer); // get base pointer
+#     size_t (*get_alloc_size)(ggml_backend_buffer_t buffer, struct ggml_tensor * tensor); // pre-allocation callback
+#     void   (*init_tensor)   (ggml_backend_buffer_t buffer, struct ggml_tensor * tensor); // post-allocation callback
+#     void   (*free_tensor)   (ggml_backend_buffer_t buffer, struct ggml_tensor * tensor); // pre-free callback
+# };
+class ggml_backend_buffer_i(ctypes.Structure):
+    _fields_ = [
+        ("free_buffer", ctypes.CFUNCTYPE(None, ggml_backend_buffer_t)),
+        ("get_base", ctypes.CFUNCTYPE(ctypes.c_void_p, ggml_backend_buffer_t)),
+        (
+            "get_alloc_size",
+            ctypes.CFUNCTYPE(
+                ctypes.c_size_t, ggml_backend_buffer_t, ctypes.POINTER(ggml_tensor)
+            ),
+        ),
+        (
+            "init_tensor",
+            ctypes.CFUNCTYPE(None, ggml_backend_buffer_t, ctypes.POINTER(ggml_tensor)),
+        ),
+        (
+            "free_tensor",
+            ctypes.CFUNCTYPE(None, ggml_backend_buffer_t, ctypes.POINTER(ggml_tensor)),
+        ),
+    ]
+
+
+# // TODO: hide behind API
+# struct ggml_backend_buffer {
+#     struct ggml_backend_buffer_i iface;
+
+#     ggml_backend_t                backend;
+#     ggml_backend_buffer_context_t context;
+
+#     size_t size;
+# };
+class ggml_backend_buffer(ctypes.Structure):
+    _fields_ = [
+        ("iface", ggml_backend_buffer_i),
+        ("backend", ggml_backend_t),
+        ("context", ggml_backend_buffer_context_t),
+        ("size", ctypes.c_size_t),
+    ]
+
+
+# // backend buffer functions
+# GGML_API ggml_backend_buffer_t ggml_backend_buffer_init(
+#         struct ggml_backend                  * backend,
+#         struct ggml_backend_buffer_i           iface,
+#                ggml_backend_buffer_context_t   context,
+#                size_t                          size);
+def ggml_backend_buffer_init(
+    backend: ggml_backend_t,
+    iface: ggml_backend_buffer_i,
+    context: ggml_backend_buffer_context_t,
+    size: Union[ctypes.c_size_t, int],
+) -> ggml_backend_buffer_t:
+    return lib.ggml_backend_buffer_init(backend, iface, context, size)
+
+
+lib.ggml_backend_buffer_init.argtypes = [
+    ggml_backend_t,
+    ggml_backend_buffer_i,
+    ggml_backend_buffer_context_t,
+    ctypes.c_size_t,
+]
+lib.ggml_backend_buffer_init.restype = ggml_backend_buffer_t
+
+# GGML_API void   ggml_backend_buffer_free          (ggml_backend_buffer_t buffer);
+def ggml_backend_buffer_free(buffer: ggml_backend_buffer_t) -> None:
+    return lib.ggml_backend_buffer_free(buffer)
+
+
+lib.ggml_backend_buffer_free.argtypes = [ggml_backend_buffer_t]
+lib.ggml_backend_buffer_free.restype = None
+
+# GGML_API size_t ggml_backend_buffer_get_alignment (ggml_backend_buffer_t buffer);
+def ggml_backend_buffer_get_alignment(
+    buffer: ggml_backend_buffer_t,
+) -> Union[ctypes.c_size_t, int]:
+    return lib.ggml_backend_buffer_get_alignment(buffer)
+
+
+lib.ggml_backend_buffer_get_alignment.argtypes = [ggml_backend_buffer_t]
+lib.ggml_backend_buffer_get_alignment.restype = ctypes.c_size_t
+
+# GGML_API void * ggml_backend_buffer_get_base      (ggml_backend_buffer_t buffer);
+def ggml_backend_buffer_get_base(buffer: ggml_backend_buffer_t) -> ctypes.c_void_p:
+    return lib.ggml_backend_buffer_get_base(buffer)
+
+
+lib.ggml_backend_buffer_get_base.argtypes = [ggml_backend_buffer_t]
+lib.ggml_backend_buffer_get_base.restype = ctypes.c_void_p
+
+# GGML_API size_t ggml_backend_buffer_get_size      (ggml_backend_buffer_t buffer);
+def ggml_backend_buffer_get_size(
+    buffer: ggml_backend_buffer_t,
+) -> Union[ctypes.c_size_t, int]:
+    return lib.ggml_backend_buffer_get_size(buffer)
+
+
+lib.ggml_backend_buffer_get_size.argtypes = [ggml_backend_buffer_t]
+lib.ggml_backend_buffer_get_size.restype = ctypes.c_size_t
+
+# GGML_API size_t ggml_backend_buffer_get_alloc_size(ggml_backend_buffer_t buffer, struct ggml_tensor * tensor);
+def ggml_backend_buffer_get_alloc_size(
+    buffer: ggml_backend_buffer_t, tensor: ggml_tensor_p
+) -> Union[ctypes.c_size_t, int]:
+    return lib.ggml_backend_buffer_get_alloc_size(buffer, tensor)
+
+
+lib.ggml_backend_buffer_get_alloc_size.argtypes = [
+    ggml_backend_buffer_t,
+    ctypes.POINTER(ggml_tensor),
+]
+lib.ggml_backend_buffer_get_alloc_size.restype = ctypes.c_size_t
+
+# GGML_API void   ggml_backend_buffer_init_tensor   (ggml_backend_buffer_t buffer, struct ggml_tensor * tensor);
+def ggml_backend_buffer_init_tensor(
+    buffer: ggml_backend_buffer_t, tensor: ggml_tensor_p
+) -> None:
+    return lib.ggml_backend_buffer_init_tensor(buffer, tensor)
+
+
+lib.ggml_backend_buffer_init_tensor.argtypes = [
+    ggml_backend_buffer_t,
+    ctypes.POINTER(ggml_tensor),
+]
+lib.ggml_backend_buffer_init_tensor.restype = None
+
+# GGML_API void   ggml_backend_buffer_free_tensor   (ggml_backend_buffer_t buffer, struct ggml_tensor * tensor);
+def ggml_backend_buffer_free_tensor(
+    buffer: ggml_backend_buffer_t, tensor: ggml_tensor_p
+) -> None:
+    return lib.ggml_backend_buffer_free_tensor(buffer, tensor)
+
+
+lib.ggml_backend_buffer_free_tensor.argtypes = [
+    ggml_backend_buffer_t,
+    ctypes.POINTER(ggml_tensor),
+]
+lib.ggml_backend_buffer_free_tensor.restype = None
+
+# //
+# // backend
+# //
+
+# struct ggml_backend_i {
+#     const char * (*get_name)(ggml_backend_t backend);
+
+#     void (*free)(ggml_backend_t backend);
+
+#     // buffer allocation
+#     ggml_backend_buffer_t (*alloc_buffer)(ggml_backend_t backend, size_t size);
+
+#     // get buffer alignment
+#     size_t (*get_alignment)(ggml_backend_t backend);
+
+#     // tensor data access
+#     // these functions can be asynchronous, helper functions are provided for synchronous access that automatically call synchronize
+#     void (*set_tensor_async)(ggml_backend_t backend,       struct ggml_tensor * tensor, const void * data, size_t offset, size_t size);
+#     void (*get_tensor_async)(ggml_backend_t backend, const struct ggml_tensor * tensor,       void * data, size_t offset, size_t size);
+#     void (*synchronize)     (ggml_backend_t backend);
+
+#     // (optional) copy tensor between different backends, allow for single-copy tranfers
+#     void (*cpy_tensor_from)(ggml_backend_t backend, struct ggml_tensor * src, struct ggml_tensor * dst);
+#     void (*cpy_tensor_to)  (ggml_backend_t backend, struct ggml_tensor * src, struct ggml_tensor * dst);
+
+#     // compute graph with a plan
+#     ggml_backend_graph_plan_t (*graph_plan_create) (ggml_backend_t backend, struct ggml_cgraph * cgraph);
+#     void                      (*graph_plan_free)   (ggml_backend_t backend, ggml_backend_graph_plan_t plan);
+#     void                      (*graph_plan_compute)(ggml_backend_t backend, ggml_backend_graph_plan_t plan);
+
+#     // compute graph without a plan
+#     void (*graph_compute)(ggml_backend_t backend, struct ggml_cgraph * cgraph);
+
+#     // check if the backend supports an operation
+#     bool (*supports_op)(ggml_backend_t backend, const struct ggml_tensor * op);
+# };
+class ggml_backend_i(ctypes.Structure):
+    _fields_ = [
+        ("get_name", ctypes.CFUNCTYPE(ctypes.c_char_p, ggml_backend_t)),
+        ("free", ctypes.CFUNCTYPE(None, ggml_backend_t)),
+        (
+            "alloc_buffer",
+            ctypes.CFUNCTYPE(ctypes.POINTER(ggml_backend_buffer), ggml_backend_t),
+        ),
+        ("get_alignment", ctypes.CFUNCTYPE(ctypes.c_size_t, ggml_backend_t)),
+        (
+            "set_tensor_async",
+            ctypes.CFUNCTYPE(
+                None,
+                ggml_backend_t,
+                ctypes.POINTER(ggml_tensor),
+                ctypes.c_void_p,
+                ctypes.c_size_t,
+                ctypes.c_size_t,
+            ),
+        ),
+        (
+            "get_tensor_async",
+            ctypes.CFUNCTYPE(
+                None,
+                ggml_backend_t,
+                ctypes.POINTER(ggml_tensor),
+                ctypes.c_void_p,
+                ctypes.c_size_t,
+                ctypes.c_size_t,
+            ),
+        ),
+        ("synchronize", ctypes.CFUNCTYPE(None, ggml_backend_t)),
+        (
+            "cpy_tensor_from",
+            ctypes.CFUNCTYPE(
+                None,
+                ggml_backend_t,
+                ctypes.POINTER(ggml_tensor),
+                ctypes.POINTER(ggml_tensor),
+            ),
+        ),
+        (
+            "cpy_tensor_to",
+            ctypes.CFUNCTYPE(
+                None,
+                ggml_backend_t,
+                ctypes.POINTER(ggml_tensor),
+                ctypes.POINTER(ggml_tensor),
+            ),
+        ),
+        (
+            "graph_plan_create",
+            ctypes.CFUNCTYPE(
+                ggml_backend_graph_plan_t, ggml_backend_t, ctypes.POINTER(ggml_cgraph)
+            ),
+        ),
+        (
+            "graph_plan_free",
+            ctypes.CFUNCTYPE(None, ggml_backend_t, ggml_backend_graph_plan_t),
+        ),
+        (
+            "graph_plan_compute",
+            ctypes.CFUNCTYPE(None, ggml_backend_t, ggml_backend_graph_plan_t),
+        ),
+        (
+            "graph_compute",
+            ctypes.CFUNCTYPE(None, ggml_backend_t, ctypes.POINTER(ggml_cgraph)),
+        ),
+        (
+            "supports_op",
+            ctypes.CFUNCTYPE(
+                ctypes.c_bool, ggml_backend_t, ctypes.POINTER(ggml_tensor)
+            ),
+        ),
+    ]
+
+
+# // TODO: hide behind API
+# struct ggml_backend {
+#     struct ggml_backend_i iface;
+
+#     ggml_backend_context_t context;
+# };
+class ggml_backend(ctypes.Structure):
+    _fields_ = [
+        ("iface", ggml_backend_i),
+        ("context", ggml_backend_context_t),
+    ]
+
+
+# // backend helper functions
+# GGML_API ggml_backend_t ggml_get_backend(const struct ggml_tensor * tensor);
+def ggml_get_backend(tensor: ggml_tensor_p) -> ggml_backend_t:
+    return lib.ggml_get_backend(tensor)
+
+
+lib.ggml_get_backend.argtypes = [ctypes.POINTER(ggml_tensor)]
+lib.ggml_get_backend.restype = ggml_backend_t
+
+# GGML_API const char * ggml_backend_name(ggml_backend_t backend);
+def ggml_backend_name(backend: ggml_backend_t) -> bytes:
+    return lib.ggml_backend_name(backend)
+
+
+lib.ggml_backend_name.argtypes = [ggml_backend_t]
+lib.ggml_backend_name.restype = ctypes.c_char_p
+
+# GGML_API void         ggml_backend_free(ggml_backend_t backend);
+def ggml_backend_free(backend: ggml_backend_t) -> None:
+    return lib.ggml_backend_free(backend)
+
+
+lib.ggml_backend_free.argtypes = [ggml_backend_t]
+lib.ggml_backend_free.restype = None
+
+# GGML_API ggml_backend_buffer_t ggml_backend_alloc_buffer(ggml_backend_t backend, size_t size);
+def ggml_backend_alloc_buffer(
+    backend: ggml_backend_t, size: Union[ctypes.c_size_t, int]
+) -> ggml_backend_buffer_t:
+    return lib.ggml_backend_alloc_buffer(backend, size)
+
+
+lib.ggml_backend_alloc_buffer.argtypes = [ggml_backend_t, ctypes.c_size_t]
+lib.ggml_backend_alloc_buffer.restype = ggml_backend_buffer_t
+
+# GGML_API size_t ggml_backend_get_alignment(ggml_backend_t backend);
+def ggml_backend_get_alignment(
+    backend: ggml_backend_t,
+) -> Union[ctypes.c_size_t, int]:
+    return lib.ggml_backend_get_alignment(backend)
+
+
+lib.ggml_backend_get_alignment.argtypes = [ggml_backend_t]
+lib.ggml_backend_get_alignment.restype = ctypes.c_size_t
+
+# GGML_API void ggml_backend_tensor_set_async(      struct ggml_tensor * tensor, const void * data, size_t offset, size_t size);
+def ggml_backend_tensor_set_async(
+    tensor: ggml_tensor_p,
+    data: ctypes.c_void_p,
+    offset: Union[ctypes.c_size_t, int],
+    size: Union[ctypes.c_size_t, int],
+) -> None:
+    return lib.ggml_backend_tensor_set_async(tensor, data, offset, size)
+
+
+lib.ggml_backend_tensor_set_async.argtypes = [
+    ctypes.POINTER(ggml_tensor),
+    ctypes.c_void_p,
+    ctypes.c_size_t,
+    ctypes.c_size_t,
+]
+lib.ggml_backend_tensor_set_async.restype = None
+
+# GGML_API void ggml_backend_tensor_get_async(const struct ggml_tensor * tensor,       void * data, size_t offset, size_t size);
+def ggml_backend_tensor_get_async(
+    tensor: ggml_tensor_p,
+    data: ctypes.c_void_p,
+    offset: Union[ctypes.c_size_t, int],
+    size: Union[ctypes.c_size_t, int],
+) -> None:
+    return lib.ggml_backend_tensor_get_async(tensor, data, offset, size)
+
+
+lib.ggml_backend_tensor_get_async.argtypes = [
+    ctypes.POINTER(ggml_tensor),
+    ctypes.c_void_p,
+    ctypes.c_size_t,
+    ctypes.c_size_t,
+]
+lib.ggml_backend_tensor_get_async.restype = None
+
+# GGML_API void ggml_backend_tensor_set(      struct ggml_tensor * tensor, const void * data, size_t offset, size_t size);
+def ggml_backend_tensor_set(
+    tensor: ggml_tensor_p,
+    data: ctypes.c_void_p,
+    offset: Union[ctypes.c_size_t, int],
+    size: Union[ctypes.c_size_t, int],
+) -> None:
+    return lib.ggml_backend_tensor_set(tensor, data, offset, size)
+
+
+lib.ggml_backend_tensor_set.argtypes = [
+    ctypes.POINTER(ggml_tensor),
+    ctypes.c_void_p,
+    ctypes.c_size_t,
+    ctypes.c_size_t,
+]
+lib.ggml_backend_tensor_set.restype = None
+
+# GGML_API void ggml_backend_tensor_get(const struct ggml_tensor * tensor,       void * data, size_t offset, size_t size);
+def ggml_backend_tensor_get(
+    tensor: ggml_tensor_p,
+    data: ctypes.c_void_p,
+    offset: Union[ctypes.c_size_t, int],
+    size: Union[ctypes.c_size_t, int],
+) -> None:
+    return lib.ggml_backend_tensor_get(tensor, data, offset, size)
+
+
+lib.ggml_backend_tensor_get.argtypes = [
+    ctypes.POINTER(ggml_tensor),
+    ctypes.c_void_p,
+    ctypes.c_size_t,
+    ctypes.c_size_t,
+]
+lib.ggml_backend_tensor_get.restype = None
+
+# GGML_API void ggml_backend_synchronize(ggml_backend_t backend);
+def ggml_backend_synchronize(backend: ggml_backend_t) -> None:
+    return lib.ggml_backend_synchronize(backend)
+
+
+lib.ggml_backend_synchronize.argtypes = [ggml_backend_t]
+lib.ggml_backend_synchronize.restype = None
+
+# GGML_API ggml_backend_graph_plan_t ggml_backend_graph_plan_create (ggml_backend_t backend, struct ggml_cgraph * cgraph);
+def ggml_backend_graph_plan_create(
+    backend: ggml_backend_t, cgraph: ggml_cgraph_p
+) -> ggml_backend_graph_plan_t:
+    return lib.ggml_backend_graph_plan_create(backend, cgraph)
+
+
+lib.ggml_backend_graph_plan_create.argtypes = [
+    ggml_backend_t,
+    ctypes.POINTER(ggml_cgraph),
+]
+lib.ggml_backend_graph_plan_create.restype = ggml_backend_graph_plan_t
+
+# GGML_API void ggml_backend_graph_plan_free   (ggml_backend_t backend, ggml_backend_graph_plan_t plan);
+def ggml_backend_graph_plan_free(
+    backend: ggml_backend_t, plan: ggml_backend_graph_plan_t
+) -> None:
+    return lib.ggml_backend_graph_plan_free(backend, plan)
+
+
+lib.ggml_backend_graph_plan_free.argtypes = [ggml_backend_t, ggml_backend_graph_plan_t]
+lib.ggml_backend_graph_plan_free.restype = None
+
+# GGML_API void ggml_backend_graph_plan_compute(ggml_backend_t backend, ggml_backend_graph_plan_t plan);
+def ggml_backend_graph_plan_compute(
+    backend: ggml_backend_t, plan: ggml_backend_graph_plan_t
+) -> None:
+    return lib.ggml_backend_graph_plan_compute(backend, plan)
+
+
+lib.ggml_backend_graph_plan_compute.argtypes = [
+    ggml_backend_t,
+    ggml_backend_graph_plan_t,
+]
+lib.ggml_backend_graph_plan_compute.restype = None
+
+# GGML_API void ggml_backend_graph_compute     (ggml_backend_t backend, struct ggml_cgraph * cgraph);
+def ggml_backend_graph_compute(backend: ggml_backend_t, cgraph: ggml_cgraph_p) -> None:
+    return lib.ggml_backend_graph_compute(backend, cgraph)
+
+
+lib.ggml_backend_graph_compute.argtypes = [ggml_backend_t, ctypes.POINTER(ggml_cgraph)]
+lib.ggml_backend_graph_compute.restype = None
+
+# GGML_API bool ggml_backend_supports_op       (ggml_backend_t backend, const struct ggml_tensor * op);
+def ggml_backend_supports_op(
+    backend: ggml_backend_t, op: ggml_tensor_p
+) -> ctypes.c_bool:
+    return lib.ggml_backend_supports_op(backend, op)
+
+
+lib.ggml_backend_supports_op.argtypes = [ggml_backend_t, ctypes.POINTER(ggml_tensor)]
+lib.ggml_backend_supports_op.restype = ctypes.c_bool
+
+# // tensor copy between different backends
+# GGML_API void ggml_backend_tensor_copy(struct ggml_tensor * src, struct ggml_tensor * dst);
+def ggml_backend_tensor_copy(src: ggml_tensor_p, dst: ggml_tensor_p) -> None:
+    return lib.ggml_backend_tensor_copy(src, dst)
+
+
+lib.ggml_backend_tensor_copy.argtypes = [
+    ctypes.POINTER(ggml_tensor),
+    ctypes.POINTER(ggml_tensor),
+]
+lib.ggml_backend_tensor_copy.restype = None
+
+# //
+# // CPU backend
+# //
+
+# GGML_API ggml_backend_t ggml_backend_cpu_init(void);
+def ggml_backend_cpu_init() -> ggml_backend_t:
+    return lib.ggml_backend_cpu_init()
+
+
+lib.ggml_backend_cpu_init.argtypes = []
+lib.ggml_backend_cpu_init.restype = ggml_backend_t
+
+# GGML_API bool ggml_backend_is_cpu(ggml_backend_t backend);
+def ggml_backend_is_cpu(backend: ggml_backend_t) -> ctypes.c_bool:
+    return lib.ggml_backend_is_cpu(backend)
+
+
+lib.ggml_backend_is_cpu.argtypes = [ggml_backend_t]
+lib.ggml_backend_is_cpu.restype = ctypes.c_bool
+
+# GGML_API void ggml_backend_cpu_set_n_threads(ggml_backend_t backend_cpu, int n_threads);
+def ggml_backend_cpu_set_n_threads(backend_cpu: ggml_backend_t, n_threads: int) -> None:
+    return lib.ggml_backend_cpu_set_n_threads(backend_cpu, n_threads)
+
+
+lib.ggml_backend_cpu_set_n_threads.argtypes = [ggml_backend_t, ctypes.c_int]
+lib.ggml_backend_cpu_set_n_threads.restype = None
+
+# GGML_API ggml_backend_buffer_t ggml_backend_cpu_buffer_from_ptr(ggml_backend_t backend_cpu, void * ptr, size_t size);
+def ggml_backend_cpu_buffer_from_ptr(
+    backend_cpu: ggml_backend_t, ptr: ctypes.c_void_p, size: ctypes.c_size_t
+) -> ggml_backend_buffer_t:
+    return lib.ggml_backend_cpu_buffer_from_ptr(backend_cpu, ptr, size)
+
+
+lib.ggml_backend_cpu_buffer_from_ptr.argtypes = [
+    ggml_backend_t,
+    ctypes.c_void_p,
+    ctypes.c_size_t,
+]
+lib.ggml_backend_cpu_buffer_from_ptr.restype = ggml_backend_buffer_t
 
 #####################################################
 # GGML ALLOC API
@@ -7768,6 +8317,15 @@ def ggml_allocr_new_measure(
 lib.ggml_allocr_new_measure.argtypes = [ctypes.c_size_t]
 lib.ggml_allocr_new_measure.restype = ggml_allocr_p
 
+# GGML_API struct ggml_allocr * ggml_allocr_new_from_buffer(struct ggml_backend_buffer * buffer);
+def ggml_allocr_new_from_buffer(
+    buffer: "ctypes._Pointer[ggml_backend_buffer]",  # type: ignore
+) -> ggml_allocr_p:
+    return lib.ggml_allocr_new_from_buffer(buffer)
+
+
+lib.ggml_allocr_new_from_buffer.argtypes = [ctypes.POINTER(ggml_backend_buffer)]
+lib.ggml_allocr_new_from_buffer.restype = ggml_allocr_p
 
 # // tell the allocator to parse nodes following the order described in the list
 # // you should call this if your graph are optimized to execute out-of-order
@@ -7788,7 +8346,7 @@ lib.ggml_allocr_set_parse_seq.argtypes = [
 lib.ggml_allocr_set_parse_seq.restype = None
 
 
-# GGML_API void   ggml_allocr_free(struct ggml_allocr * alloc);
+# GGML_API void   ggml_allocr_free       (struct ggml_allocr * alloc);
 def ggml_allocr_free(
     alloc: ggml_allocr_p,
 ):
@@ -7799,7 +8357,7 @@ lib.ggml_allocr_free.argtypes = [ggml_allocr_p]
 lib.ggml_allocr_free.restype = None
 
 
-# GGML_API bool   ggml_allocr_is_measure(struct ggml_allocr * alloc);
+# GGML_API bool   ggml_allocr_is_measure (struct ggml_allocr * alloc);
 def ggml_allocr_is_measure(
     alloc: ggml_allocr_p,
 ) -> bool:
@@ -7810,7 +8368,7 @@ lib.ggml_allocr_is_measure.argtypes = [ggml_allocr_p]
 lib.ggml_allocr_is_measure.restype = ctypes.c_bool
 
 
-# GGML_API void   ggml_allocr_reset(struct ggml_allocr * alloc);
+# GGML_API void   ggml_allocr_reset      (struct ggml_allocr * alloc);
 def ggml_allocr_reset(
     alloc: ggml_allocr_p,
 ):
@@ -7821,7 +8379,7 @@ lib.ggml_allocr_reset.argtypes = [ggml_allocr_p]
 lib.ggml_allocr_reset.restype = None
 
 
-# GGML_API void   ggml_allocr_alloc(struct ggml_allocr * alloc, struct ggml_tensor * tensor);
+# GGML_API void   ggml_allocr_alloc      (struct ggml_allocr * alloc, struct ggml_tensor * tensor);
 def ggml_allocr_alloc(
     alloc: ggml_allocr_p,
     tensor: ggml_tensor_p,
@@ -7844,15 +8402,38 @@ def ggml_allocr_alloc_graph(
 lib.ggml_allocr_alloc_graph.argtypes = [ggml_allocr_p, ctypes.POINTER(ggml_cgraph)]
 lib.ggml_allocr_alloc_graph.restype = ctypes.c_size_t
 
-# GGML_API size_t ggml_allocr_max_size(struct ggml_allocr * alloc);
+# GGML_API size_t ggml_allocr_max_size   (struct ggml_allocr * alloc);
 def ggml_allocr_max_size(
     alloc: ggml_allocr_p,
 ) -> int:
     return lib.ggml_allocr_max_size(alloc)
 
+
 lib.ggml_allocr_max_size.argtypes = [ggml_allocr_p]
 lib.ggml_allocr_max_size.restype = ctypes.c_size_t
 
+# GGML_API size_t ggml_allocr_alloc_graph_n(
+#                     struct ggml_allocr * alloc,
+#                     struct ggml_cgraph ** graphs, int n_graphs,
+#                     struct ggml_tensor *** inputs, struct ggml_tensor *** outputs);
+def ggml_allocr_alloc_graph_n(
+    alloc: ggml_allocr_p,
+    graphs: "ctypes._Pointer[ctypes._Pointer[ggml_cgraph]]",  # type: ignore
+    n_graphs: Union[ctypes.c_int, int],
+    inputs: "ctypes._Pointer[ctypes._Pointer[ctypes._Pointer[ggml_tensor]]]",  # type: ignore
+    outputs: "ctypes._Pointer[ctypes._Pointer[ctypes._Pointer[ggml_tensor]]]",  # type: ignore
+) -> int:
+    return lib.ggml_allocr_alloc_graph_n(alloc, graphs, n_graphs, inputs, outputs)
+
+
+lib.ggml_allocr_alloc_graph_n.argtypes = [
+    ggml_allocr_p,
+    ctypes.POINTER(ctypes.POINTER(ggml_cgraph)),
+    ctypes.c_int,
+    ctypes.POINTER(ctypes.POINTER(ctypes.POINTER(ggml_tensor))),
+    ctypes.POINTER(ctypes.POINTER(ctypes.POINTER(ggml_tensor))),
+]
+lib.ggml_allocr_alloc_graph_n.restype = ctypes.c_size_t
 
 #####################################################
 # GGML CUDA API
@@ -8007,6 +8588,7 @@ def ggml_cuda_assign_buffers_no_alloc(
 ):
     return lib.ggml_cuda_assign_buffers_no_alloc(tensor)
 
+
 if GGML_USE_CUBLAS:
     lib.ggml_cuda_assign_buffers_no_alloc.argtypes = [
         ctypes.POINTER(ggml_tensor),
@@ -8020,6 +8602,7 @@ def ggml_cuda_assign_scratch_offset(
 ):
     return lib.ggml_cuda_assign_scratch_offset(tensor, offset)
 
+
 if GGML_USE_CUBLAS:
     lib.ggml_cuda_assign_scratch_offset.argtypes = [
         ctypes.POINTER(ggml_tensor),
@@ -8032,6 +8615,7 @@ def ggml_cuda_copy_to_device(
     tensor: ggml_tensor_p,
 ):
     return lib.ggml_cuda_copy_to_device(tensor)
+
 
 if GGML_USE_CUBLAS:
     lib.ggml_cuda_copy_to_device.argtypes = [
@@ -8134,6 +8718,15 @@ if GGML_USE_CUBLAS:
     ]
     lib.ggml_cuda_get_device_description.restype = None
 
+# GGML_API ggml_backend_t ggml_backend_cuda_init(void); // TODO: take a list of devices to use
+def ggml_backend_cuda_init() -> ggml_backend_t:
+    return lib.ggml_backend_cuda_init()
+
+
+if GGML_USE_CUBLAS:
+    lib.ggml_backend_cuda_init.argtypes = []
+    lib.ggml_backend_cuda_init.restype = ggml_backend_t
+
 #####################################################
 # GGML METAL API
 # source: ggml-metal.h
@@ -8149,12 +8742,16 @@ GGML_METAL_MAX_BUFFERS = 16
 # #define GGML_METAL_MAX_COMMAND_BUFFERS 32
 GGML_METAL_MAX_COMMAND_BUFFERS = 32
 
+# struct ggml_metal_context;
+ggml_metal_context_p = ctypes.c_void_p
+
 # void ggml_metal_log_set_callback(ggml_log_callback log_callback, void * user_data);
 def ggml_metal_log_set_callback(
-    log_callback, # type: "ctypes._CFuncPtr" # type: ignore
+    log_callback,  # type: "ctypes._CFuncPtr" # type: ignore
     user_data: ctypes.c_void_p,
 ):
     return lib.ggml_metal_log_set_callback(log_callback, user_data)
+
 
 if GGML_USE_METAL:
     lib.ggml_metal_log_set_callback.argtypes = [
@@ -8162,10 +8759,6 @@ if GGML_USE_METAL:
         ctypes.c_void_p,
     ]
     lib.ggml_metal_log_set_callback.restype = None
-
-# struct ggml_metal_context;
-ggml_metal_context_p = ctypes.c_void_p
-
 
 # struct ggml_metal_context * ggml_metal_init(int n_cb);
 def ggml_metal_init(
@@ -8340,6 +8933,42 @@ if GGML_USE_METAL:
     ]
     lib.ggml_metal_graph_compute.restype = None
 
+# //
+# // backend API
+# // user-code should use only these functions
+# //
+
+# GGML_API ggml_backend_t ggml_backend_metal_init(void);
+def ggml_backend_metal_init() -> ggml_backend_t:
+    return lib.ggml_backend_metal_init()
+
+
+if GGML_USE_METAL:
+    lib.ggml_backend_metal_init.argtypes = []
+    lib.ggml_backend_metal_init.restype = ggml_backend_t
+
+# GGML_API bool ggml_backend_is_metal(ggml_backend_t backend);
+def ggml_backend_is_metal(
+    backend: ggml_backend_t,
+) -> bool:
+    return lib.ggml_backend_is_metal(backend)
+
+
+if GGML_USE_METAL:
+    lib.ggml_backend_is_metal.argtypes = [ggml_backend_t]
+    lib.ggml_backend_is_metal.restype = ctypes.c_bool
+
+# GGML_API void ggml_backend_metal_set_n_cb(ggml_backend_t backend, int n_cb);
+def ggml_backend_metal_set_n_cb(
+    backend: ggml_backend_t,
+    n_cb: Union[ctypes.c_int, int],
+):
+    return lib.ggml_backend_metal_set_n_cb(backend, n_cb)
+
+
+if GGML_USE_METAL:
+    lib.ggml_backend_metal_set_n_cb.argtypes = [ggml_backend_t, ctypes.c_int]
+    lib.ggml_backend_metal_set_n_cb.restype = None
 
 #####################################################
 # GGML OPENCL API
