@@ -480,7 +480,7 @@ def ggml_operator_cast(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     a = node_inputs[0]
     np_data_type = tensor_dtype_to_np_dtype(onnx_type)
     np_data_type_limit = np.dtype(str(np_data_type).replace("64", "32"))
-    x = np.empty(get_tensor_shape(a), dtype=np_data_type_limit)
+    x = np.empty(ctx.get_tensor_shape(a), dtype=np_data_type_limit)
 
     x_t = ctx.from_numpy(x)
 
@@ -654,10 +654,9 @@ def ggml_operator_concat(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
             1,
             None,
         )
-
-        ctx.refs.append(custom_concat)
         return new_tensor
 
+    ctx.refs.append(custom_concat)
     new_tensor = node_inputs[0]
     for tensor in node_inputs[1:]:
         new_tensor = concat_2(new_tensor, tensor)
@@ -816,9 +815,14 @@ def ggml_operator_conv(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     node_inputs_iter = iter(node_inputs)
     x = next(node_inputs_iter)
-    x_shape = get_tensor_shape(x)
+    x_shape = ctx.get_tensor_shape(x)
     w = next(node_inputs_iter)
-    w_shape = get_tensor_shape(w)
+    w_shape = ctx.get_tensor_shape(w)
+    w_dtype = get_tensor_dtype(w)
+
+    if w_dtype == np.float32:
+        w = ctx.from_numpy(ctx.to_numpy(w).astype(np.float16))
+
     m = w_shape[0]
     bias = next(
         node_inputs_iter,
@@ -868,12 +872,10 @@ def ggml_operator_conv(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     if len(strides) != 2:
         raise NotImplementedError("Cannot handle other than 2 strides")
 
-    raise NotImplementedError(f'Operator "Conv" not implemented')
-    # FIXME: ggml can only work with F16
-    conv_result = ggml.ggml_conv_2d(
+    cur = ggml.ggml_conv_2d(
         ctx.ggml_context,
+        w,
         x,
-        bias,
         strides[0],
         strides[1],
         pads[0],
@@ -881,8 +883,17 @@ def ggml_operator_conv(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         dilations[0],
         dilations[1],
     )
+    result = ggml.ggml_add(
+        ctx.ggml_context,
+        cur,
+        ggml.ggml_repeat(
+            ctx.ggml_context,
+            ggml.ggml_reshape_3d(ctx.ggml_context, bias, 1, 1, bias.contents.ne[0]),
+            cur,
+        ),
+    )
 
-    ctx.tensors_dict[node.output[0]] = conv_result
+    ctx.tensors_dict[node.output[0]] = result
 
 
 @register_ggml_operator("ConvTranspose")
@@ -1095,12 +1106,37 @@ def ggml_operator_div(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     b = node_inputs[1]
 
     a, b = broadcast_shapes(ctx, a, b)
+    a_dtype = get_tensor_dtype(a)
+    if a_dtype == np.float32:
+        div_result = ggml.ggml_div(
+            ctx.ggml_context,
+            a,
+            b,
+        )
+    else:
+        x = np.empty(ctx.get_tensor_shape(a), dtype=a_dtype)
+        x_t = ctx.from_numpy(x)
 
-    div_result = ggml.ggml_div(
-        ctx.ggml_context,
-        a,
-        b,
-    )
+        @ggml.ggml_custom3_op_t
+        def custom_div(
+            tensor_out: ggml.ggml_tensor_p,
+            tensor_in_1: ggml.ggml_tensor_p,
+            tensor_in_2: ggml.ggml_tensor_p,
+            tensor_in_3: ggml.ggml_tensor_p,
+            ith: int,
+            nth: int,
+            userdata: Optional[ctypes.c_void_p],
+        ):
+            a = ctx.to_numpy(tensor_in_2)
+            b = ctx.to_numpy(tensor_in_3)
+
+            x = np.divide(a, b)
+            ctx.set_tensor_out(tensor_out, x)
+
+        div_result = ggml.ggml_map_custom3_inplace(
+            ctx.ggml_context, x_t, a, b, custom_div, 1, None
+        )
+        ctx.refs.append(custom_div)
     ctx.tensors_dict[output_name] = div_result
     return div_result
 
@@ -2515,20 +2551,26 @@ def ggml_operator_or(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
 @register_ggml_operator("Pad")
 def ggml_operator_pad(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
+    node_inputs = [ctx.tensors_dict[inp] for inp in node.input]
+
     # x, pads, value, axes
-    if len(ctx.tensors_dict) < 2:
+    if len(node_inputs) < 2:
         raise ValueError(
             f'Error for node "{node.name}": Operation "Pad" requires at least two inputs. Actual number of inputs: {len(node_inputs)}'
         )
-    input_rank = ctx.tensors_dict["x"].contents.n_dims
+
+    node_inputs += [None] * (4 - len(node_inputs))
+    x_in, pads, value, axes = node_inputs
+
+    input_rank = x_in.contents.n_dims
     mode = next(
         (attr.s for attr in node.attribute if attr.name == "mode"), b"constant"
     ).decode("utf-8")
 
-    if "axes" not in ctx.tensors_dict:
+    if axes is None:
         axes = list(range(input_rank))
     else:
-        axes_eval = ctx.eval_tensor(ctx.tensors_dict["axes"])
+        axes_eval = ctx.eval_tensor(axes)
         axes = ctx.to_numpy(axes_eval)
         axes = [axis if axis >= 0 else axis + input_rank for axis in axes]
     num_axes = len(axes)
@@ -2536,7 +2578,7 @@ def ggml_operator_pad(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     for _ in range(input_rank):
         pad_width += [[0, 0]]  # init to zero
 
-    raw_pads = ctx.to_numpy(ctx.eval_tensor(ctx.tensors_dict["pads"]))
+    raw_pads = ctx.to_numpy(ctx.eval_tensor(pads))
 
     # re-order to np.pad accepted order ((x1_begin, x1_end), (x2_begin, x2_end), ...)
     for i in range(num_axes):
@@ -2546,15 +2588,15 @@ def ggml_operator_pad(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         pad_width[axis] = [raw_pads[i], raw_pads[i + num_axes]]
 
     expand_by = [sum(pad) for pad in pad_width]
-    prev_shape = get_tensor_shape(ctx.tensors_dict["x"])
+    prev_shape = get_tensor_shape(x_in)
     output_shape = [sum(x) for x in zip(prev_shape, expand_by)]
-    a_dtype = get_tensor_dtype(ctx.tensors_dict["x"])
+    a_dtype = get_tensor_dtype(x_in)
     x = np.empty(output_shape, dtype=a_dtype)
     x_t = ctx.from_numpy(x)
 
     constant_value = None
-    if "value" in ctx.tensors_dict:
-        constant_values = ctx.to_numpy(ctx.eval_tensor(ctx.tensors_dict["value"]))
+    if value is not None:
+        constant_values = ctx.to_numpy(ctx.eval_tensor(value))
 
     @ggml.ggml_custom2_op_t
     def custom_pad(
@@ -2585,7 +2627,7 @@ def ggml_operator_pad(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
         ctx.ggml_context,
         x_t,
-        ctx.tensors_dict["x"],
+        x_in,
         custom_pad,
         1,
         None,
