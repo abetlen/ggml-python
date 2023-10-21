@@ -59,6 +59,7 @@ import importlib.resources
 from typing import List, Optional, Sequence, Union
 from typing_extensions import TypeAlias
 
+# TODO: Fix for Windows
 c_globals = ctypes.CDLL(None)  # POSIX
 
 
