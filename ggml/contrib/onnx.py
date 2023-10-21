@@ -23,6 +23,8 @@ from onnx.onnx_ml_pb2 import (
 import ggml
 import ggml.utils
 
+import IPython
+
 GgmlOperator = Callable[["GgmlOnnxExecutionContext", NodeProto], None]
 
 ggml_operators: Dict[str, GgmlOperator] = {}
@@ -600,6 +602,35 @@ def ggml_operator_ceil(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     ctx.refs.append(custom_ceil)
 
 
+@register_ggml_operator("Clip")
+def ggml_operator_clip(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
+    node_inputs = [ctx.tensors_dict[inp] for inp in node.input]
+    x_t, a_min, a_max = node_inputs
+    shape = ctx.get_tensor_shape(x_t)
+    name = node.output[0]
+
+    @ggml.ggml_custom3_op_t
+    def custom_clip(
+        tensor_out: ggml.ggml_tensor_p,
+        tensor_in_1: ggml.ggml_tensor_p,
+        tensor_in_2: ggml.ggml_tensor_p,
+        tensor_in_3: ggml.ggml_tensor_p,
+        ith: int,
+        nth: int,
+        userdata: Optional[ctypes.c_void_p],
+    ):
+        a_min = ctx.to_numpy(tensor_in_2)
+        a_max = ctx.to_numpy(tensor_in_3)
+        a = ctx.to_numpy(tensor_in_1)
+        x = np.clip(a, a_min, a_max)
+        ctx.set_tensor_out(tensor_out, x)
+
+    new_tensor = ctx.tensors_dict[name] = ggml.ggml_map_custom3_inplace(
+        ctx.ggml_context, x_t, a_min, a_max, custom_clip, 1, None
+    )
+    ctx.refs.append(custom_clip)
+
+
 @register_ggml_operator("Concat")
 def ggml_operator_concat(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     node_inputs = [ctx.tensors_dict[inp] for inp in node.input]
@@ -746,7 +777,6 @@ def ggml_operator_constant_of_shape(ctx: "GgmlOnnxExecutionContext", node: NodeP
 
     node_attributes = node.attribute
     value_attr = next(attr for attr in node_attributes if "value" in attr.name)
-
     if value_attr.HasField("t"):
         tensor = value_attr.t
         data_type = tensor.data_type
@@ -757,6 +787,8 @@ def ggml_operator_constant_of_shape(ctx: "GgmlOnnxExecutionContext", node: NodeP
             data_value = np.frombuffer(tensor.raw_data, dtype=np_data_type)
         else:
             data_value = onnx.numpy_helper.to_array(tensor)
+        if node.output[0] == "/ConstantOfShape_output_0":
+            IPython.embed()
 
     else:
         data_type = value_attr.type
@@ -2713,39 +2745,36 @@ def ggml_operator_pow(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     ctx.refs.append(custom_pow)
 
 
-@register_ggml_operator("Reciprocal")
-def ggml_operator_reciprocal(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
+@register_ggml_operator("RandomNormalLike")
+def ggml_operator_random_normal_like(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     node_inputs = [ctx.tensors_dict[inp] for inp in node.input]
+    shape = ctx.get_tensor_shape(node_inputs[0])
+    dtype = get_tensor_dtype(node_inputs[0])
 
-    if len(node_inputs) != 1:
-        raise ValueError(
-            f'Error for node "{node.name}": Operation "Reciprocal" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
-        )
-
-    x = node_inputs[0]
+    x = np.empty(shape, dtype=dtype)
+    x_t = ctx.from_numpy(x)
 
     @ggml.ggml_custom1_op_t
-    def custom_reciprocal(
+    def custom_random_normal(
         tensor_out: ggml.ggml_tensor_p,
         tensor_in_1: ggml.ggml_tensor_p,
         ith: int,
         nth: int,
         userdata: Optional[ctypes.c_void_p],
     ):
-        x = ggml.utils.to_numpy(tensor_in_1)
-        y = np.reciprocal(x)
+        # TODO: use loc and scale from inputs
+        x = np.random.normal(size=shape, loc=0.0, scale=1.0).astype(dtype)
+        ctx.set_tensor_out(tensor_out, x)
 
-        ctx.set_tensor_out(tensor_out, y)
-
+    ctx.refs.append(custom_random_normal)
+    # breakpoint()
     new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom1_inplace(
         ctx.ggml_context,
-        x,
-        custom_reciprocal,
+        x_t,
+        custom_random_normal,
         1,
         None,
     )
-
-    ctx.refs.append(custom_reciprocal)
 
 
 @register_ggml_operator("Range")
@@ -2795,6 +2824,41 @@ def ggml_operator_range(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     )
 
     ctx.refs.append(custom_range)
+
+
+@register_ggml_operator("Reciprocal")
+def ggml_operator_reciprocal(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
+    node_inputs = [ctx.tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Reciprocal" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    x = node_inputs[0]
+
+    @ggml.ggml_custom1_op_t
+    def custom_reciprocal(
+        tensor_out: ggml.ggml_tensor_p,
+        tensor_in_1: ggml.ggml_tensor_p,
+        ith: int,
+        nth: int,
+        userdata: Optional[ctypes.c_void_p],
+    ):
+        x = ggml.utils.to_numpy(tensor_in_1)
+        y = np.reciprocal(x)
+
+        ctx.set_tensor_out(tensor_out, y)
+
+    new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom1_inplace(
+        ctx.ggml_context,
+        x,
+        custom_reciprocal,
+        1,
+        None,
+    )
+
+    ctx.refs.append(custom_reciprocal)
 
 
 class ReduceOpsUserData(ctypes.Structure):
