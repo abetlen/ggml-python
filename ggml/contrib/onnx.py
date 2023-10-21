@@ -4850,8 +4850,14 @@ class GgmlOnnxExecutionContext:
         return array.reshape(shape)
 
     def alloc_tensor_cpu(self, tensor: ggml.ggml_tensor_p):
+        # Check if tensor is a view and if so allocate the view source
+        if tensor.contents.view_src:
+            self.alloc_tensor_cpu(tensor.contents.view_src)
+            tensor.contents.data = tensor.contents.view_src.contents.data
+        # Check if tensor is already allocated
         if tensor.contents.data:
             return
+        # Allocate tensor
         buffer = (ctypes.c_uint8 * ggml.ggml_nbytes_pad(tensor))()
         self.refs.append(buffer)
         tensor.contents.data = ctypes.cast(ctypes.addressof(buffer), ctypes.c_void_p)
@@ -4879,8 +4885,16 @@ class GgmlOnnxExecutionContext:
         alignment = 32
         alloc_size = ggml.utils.alloc_graph_measure(gf, alignment=32)
         alloc_buffer = (ctypes.c_uint8 * alloc_size)()
-        leaf_data = [ggml.ggml_get_data(gf.leafs[i]) for i in range(gf.n_leafs)]
-        node_data = [ggml.ggml_get_data(gf.nodes[i]) for i in range(gf.n_nodes)]
+        def copy_tensor(src: ggml.ggml_tensor_p, dst: Optional[ggml.ggml_tensor_p] = None) -> ggml.ggml_tensor:
+            # copy tensor data byte-by-byte using ctypes
+            src_tensor = src.contents
+            dst_tensor = ggml.ggml_tensor() if dst is None else dst.contents
+            ctypes.memmove(ctypes.byref(dst_tensor), ctypes.byref(src_tensor), ctypes.sizeof(src_tensor))
+            return dst_tensor
+        leafs = [copy_tensor(gf.leafs[i]) for i in range(gf.n_leafs)]
+        nodes = [copy_tensor(gf.nodes[i]) for i in range(gf.n_nodes)]
+        # leaf_data = [ggml.ggml_get_data(gf.leafs[i]) for i in range(gf.n_leafs)]
+        # node_data = [ggml.ggml_get_data(gf.nodes[i]) for i in range(gf.n_nodes)]
         allocr = ggml.ggml_allocr_new(
             ctypes.cast(alloc_buffer, ctypes.c_void_p), alloc_size, alignment
         )
@@ -4888,9 +4902,11 @@ class GgmlOnnxExecutionContext:
         self.compute_graph(gf)
         ggml.ggml_allocr_free(allocr)
         for i in range(gf.n_leafs):
-            gf.leafs[i].contents.data = leaf_data[i]
+            copy_tensor(ctypes.pointer(leafs[i]), gf.leafs[i])
+            # gf.leafs[i].contents.data = leaf_data[i]
         for i in range(gf.n_nodes):
-            gf.nodes[i].contents.data = node_data[i]
+            copy_tensor(ctypes.pointer(nodes[i]), gf.nodes[i])
+            # gf.nodes[i].contents.data = node_data[i]
         return tensor
 
     def set_tensor_out(self, tensor: ggml.ggml_tensor_p, array: npt.NDArray[Any]):
@@ -5023,8 +5039,8 @@ class GgmlBackendRep(BackendRep):
 
         refs: List[Any] = []
 
-        gf = ggml.ggml_cgraph()
-        gf_p = ctypes.pointer(gf)
+        # gf = ggml.ggml_cgraph()
+        # gf_p = ctypes.pointer(gf)
         output_names = [output.name for output in model_graph.output]
 
         ctx = GgmlOnnxExecutionContext(self, ggml_tensors, ggml_context, refs)
@@ -5042,7 +5058,7 @@ class GgmlBackendRep(BackendRep):
 
             for output in node.output:
                 if output in output_names:
-                    ggml.ggml_build_forward_expand(gf_p, ggml_tensors[output])
+                    # ggml.ggml_build_forward_expand(gf_p, ggml_tensors[output])
                     ctx.eval_tensor(ggml_tensors[output])
 
         graph_outputs: List[npt.NDArray[Any]] = []
