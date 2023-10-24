@@ -1914,15 +1914,20 @@ def ggml_operator_instancenorm(ctx: "GgmlOnnxExecutionContext", node: NodeProto)
         userdata: Optional[ctypes.c_void_p],
     ):
         x = ggml.utils.to_numpy(tensor_in_1)
-        scale = ggml.utils.to_numpy(tensor_in_2)
-        B = ggml.utils.to_numpy(tensor_in_3)
+        s = ggml.utils.to_numpy(tensor_in_2)
+        bias = ggml.utils.to_numpy(tensor_in_3)
         epsilon = ctypes.cast(userdata, ctypes.POINTER(ctypes.c_double)).contents.value
 
-        mean = np.mean(x, axis=(2, 3), keepdims=True)
-        variance = np.var(x, axis=(2, 3), keepdims=True)
-        normalized = (x - mean) / np.sqrt(variance + epsilon)
-        y = scale.reshape(1, -1, 1, 1) * normalized + B.reshape(1, -1, 1, 1)
+        dims_x = len(x.shape)
+        axis = tuple(range(2, dims_x))
+        mean = np.mean(x, axis=axis, keepdims=True)
+        var = np.var(x, axis=axis, keepdims=True)
 
+        dim_ones = (1,) * (dims_x - 2)
+        s = s.reshape(-1, *dim_ones)
+        bias = bias.reshape(-1, *dim_ones)
+
+        y = s * (x - mean) / np.sqrt(var + epsilon) + bias
         ctx.set_tensor_out(tensor_out, y)
 
     new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom3_inplace(
