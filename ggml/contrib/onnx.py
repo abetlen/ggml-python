@@ -3922,25 +3922,32 @@ def ggml_operator_sigmoid(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
             f'Error for node "{node.name}": Operation "Sigmoid" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
         )
 
-    x = node_inputs[0]
+    a = node_inputs[0]
 
-    @ggml.ggml_custom1_op_t
+    a_shape = ctx.get_tensor_shape(a)
+    a_dtype = get_tensor_dtype(a)
+
+    x = np.empty(a_shape, dtype=a_dtype)
+    x_t = ctx.from_numpy(x)
+
+    @ggml.ggml_custom2_op_t
     def custom_sigmoid(
         tensor_out: ggml.ggml_tensor_p,
         tensor_in_1: ggml.ggml_tensor_p,
+        tensor_in_2: ggml.ggml_tensor_p,
         ith: int,
         nth: int,
         userdata: Optional[ctypes.c_void_p],
     ):
-        x = ggml.utils.to_numpy(tensor_in_1)
-
-        y = 1.0 / (1.0 + np.exp(np.negative(x)))
+        a = ctx.to_numpy(tensor_in_2)
+        y = 1.0 / (1.0 + np.exp(np.negative(a)))
 
         ctx.set_tensor_out(tensor_out, y)
 
-    new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom1_inplace(
+    new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
         ctx.ggml_context,
-        x,
+        x_t,
+        a,
         custom_sigmoid,
         1,
         None,
