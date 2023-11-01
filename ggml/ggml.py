@@ -9155,33 +9155,35 @@ if GGML_USE_CLBLAST:
     ]
     lib.ggml_cl_mul_mat.restype = None
 
+# NOTE: The following functions are defined in the ggml-opencl.h header file but
+#       are not defined in the ggml-opencl.c source file.
 
 # void * ggml_cl_host_malloc(size_t size);
-def ggml_cl_host_malloc(
-    size: Union[ctypes.c_size_t, int],
-) -> Optional[ctypes.c_void_p]:
-    return lib.ggml_cl_host_malloc(size)
+# def ggml_cl_host_malloc(
+#     size: Union[ctypes.c_size_t, int],
+# ) -> Optional[ctypes.c_void_p]:
+#     return lib.ggml_cl_host_malloc(size)
 
 
-if GGML_USE_CLBLAST:
-    lib.ggml_cl_host_malloc.argtypes = [
-        ctypes.c_size_t,
-    ]
-    lib.ggml_cl_host_malloc.restype = ctypes.c_void_p
+# if GGML_USE_CLBLAST:
+#     lib.ggml_cl_host_malloc.argtypes = [
+#         ctypes.c_size_t,
+#     ]
+#     lib.ggml_cl_host_malloc.restype = ctypes.c_void_p
 
 
 # void   ggml_cl_host_free(void * ptr);
-def ggml_cl_host_free(
-    ptr: ctypes.c_void_p,
-):
-    return lib.ggml_cl_host_free(ptr)
+# def ggml_cl_host_free(
+#     ptr: ctypes.c_void_p,
+# ):
+#     return lib.ggml_cl_host_free(ptr)
 
 
-if GGML_USE_CLBLAST:
-    lib.ggml_cl_host_free.argtypes = [
-        ctypes.c_void_p,
-    ]
-    lib.ggml_cl_host_free.restype = None
+# if GGML_USE_CLBLAST:
+#     lib.ggml_cl_host_free.argtypes = [
+#         ctypes.c_void_p,
+#     ]
+#     lib.ggml_cl_host_free.restype = None
 
 
 # void ggml_cl_free_data(const struct ggml_tensor* tensor);
