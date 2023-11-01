@@ -14,4 +14,6 @@ run_if_ggml_metal_available = pytest.mark.skipif(
 
 @run_if_ggml_metal_available
 def test_metal():
-    assert False
+    ctx_metal = ggml.ggml_metal_init(1)
+    assert ctx_metal is not None
+    ggml.ggml_metal_free(ctx_metal)
