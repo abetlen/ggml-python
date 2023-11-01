@@ -78,3 +78,28 @@ jobs:
       - name: Test with pytest
         run: |
           python3 -m pytest
+
+  build-linux-opencl:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: "true"
+
+      - name: Dependencies
+        run: |
+          wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list  
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends llvm intel-oneapi-runtime-opencl intel-oneapi-runtime-compilers libclblast-dev
+          sudo apt-get install -y python3-dev python3-pip make
+      
+      - name: Setup
+        run: |
+          python3 -m pip install pytest
+          make build.clblast
+
+      - name: Test with pytest
+        run: |
+          make test
