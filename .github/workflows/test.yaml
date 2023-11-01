@@ -97,6 +97,7 @@ jobs:
       
       - name: Setup
         run: |
+          python3 -m pip install pytest
           make build.clblast
 
       - name: Test with pytest
