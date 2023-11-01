@@ -29,7 +29,7 @@ classifiers = [
 wheel.packages = ["ggml"]
 wheel.expand-macos-universal-tags = true
 cmake.verbose = true
-cmake.minimum-required = "3.21"
+cmake.minimum-version = "3.21"
 minimum-version = "0.5.1"
 
 [tool.scikit-build.metadata.version]
