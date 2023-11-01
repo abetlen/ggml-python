@@ -8526,6 +8526,162 @@ def ggml_backend_sched_graph_compute(
 lib.ggml_backend_sched_graph_compute.argtypes = [ggml_backend_sched_t, ctypes.POINTER(ggml_cgraph)]
 lib.ggml_backend_sched_graph_compute.restype = None
 
+
+#####################################################
+# GGML Backend Implementation API
+# source: ggml-backend-impl.h
+#####################################################
+
+# //
+# // Backend buffer
+# //
+
+# typedef void * ggml_backend_buffer_context_t;
+ggml_backend_buffer_context_t = ctypes.c_void_p
+
+# struct ggml_backend_buffer_i {
+#     void   (*free_buffer)   (ggml_backend_buffer_t buffer);
+#     void * (*get_base)      (ggml_backend_buffer_t buffer); // get base pointer
+#     size_t (*get_alloc_size)(ggml_backend_buffer_t buffer, struct ggml_tensor * tensor); // pre-allocation callback
+#     void   (*init_tensor)   (ggml_backend_buffer_t buffer, struct ggml_tensor * tensor); // post-allocation callback
+#     void   (*free_tensor)   (ggml_backend_buffer_t buffer, struct ggml_tensor * tensor); // pre-free callback
+# };
+ggml_backend_buffer_i_free_buffer = ctypes.CFUNCTYPE(None, ggml_backend_buffer_t)
+ggml_backend_buffer_i_get_base = ctypes.CFUNCTYPE(ctypes.c_void_p, ggml_backend_buffer_t)
+ggml_backend_buffer_i_get_alloc_size = ctypes.CFUNCTYPE(ctypes.c_size_t, ggml_backend_buffer_t, ctypes.POINTER(ggml_tensor))
+ggml_backend_buffer_i_init_tensor = ctypes.CFUNCTYPE(None, ggml_backend_buffer_t, ctypes.POINTER(ggml_tensor))
+ggml_backend_buffer_i_free_tensor = ctypes.CFUNCTYPE(None, ggml_backend_buffer_t, ctypes.POINTER(ggml_tensor))
+
+class ggml_backend_buffer_i(ctypes.Structure):
+    _fields_ = [
+        ("free_buffer", ggml_backend_buffer_i_free_buffer),
+        ("get_base", ggml_backend_buffer_i_get_base),
+        ("get_alloc_size", ggml_backend_buffer_i_get_alloc_size),
+        ("init_tensor", ggml_backend_buffer_i_init_tensor),
+        ("free_tensor", ggml_backend_buffer_i_free_tensor),
+    ]
+
+# struct ggml_backend_buffer {
+#     struct ggml_backend_buffer_i iface;
+
+#     ggml_backend_t                backend;
+#     ggml_backend_buffer_context_t context;
+
+#     size_t size;
+# };
+class ggml_backend_buffer(ctypes.Structure):
+    _fields_ = [
+        ("iface", ggml_backend_buffer_i),
+        ("backend", ggml_backend_t),
+        ("context", ggml_backend_buffer_context_t),
+        ("size", ctypes.c_size_t),
+    ]
+
+# GGML_API ggml_backend_buffer_t ggml_backend_buffer_init(
+#         struct ggml_backend                  * backend,
+#         struct ggml_backend_buffer_i           iface,
+#                ggml_backend_buffer_context_t   context,
+#                size_t                          size);
+def ggml_backend_buffer_init(
+    backend: ggml_backend_t,
+    iface: ggml_backend_buffer_i,
+    context: ggml_backend_buffer_context_t,
+    size: Union[ctypes.c_size_t, int],
+) -> ggml_backend_buffer_t:
+    return lib.ggml_backend_buffer_init(backend, iface, context, size)
+
+lib.ggml_backend_buffer_init.argtypes = [ggml_backend_t, ggml_backend_buffer_i, ggml_backend_buffer_context_t, ctypes.c_size_t]
+lib.ggml_backend_buffer_init.restype = ggml_backend_buffer_t
+
+# //
+# // Backend
+# //
+
+# typedef void * ggml_backend_context_t;
+ggml_backend_context_t = ctypes.c_void_p
+
+# struct ggml_backend_i {
+#     const char * (*get_name)(ggml_backend_t backend);
+
+#     void (*free)(ggml_backend_t backend);
+
+#     // buffer allocation
+#     ggml_backend_buffer_t (*alloc_buffer)(ggml_backend_t backend, size_t size);
+
+#     // get buffer alignment
+#     size_t (*get_alignment)(ggml_backend_t backend);
+
+#     // tensor data access
+#     // these functions can be asynchronous, helper functions are provided for synchronous access that automatically call synchronize
+#     void (*set_tensor_async)(ggml_backend_t backend,       struct ggml_tensor * tensor, const void * data, size_t offset, size_t size);
+#     void (*get_tensor_async)(ggml_backend_t backend, const struct ggml_tensor * tensor,       void * data, size_t offset, size_t size);
+#     void (*synchronize)     (ggml_backend_t backend);
+
+#     // (optional) copy tensor between different backends, allow for single-copy tranfers
+#     void (*cpy_tensor_from)(ggml_backend_t backend, struct ggml_tensor * src, struct ggml_tensor * dst);
+#     void (*cpy_tensor_to)  (ggml_backend_t backend, struct ggml_tensor * src, struct ggml_tensor * dst);
+
+#     // compute graph with a plan
+#     ggml_backend_graph_plan_t (*graph_plan_create) (ggml_backend_t backend, struct ggml_cgraph * cgraph);
+#     void                      (*graph_plan_free)   (ggml_backend_t backend, ggml_backend_graph_plan_t plan);
+#     void                      (*graph_plan_compute)(ggml_backend_t backend, ggml_backend_graph_plan_t plan);
+
+#     // compute graph without a plan
+#     void (*graph_compute)(ggml_backend_t backend, struct ggml_cgraph * cgraph);
+
+#     // check if the backend supports an operation
+#     bool (*supports_op)(ggml_backend_t backend, const struct ggml_tensor * op);
+# };
+ggml_backend_i_get_name = ctypes.CFUNCTYPE(ctypes.c_char_p, ggml_backend_t)
+ggml_backend_i_free = ctypes.CFUNCTYPE(None, ggml_backend_t)
+ggml_backend_i_alloc_buffer = ctypes.CFUNCTYPE(ggml_backend_buffer_t, ggml_backend_t, ctypes.c_size_t)
+ggml_backend_i_get_alignment = ctypes.CFUNCTYPE(ctypes.c_size_t, ggml_backend_t)
+
+ggml_backend_i_set_tensor_async = ctypes.CFUNCTYPE(None, ggml_backend_t, ctypes.POINTER(ggml_tensor), ctypes.c_void_p, ctypes.c_size_t, ctypes.c_size_t)
+ggml_backend_i_get_tensor_async = ctypes.CFUNCTYPE(None, ggml_backend_t, ctypes.POINTER(ggml_tensor), ctypes.c_void_p, ctypes.c_size_t, ctypes.c_size_t)
+ggml_backend_i_synchronize = ctypes.CFUNCTYPE(None, ggml_backend_t)
+
+ggml_backend_i_cpy_tensor_from = ctypes.CFUNCTYPE(None, ggml_backend_t, ctypes.POINTER(ggml_tensor), ctypes.POINTER(ggml_tensor))
+ggml_backend_i_cpy_tensor_to = ctypes.CFUNCTYPE(None, ggml_backend_t, ctypes.POINTER(ggml_tensor), ctypes.POINTER(ggml_tensor))
+
+ggml_backend_i_graph_plan_create = ctypes.CFUNCTYPE(ggml_backend_graph_plan_t, ggml_backend_t, ctypes.POINTER(ggml_cgraph))
+ggml_backend_i_graph_plan_free = ctypes.CFUNCTYPE(None, ggml_backend_t, ggml_backend_graph_plan_t)
+ggml_backend_i_graph_plan_compute = ctypes.CFUNCTYPE(None, ggml_backend_t, ggml_backend_graph_plan_t)
+
+ggml_backend_i_graph_compute = ctypes.CFUNCTYPE(None, ggml_backend_t, ctypes.POINTER(ggml_cgraph))
+
+ggml_backend_i_supports_op = ctypes.CFUNCTYPE(ctypes.c_bool, ggml_backend_t, ctypes.POINTER(ggml_tensor))
+
+class ggml_backend_i(ctypes.Structure):
+    _fields_ = [
+        ("get_name", ggml_backend_i_get_name),
+        ("free", ggml_backend_i_free),
+        ("alloc_buffer", ggml_backend_i_alloc_buffer),
+        ("get_alignment", ggml_backend_i_get_alignment),
+        ("set_tensor_async", ggml_backend_i_set_tensor_async),
+        ("get_tensor_async", ggml_backend_i_get_tensor_async),
+        ("synchronize", ggml_backend_i_synchronize),
+        ("cpy_tensor_from", ggml_backend_i_cpy_tensor_from),
+        ("cpy_tensor_to", ggml_backend_i_cpy_tensor_to),
+        ("graph_plan_create", ggml_backend_i_graph_plan_create),
+        ("graph_plan_free", ggml_backend_i_graph_plan_free),
+        ("graph_plan_compute", ggml_backend_i_graph_plan_compute),
+        ("graph_compute", ggml_backend_i_graph_compute),
+        ("supports_op", ggml_backend_i_supports_op),
+    ]
+
+# struct ggml_backend {
+#     struct ggml_backend_i iface;
+
+#     ggml_backend_context_t context;
+# };
+class ggml_backend(ctypes.Structure):
+    _fields_ = [
+        ("iface", ggml_backend_i),
+        ("context", ggml_backend_context_t),
+    ]
+
+
 #####################################################
 # GGML CUDA API
 # source: ggml-cuda.h
