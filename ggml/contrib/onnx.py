@@ -785,8 +785,6 @@ def ggml_operator_constant_of_shape(ctx: "GgmlOnnxExecutionContext", node: NodeP
             data_value = np.frombuffer(tensor.raw_data, dtype=np_data_type)
         else:
             data_value = onnx.numpy_helper.to_array(tensor)
-        if node.output[0] == "/ConstantOfShape_output_0":
-            IPython.embed()
 
     else:
         data_type = value_attr.type
@@ -2272,6 +2270,20 @@ def ggml_operator_mat_mul(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     except:
         a, b = broadcast_shapes(ctx, a, b)
 
+    if ggml.ggml_is_permuted(a):
+        a_dtype = get_tensor_dtype(a)
+        a_shape = ggml.utils.get_shape(a)
+        a = ggml.ggml_cpy(
+            ctx.ggml_context,
+            a,
+            ggml.ggml_new_tensor(
+                ctx.ggml_context,
+                map_to_ggml_type(a_dtype).value,
+                len(a_shape),
+                (ctypes.c_int64 * len(a_shape))(*a_shape),
+            ),
+        )
+
     b_dtype = get_tensor_dtype(b)
 
     b_permute = ggml.ggml_transpose(
@@ -2291,7 +2303,6 @@ def ggml_operator_mat_mul(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
             (ctypes.c_int64 * len(b_shape))(*b_shape),
         ),
     )
-
     mul_mat_result = ggml.ggml_mul_mat(
         ctx.ggml_context,
         b_transposed,
