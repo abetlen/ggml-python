@@ -3839,6 +3839,125 @@ def ggml_operator_reshape(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     ctx.refs.append(custom_reshape)
 
 
+@register_ggml_operator("Resize")
+def ggml_operator_resize(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
+    node_inputs = [ctx.tensors_dict[inp] if inp != "" else None for inp in node.input]
+    node_inputs.extend([None] * (4 - len(node_inputs)))
+
+    if len(node_inputs) > 4:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Resize" requires 1-4 inputs. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    a, roi_T, scales_T, sizes_T = node_inputs
+
+    if roi_T is not None:
+        raise NotImplementedError(
+            f'Error for node "{node.name}": "roi" parameter not supported'
+        )
+    if sizes_T is not None:
+        raise NotImplementedError(
+            f'Error for node "{node.name}": "sizes" parameter not supported'
+        )
+    assert a is not None
+    assert scales_T is not None
+
+    """
+      scales_T (optional, non-differentiable) : tensor(float)
+The scale array along each dimension. It takes value greater than 0. If it's less than 1, it's sampling down, otherwise, it's upsampling. The number of elements of 'scales' should be the same as the rank of input 'X' or the length of 'axes', if provided.
+      Based on that definition, write a code that uses ggml to take tensor a and scale accordingly based on scales_T
+      """
+
+    scales_t = ctx.eval_tensor(scales_T)
+    scales = ctx.to_numpy(scales_t)
+
+    scales_shape = ctx.get_tensor_shape(scales_T)
+
+    a_shape = ctx.get_tensor_shape(a)
+    a_dtype = get_tensor_dtype(a)
+
+    if scales_shape[0] != len(a_shape):
+        raise ValueError(
+            f'Error for node "{node.name}": "scales" parameter must have the same length as the rank of input "X"'
+        )
+
+    output_shape = (a_shape * scales).astype(dtype=np.int32)
+
+    x = np.empty(output_shape, dtype=a_dtype)
+    x_t = ctx.from_numpy(x)
+
+    coordinate_transformation_mode = next(
+        (
+            attr.s.decode("utf-8")
+            for attr in node.attribute
+            if attr.name == "coordinate_transformation_mode"
+        ),
+        "half_pixel",
+    )
+    cubic_coeff_a = next(
+        (attr.f for attr in node.attribute if attr.name == "cubic_coeff_a"), -0.75
+    )
+    mode = next(
+        (attr.s.decode("utf-8") for attr in node.attribute if attr.name == "mode"),
+        "nearest",
+    )
+    nearest_mode = next(
+        (
+            attr.s.decode("utf-8")
+            for attr in node.attribute
+            if attr.name == "nearest_mode"
+        ),
+        "round_prefer_floor",
+    )
+    attribute_names = [attr.name for attr in node.attribute]
+    expected_attributes = [
+        "coordinate_transformation_mode",
+        "mode",
+        "nearest_mode",
+    ]
+
+    assert all([attribute in attribute_names for attribute in expected_attributes])
+
+    if mode not in ["nearest"]:
+        raise NotImplementedError("Only mode=nearest is supported")
+    if nearest_mode not in ["floor"]:
+        raise NotImplementedError("Only nearest_mode=floor is supported")
+    if coordinate_transformation_mode not in ["asymmetric"]:
+        raise NotImplementedError(
+            "Only coordinate_transformation_mode=asymmetric is supported"
+        )
+
+    @ggml.ggml_custom2_op_t
+    def custom_resize(
+        tensor_out: ggml.ggml_tensor_p,
+        tensor_in_1: ggml.ggml_tensor_p,
+        tensor_in_2: ggml.ggml_tensor_p,
+        ith: int,
+        nth: int,
+        userdata: Optional[ctypes.c_void_p],
+    ):
+        a = ggml.utils.to_numpy(tensor_in_2)
+
+        output_size = (scales * np.array(a.shape)).astype(int)
+        y = np.zeros(output_size)
+
+        for idx in np.ndindex(*output_size):
+            x = (np.array(idx) // scales).astype(int)
+            y[idx] = a[tuple(x)]
+        ctx.set_tensor_out(tensor_out, y)
+
+    new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+        ctx.ggml_context,
+        x_t,
+        a,
+        custom_resize,
+        1,
+        None,
+    )
+    ctx.refs.append(custom_resize)
+    ctx.tensors_dict[node.output[0]] = new_tensor
+
+
 class SeluUserData(ctypes.Structure):
     _fields_ = [
         ("alpha", ctypes.c_double),
