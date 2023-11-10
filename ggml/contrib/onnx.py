@@ -22,7 +22,6 @@ from onnx.onnx_ml_pb2 import (
 
 import ggml
 import ggml.utils
-
 import IPython
 
 GgmlOperator = Callable[["GgmlOnnxExecutionContext", NodeProto], None]
@@ -48,7 +47,6 @@ def map_to_ggml_type(dtype: npt.DTypeLike):
         np_data_type_limit.type,
         ggml.utils.GGML_TYPE.F32,  # TODO: Add i64 but for now, use i32 if looking for i64 or f64
     )
-
     return ggml_type
 
 
@@ -199,7 +197,6 @@ def ggml_operator_add(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     output_name = node.output[0]
     a, b = node_inputs
     a, b = broadcast_shapes(ctx, a, b)
-
     if ggml.utils.GGML_TYPE(a.contents.type) == ggml.utils.GGML_TYPE.I32:
         np_dtype = get_tensor_dtype(a)
         x = np.empty(ctx.get_tensor_shape(a), dtype=np_dtype)
@@ -510,9 +507,9 @@ def ggml_operator_cast(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         1,
         ctypes.pointer(onnx_type_c),
     )
+    ctx.set_tensor_shape(new_tensor, ctx.get_tensor_shape(a))
 
     ctx.refs.append(custom_cast)
-
     ctx.refs.append(onnx_type_c)
 
 
@@ -735,6 +732,7 @@ def ggml_operator_constant(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     data_tensor = ctx.from_numpy(data_value)
 
     tensor_shape = data_value.shape
+
     x = np.empty(tensor_shape, dtype=np_data_type_limit)
 
     x_t = ctx.from_numpy(x)
@@ -762,7 +760,7 @@ def ggml_operator_constant(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         None,
     )
     ctx.refs.append(custom_constant)
-
+    ctx.set_tensor_shape(new_tensor, tensor_shape)
     ctx.set_tensor_dtype(name, np_data_type)
 
 
@@ -1169,6 +1167,7 @@ def ggml_operator_div(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
             ctx.ggml_context, x_t, a, b, custom_div, 1, None
         )
         ctx.refs.append(custom_div)
+        ctx.set_tensor_shape(div_result, ctx.get_tensor_shape(a))
     ctx.tensors_dict[output_name] = div_result
     return div_result
 
@@ -2452,6 +2451,7 @@ def ggml_operator_mul(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
             a,
             b,
         )
+
     else:
         np_dtype = get_tensor_dtype(a)
         x = np.empty(ctx.get_tensor_shape(a), dtype=np_dtype)
@@ -2476,7 +2476,9 @@ def ggml_operator_mul(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         mul_result = ggml.ggml_map_custom3_inplace(
             ctx.ggml_context, x_t, a, b, custom_mul, 1, None
         )
+        ctx.set_tensor_shape(mul_result, ctx.get_tensor_shape(a))
         ctx.refs.append(custom_mul)
+
     ctx.tensors_dict[output_name] = mul_result
 
 
@@ -3923,7 +3925,6 @@ def ggml_operator_sigmoid(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         )
 
     a = node_inputs[0]
-
     a_shape = ctx.get_tensor_shape(a)
     a_dtype = get_tensor_dtype(a)
 
@@ -4380,6 +4381,7 @@ def ggml_operator_squeeze(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         1,
         None,
     )
+    ctx.set_tensor_shape(new_tensor, dummy_data.shape)
     ctx.refs.append(custom_squeeze)
 
 
@@ -4836,18 +4838,18 @@ class GgmlOnnxExecutionContext:
         self.tensors_dict = tensors_dict
         self.ggml_context = ggml_context
         self.refs = refs
-        self.shapes: Dict[str, Tuple[int, ...]] = {}
+        self.shapes: Dict[int, Tuple[int, ...]] = {}
         self.dtypes: Dict[str, npt.DTypeLike] = {}
 
     def set_tensor_shape(self, tensor: ggml.ggml_tensor_p, shape: Tuple[int, ...]):
-        data = tensor.contents.data
-        self.shapes[data] = shape
+        key = ctypes.addressof(tensor.contents)
+        self.shapes[key] = shape
 
     def get_tensor_shape(self, tensor: ggml.ggml_tensor_p) -> Tuple[int, ...]:
-        data = tensor.contents.data
-        if data not in self.shapes:
-            self.shapes[data] = get_tensor_shape(tensor)
-        return self.shapes[data]
+        key = ctypes.addressof(tensor.contents)
+        if key not in self.shapes:
+            self.shapes[key] = get_tensor_shape(tensor)
+        return self.shapes[key]
 
     def set_tensor_dtype(self, name: str, dtype: npt.DTypeLike):
         self.dtypes[name] = dtype
@@ -4897,12 +4899,20 @@ class GgmlOnnxExecutionContext:
         alignment = 32
         alloc_size = ggml.utils.alloc_graph_measure(gf, alignment=32)
         alloc_buffer = (ctypes.c_uint8 * alloc_size)()
-        def copy_tensor(src: ggml.ggml_tensor_p, dst: Optional[ggml.ggml_tensor_p] = None) -> ggml.ggml_tensor:
+
+        def copy_tensor(
+            src: ggml.ggml_tensor_p, dst: Optional[ggml.ggml_tensor_p] = None
+        ) -> ggml.ggml_tensor:
             # copy tensor data byte-by-byte using ctypes
             src_tensor = src.contents
             dst_tensor = ggml.ggml_tensor() if dst is None else dst.contents
-            ctypes.memmove(ctypes.byref(dst_tensor), ctypes.byref(src_tensor), ctypes.sizeof(src_tensor))
+            ctypes.memmove(
+                ctypes.byref(dst_tensor),
+                ctypes.byref(src_tensor),
+                ctypes.sizeof(src_tensor),
+            )
             return dst_tensor
+
         leafs = [copy_tensor(gf.leafs[i]) for i in range(gf.n_leafs)]
         nodes = [copy_tensor(gf.nodes[i]) for i in range(gf.n_nodes)]
         # leaf_data = [ggml.ggml_get_data(gf.leafs[i]) for i in range(gf.n_leafs)]
