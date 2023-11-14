@@ -4557,7 +4557,7 @@ def ggml_rope_yarn_corr_dims(
     freq_base: Union[ctypes.c_float, float],
     beta_fast: Union[ctypes.c_float, float],
     beta_slow: Union[ctypes.c_float, float],
-    dims: "ctypes._Pointer[ctypes.c_float]",
+    dims: CFloatArray,
 ) -> None:
     """Compute correction dims for YaRN RoPE scaling"""
     return lib.ggml_rope_yarn_corr_dims(
@@ -4621,8 +4621,13 @@ lib.ggml_rope_xpos_inplace.restype = ctypes.POINTER(ggml_tensor)
 #         int                   n_dims,
 #         int                   mode,
 #         int                   n_ctx,
+#         int                   n_orig_ctx,
 #         float                 freq_base,
 #         float                 freq_scale,
+#         float                 ext_factor,
+#         float                 attn_factor,
+#         float                 beta_fast,
+#         float                 beta_slow,
 #         float                 xpos_base,
 #         bool                  xpos_down);
 def ggml_rope_back(
@@ -4632,15 +4637,33 @@ def ggml_rope_back(
     n_dims: Union[ctypes.c_int, int],
     mode: Union[ctypes.c_int, int],
     n_ctx: Union[ctypes.c_int, int],
+    n_orig_ctx: Union[ctypes.c_int, int],
     freq_base: Union[ctypes.c_float, float],
     freq_scale: Union[ctypes.c_float, float],
+    ext_factor: Union[ctypes.c_float, float],
+    attn_factor: Union[ctypes.c_float, float],
+    beta_fast: Union[ctypes.c_float, float],
+    beta_slow: Union[ctypes.c_float, float],
     xpos_base: Union[ctypes.c_float, float],
     xpos_down: Union[ctypes.c_bool, bool],
 ) -> ggml_tensor_p:
-    """Rotary position embedding backward, i.e compute dx from dy"""
-
+    """Rotary position embedding backward pass"""
     return lib.ggml_rope_back(
-        ctx, a, b, n_dims, mode, n_ctx, freq_base, freq_scale, xpos_base, xpos_down
+        ctx,
+        a,
+        b,
+        n_dims,
+        mode,
+        n_ctx,
+        n_orig_ctx,
+        freq_base,
+        freq_scale,
+        ext_factor,
+        attn_factor,
+        beta_fast,
+        beta_slow,
+        xpos_base,
+        xpos_down,
     )
 
 
@@ -4651,6 +4674,11 @@ lib.ggml_rope_back.argtypes = [
     ctypes.c_int,
     ctypes.c_int,
     ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_float,
+    ctypes.c_float,
+    ctypes.c_float,
+    ctypes.c_float,
     ctypes.c_float,
     ctypes.c_float,
     ctypes.c_float,
@@ -9240,6 +9268,7 @@ GGML_USE_CUBLAS = hasattr(lib, "ggml_init_cublas")
 GGML_CUDA_MAX_DEVICES = 16
 
 
+# // Always success. To check if CUDA is actually loaded, use `ggml_cublas_loaded`.
 # GGML_API void   ggml_init_cublas(void);
 def ggml_init_cublas():
     return lib.ggml_init_cublas()
@@ -9248,6 +9277,17 @@ def ggml_init_cublas():
 if GGML_USE_CUBLAS:
     lib.ggml_init_cublas.argtypes = []
     lib.ggml_init_cublas.restype = None
+
+
+# // Returns `true` if there are available CUDA devices and cublas loads successfully; otherwise, it returns `false`.
+# GGML_API bool   ggml_cublas_loaded(void);
+def ggml_cublas_loaded() -> bool:
+    return lib.ggml_cublas_loaded()
+
+
+if GGML_USE_CUBLAS:
+    lib.ggml_cublas_loaded.argtypes = []
+    lib.ggml_cublas_loaded.restype = ctypes.c_bool
 
 
 # void * ggml_cuda_host_malloc(size_t size);
