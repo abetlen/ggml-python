@@ -4765,19 +4765,20 @@ class GgmlOnnxExecutionContext:
         self.set_tensor_shape(tensor, shape)
         return tensor
 
-    def compute_graph(self, gf: ggml.ggml_cgraph):
-        gp = ggml.ggml_graph_plan(ctypes.pointer(gf), 1)
+    def compute_graph(self, gf: ggml.ggml_cgraph_p):
+        gp = ggml.ggml_graph_plan(gf, 1)
         work_buffer = (ctypes.c_uint8 * gp.work_size)() if gp.work_size > 0 else None
         if gp.work_size > 0:
             gp.work = ctypes.cast(work_buffer, ctypes.c_void_p)
-        ggml.ggml_graph_compute(ctypes.byref(gf), ctypes.byref(gp))
+        ggml.ggml_graph_compute(gf, ctypes.byref(gp))
 
     def eval_tensor(self, tensor: ggml.ggml_tensor_p):
         self.alloc_tensor_cpu(tensor)
-        gf = ggml.ggml_build_forward(tensor)
+        gf = ggml.ggml_new_graph(self.ggml_context)
+        ggml.ggml_build_forward_expand(gf, tensor)
         # NOTE: Should probably save / restore data pointers here for intermediate tensors
         alignment = 32
-        alloc_size = ggml.utils.alloc_graph_measure(gf, alignment=32)
+        alloc_size = ggml.utils.alloc_graph_measure(gf.contents, alignment=32)
         alloc_buffer = (ctypes.c_uint8 * alloc_size)()
         def copy_tensor(src: ggml.ggml_tensor_p, dst: Optional[ggml.ggml_tensor_p] = None) -> ggml.ggml_tensor:
             # copy tensor data byte-by-byte using ctypes
@@ -4785,21 +4786,21 @@ class GgmlOnnxExecutionContext:
             dst_tensor = ggml.ggml_tensor() if dst is None else dst.contents
             ctypes.memmove(ctypes.byref(dst_tensor), ctypes.byref(src_tensor), ctypes.sizeof(src_tensor))
             return dst_tensor
-        leafs = [copy_tensor(gf.leafs[i]) for i in range(gf.n_leafs)]
-        nodes = [copy_tensor(gf.nodes[i]) for i in range(gf.n_nodes)]
+        leafs = [copy_tensor(gf.contents.leafs[i]) for i in range(gf.contents.n_leafs)]
+        nodes = [copy_tensor(gf.contents.nodes[i]) for i in range(gf.contents.n_nodes)]
         # leaf_data = [ggml.ggml_get_data(gf.leafs[i]) for i in range(gf.n_leafs)]
         # node_data = [ggml.ggml_get_data(gf.nodes[i]) for i in range(gf.n_nodes)]
         allocr = ggml.ggml_allocr_new(
             ctypes.cast(alloc_buffer, ctypes.c_void_p), alloc_size, alignment
         )
-        ggml.ggml_allocr_alloc_graph(allocr, ctypes.byref(gf))
+        ggml.ggml_allocr_alloc_graph(allocr, gf)
         self.compute_graph(gf)
         ggml.ggml_allocr_free(allocr)
-        for i in range(gf.n_leafs):
-            copy_tensor(ctypes.pointer(leafs[i]), gf.leafs[i])
+        for i in range(gf.contents.n_leafs):
+            copy_tensor(ctypes.pointer(leafs[i]), gf.contents.leafs[i])
             # gf.leafs[i].contents.data = leaf_data[i]
-        for i in range(gf.n_nodes):
-            copy_tensor(ctypes.pointer(nodes[i]), gf.nodes[i])
+        for i in range(gf.contents.n_nodes):
+            copy_tensor(ctypes.pointer(nodes[i]), gf.contents.nodes[i])
             # gf.nodes[i].contents.data = node_data[i]
         return tensor
 
@@ -4858,7 +4859,7 @@ class GgmlBackendRep(BackendRep):
         input_context = ggml.ggml_init(
             params=ggml.ggml_init_params(
                 mem_size=2
-                * ggml.GGML_MAX_NODES
+                * ggml.GGML_DEFAULT_GRAPH_SIZE
                 * ggml.ggml_tensor_overhead(),  # FIXME: Reduce to n inputs or combine with tensors context
                 no_alloc=True,
             )
@@ -4924,7 +4925,7 @@ class GgmlBackendRep(BackendRep):
             np.copyto(ggml.utils.to_numpy(tensor), np.array(value))
 
         # Define context
-        max_overhead = 2 * ggml.GGML_MAX_NODES * ggml.ggml_tensor_overhead()
+        max_overhead = 2 * ggml.GGML_DEFAULT_GRAPH_SIZE * ggml.ggml_tensor_overhead()
         ggml_context = ggml.ggml_init(
             params=ggml.ggml_init_params(
                 mem_size=max_overhead, mem_buffer=None, no_alloc=True
