@@ -536,21 +536,21 @@ class Tensor:
         return Tensor.with_buffer(tensor=op, ctx=ctx, src=[a, b])
 
     @staticmethod
-    def norm(a: Tensor, ctx: Optional[Context] = None):
+    def norm(a: Tensor, eps: float, ctx: Optional[Context] = None):
         ctx = ctx or Context.with_tensor_overhead()
-        op = ggml.ggml_norm(ctx.context, a.tensor)
+        op = ggml.ggml_norm(ctx.context, a.tensor, eps)
         return Tensor.with_buffer(tensor=op, ctx=ctx, src=[a])
 
     @staticmethod
-    def rms_norm(a: Tensor, ctx: Optional[Context] = None):
+    def rms_norm(a: Tensor,  eps: float, ctx: Optional[Context] = None):
         ctx = ctx or Context.with_tensor_overhead()
-        op = ggml.ggml_rms_norm(ctx.context, a.tensor)
+        op = ggml.ggml_rms_norm(ctx.context, a.tensor, eps)
         return Tensor.with_buffer(tensor=op, ctx=ctx, src=[a])
 
     @staticmethod
-    def rms_norm_back(a: Tensor, b: Tensor, ctx: Optional[Context] = None):
+    def rms_norm_back(a: Tensor, b: Tensor, eps: float, ctx: Optional[Context] = None):
         ctx = ctx or Context.with_tensor_overhead()
-        op = ggml.ggml_rms_norm_back(ctx.context, a.tensor, b.tensor)
+        op = ggml.ggml_rms_norm_back(ctx.context, a.tensor, b.tensor, eps)
         return Tensor.with_buffer(tensor=op, ctx=ctx, src=[a, b])
 
     @staticmethod
@@ -895,7 +895,7 @@ class Tensor:
     @staticmethod
     def rope(
         a: Tensor,
-        n_past: int,
+        b: Tensor,
         n_dims: int,
         mode: int,
         n_ctx: int,
@@ -905,7 +905,7 @@ class Tensor:
         op = ggml.ggml_rope(
             ctx.context,
             a.tensor,
-            n_past,
+            b.tensor,
             n_dims,
             mode,
             n_ctx,
@@ -915,31 +915,41 @@ class Tensor:
     @staticmethod
     def rope_inplace(
         a: Tensor,
-        n_past: int,
+        b: Tensor,
         n_dims: int,
         mode: int,
         n_ctx: int,
         ctx: Optional[Context] = None,
     ):
         ctx = ctx or Context.with_tensor_overhead()
-        op = ggml.ggml_rope_inplace(ctx.context, a.tensor, n_past, n_dims, mode, n_ctx)
+        op = ggml.ggml_rope_inplace(ctx.context, a.tensor, b.tensor, n_dims, mode, n_ctx)
         return Tensor.with_buffer(tensor=op, ctx=ctx, src=[a])
 
     @staticmethod
     def rope_back(
         a: Tensor,
-        n_past: int,
+        b: Tensor,
         n_dims: int,
         mode: int,
+        n_ctx: int,
+        freq_base: float,
+        freq_scale: float,
+        xpos_base: float,
+        xpos_down: bool,
         ctx: Optional[Context] = None,
     ):
         ctx = ctx or Context.with_tensor_overhead()
         op = ggml.ggml_rope_back(
             ctx.context,
             a.tensor,
-            n_past,
+            b.tensor,
             n_dims,
             mode,
+            n_ctx,
+            freq_base,
+            freq_scale,
+            xpos_base,
+            xpos_down,
         )
         return Tensor.with_buffer(tensor=op, ctx=ctx, src=[a])
 
@@ -1123,11 +1133,3 @@ class CGraph:
         obj = CGraph(cgraph=ggml.ggml_build_forward(tensor.tensor))
         obj._tensors.append(tensor)
         return obj
-
-    @classmethod
-    def graph_import(cls, fname: bytes, ctx: Context) -> CGraph:
-        return CGraph(
-            cgraph=ggml.ggml_graph_import(
-                fname, ctypes.pointer(ctx.context), ctypes.pointer(ctx.context)
-            ),
-        )

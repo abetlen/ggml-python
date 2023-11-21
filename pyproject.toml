@@ -1,5 +1,5 @@
 [build-system]
-requires = ["scikit-build-core[pyproject]>=0.5.0"]
+requires = ["scikit-build-core[pyproject]>=0.5.1"]
 build-backend = "scikit_build_core.build"
 
 [project]
@@ -29,6 +29,8 @@ classifiers = [
 wheel.packages = ["ggml"]
 wheel.expand-macos-universal-tags = true
 cmake.verbose = true
+cmake.minimum-version = "3.21"
+minimum-version = "0.5.1"
 
 [tool.scikit-build.metadata.version]
 provider = "scikit_build_core.metadata.regex"
