@@ -3927,34 +3927,41 @@ The scale array along each dimension. It takes value greater than 0. If it's les
             "Only coordinate_transformation_mode=asymmetric is supported"
         )
 
-    @ggml.ggml_custom2_op_t
-    def custom_resize(
-        tensor_out: ggml.ggml_tensor_p,
-        tensor_in_1: ggml.ggml_tensor_p,
-        tensor_in_2: ggml.ggml_tensor_p,
-        ith: int,
-        nth: int,
-        userdata: Optional[ctypes.c_void_p],
-    ):
-        a = ggml.utils.to_numpy(tensor_in_2)
+    is_integer = all(scales.astype(np.int32) - scales == 0)
+    if scales[0] == 1 and scales[1] == 1 and scales[2] == scales[3] and is_integer:
+        # Special case for 2D scaling handled by ggml_upscale
+        scale_factor = int(scales[2])
+        new_tensor = ggml.ggml_upscale(ctx.ggml_context, a, scale_factor)
+    else:
 
-        output_size = (scales * np.array(a.shape)).astype(int)
-        y = np.zeros(output_size)
+        @ggml.ggml_custom2_op_t
+        def custom_resize(
+            tensor_out: ggml.ggml_tensor_p,
+            tensor_in_1: ggml.ggml_tensor_p,
+            tensor_in_2: ggml.ggml_tensor_p,
+            ith: int,
+            nth: int,
+            userdata: Optional[ctypes.c_void_p],
+        ):
+            a = ggml.utils.to_numpy(tensor_in_2)
 
-        for idx in np.ndindex(*output_size):
-            x = (np.array(idx) // scales).astype(int)
-            y[idx] = a[tuple(x)]
-        ctx.set_tensor_out(tensor_out, y)
+            output_size = (scales * np.array(a.shape)).astype(int)
+            y = np.zeros(output_size)
 
-    new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
-        ctx.ggml_context,
-        x_t,
-        a,
-        custom_resize,
-        1,
-        None,
-    )
-    ctx.refs.append(custom_resize)
+            for idx in np.ndindex(*output_size):
+                x = (np.array(idx) // scales).astype(int)
+                y[idx] = a[tuple(x)]
+            ctx.set_tensor_out(tensor_out, y)
+
+        new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+            ctx.ggml_context,
+            x_t,
+            a,
+            custom_resize,
+            1,
+            None,
+        )
+        ctx.refs.append(custom_resize)
     ctx.tensors_dict[node.output[0]] = new_tensor
 
 
