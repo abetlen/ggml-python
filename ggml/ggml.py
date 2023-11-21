@@ -53,10 +53,23 @@ ggml.ggml_free(ctx)
 import os
 import sys
 import ctypes
+import signal
 import pathlib
+import traceback
 import importlib.resources
 from typing import List, Optional, Sequence, Union
 from typing_extensions import TypeAlias
+
+c_globals = ctypes.CDLL(None)  # POSIX
+
+
+@ctypes.CFUNCTYPE(None, ctypes.c_int)
+def sigabrt_handler(sig):
+    traceback.print_stack()
+    raise Exception("GGML SIGABRT")
+
+
+c_globals.signal(signal.SIGABRT, sigabrt_handler)
 
 
 # Load the library
