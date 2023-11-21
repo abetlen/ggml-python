@@ -22,7 +22,6 @@ from onnx.onnx_ml_pb2 import (
 
 import ggml
 import ggml.utils
-import IPython
 
 GgmlOperator = Callable[["GgmlOnnxExecutionContext", NodeProto], None]
 
