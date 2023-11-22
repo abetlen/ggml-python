@@ -937,7 +937,7 @@ def ggml_operator_conv(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         raise NotImplementedError("Cannot handle other than 2 strides")
     if ggml.ggml_is_permuted(x):
         x_dtype = get_tensor_dtype(x)
-        x_shape = ggml.utils.get_shape(x)Now
+        x_shape = ggml.utils.get_shape(x)
 
         x = ggml.ggml_cpy(
             ctx.ggml_context,
