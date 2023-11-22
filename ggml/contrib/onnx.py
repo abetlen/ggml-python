@@ -631,11 +631,6 @@ def ggml_operator_clip(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 def ggml_operator_concat(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     node_inputs = [ctx.tensors_dict[inp] for inp in node.input]
 
-    if len(node_inputs) < 2:
-        raise ValueError(
-            f'Error for node "{node.name}": Operation "Concat" requires at least two inputs. Actual number of inputs: {len(node_inputs)}'
-        )
-
     axis = next((attr.i for attr in node.attribute if attr.name == "axis"), 0)
     shapes = [ctx.get_tensor_shape(tensor) for tensor in node_inputs]
 
@@ -684,7 +679,7 @@ def ggml_operator_concat(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         return new_tensor
 
     ctx.refs.append(custom_concat)
-    new_tensor = node_inputs[0]
+    new_tensor = ctx.tensors_dict[node.output[0]] = node_inputs[0]
     for tensor in node_inputs[1:]:
         new_tensor = concat_2(new_tensor, tensor)
 
@@ -831,6 +826,48 @@ def ggml_operator_constant_of_shape(ctx: "GgmlOnnxExecutionContext", node: NodeP
     ctx.refs.append(custom_constant_of_shape)
 
 
+@register_ggml_operator("Cos")
+def ggml_operator_cos(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
+    node_inputs = [ctx.tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Cos" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    a = node_inputs[0]
+    a_shape = ctx.get_tensor_shape(a)
+    a_dtype = get_tensor_dtype(a)
+
+    x = np.empty(a_shape, dtype=a_dtype)
+    x_t = ctx.from_numpy(x)
+
+    @ggml.ggml_custom2_op_t
+    def custom_cos(
+        tensor_out: ggml.ggml_tensor_p,
+        tensor_in_1: ggml.ggml_tensor_p,
+        tensor_in_2: ggml.ggml_tensor_p,
+        ith: int,
+        nth: int,
+        userdata: Optional[ctypes.c_void_p],
+    ):
+        a = ctx.to_numpy(tensor_in_2)
+        y = np.cos(a)
+
+        ctx.set_tensor_out(tensor_out, y)
+
+    new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+        ctx.ggml_context,
+        x_t,
+        a,
+        custom_cos,
+        1,
+        None,
+    )
+
+    ctx.refs.append(custom_cos)
+
+
 @register_ggml_operator("Conv")
 def ggml_operator_conv(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     node_inputs = [ctx.tensors_dict[inp] for inp in node.input]
@@ -898,7 +935,21 @@ def ggml_operator_conv(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
 
     if len(strides) != 2:
         raise NotImplementedError("Cannot handle other than 2 strides")
+    if ggml.ggml_is_permuted(x):
+        x_dtype = get_tensor_dtype(x)
+        x_shape = ggml.utils.get_shape(x)Now
 
+        x = ggml.ggml_cpy(
+            ctx.ggml_context,
+            x,
+            ggml.ggml_new_tensor(
+                ctx.ggml_context,
+                map_to_ggml_type(x_dtype).value,
+                len(x_shape),
+                (ctypes.c_int64 * len(x_shape))(*x_shape),
+            ),
+        )
+        
     cur = ggml.ggml_conv_2d(
         ctx.ggml_context,
         w,
@@ -1328,6 +1379,48 @@ def ggml_operator_elu(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         Y = ctx.from_numpy(Y_alpha)
 
     ctx.tensors_dict[output_name] = Y
+
+
+@register_ggml_operator("Erf")
+def ggml_operator_erf(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
+    node_inputs = [ctx.tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Erf" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    a = node_inputs[0]
+    a_shape = ctx.get_tensor_shape(a)
+    a_dtype = get_tensor_dtype(a)
+
+    x = np.empty(a_shape, dtype=a_dtype)
+    x_t = ctx.from_numpy(x)
+
+    @ggml.ggml_custom2_op_t
+    def custom_erf(
+        tensor_out: ggml.ggml_tensor_p,
+        tensor_in_1: ggml.ggml_tensor_p,
+        tensor_in_2: ggml.ggml_tensor_p,
+        ith: int,
+        nth: int,
+        userdata: Optional[ctypes.c_void_p],
+    ):
+        a = ctx.to_numpy(tensor_in_2)
+        y = np.vectorize(math.erf)(a)
+
+        ctx.set_tensor_out(tensor_out, y)
+
+    new_tensor = ggml.ggml_map_custom2_inplace(
+        ctx.ggml_context,
+        x_t,
+        a,
+        custom_erf,
+        1,
+        None,
+    )
+
+    ctx.tensors_dict[node.output[0]] = new_tensor
 
 
 @register_ggml_operator("Equal")
@@ -4093,6 +4186,48 @@ def ggml_operator_sigmoid(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     ctx.refs.append(custom_sigmoid)
 
 
+@register_ggml_operator("Sin")
+def ggml_operator_sin(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
+    node_inputs = [ctx.tensors_dict[inp] for inp in node.input]
+
+    if len(node_inputs) != 1:
+        raise ValueError(
+            f'Error for node "{node.name}": Operation "Sin" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
+        )
+
+    a = node_inputs[0]
+    a_shape = ctx.get_tensor_shape(a)
+    a_dtype = get_tensor_dtype(a)
+
+    x = np.empty(a_shape, dtype=a_dtype)
+    x_t = ctx.from_numpy(x)
+
+    @ggml.ggml_custom2_op_t
+    def custom_sin(
+        tensor_out: ggml.ggml_tensor_p,
+        tensor_in_1: ggml.ggml_tensor_p,
+        tensor_in_2: ggml.ggml_tensor_p,
+        ith: int,
+        nth: int,
+        userdata: Optional[ctypes.c_void_p],
+    ):
+        a = ctx.to_numpy(tensor_in_2)
+        y = np.sin(a)
+
+        ctx.set_tensor_out(tensor_out, y)
+
+    new_tensor = ctx.tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+        ctx.ggml_context,
+        x_t,
+        a,
+        custom_sin,
+        1,
+        None,
+    )
+
+    ctx.refs.append(custom_sin)
+
+
 @register_ggml_operator("Size")
 def ggml_operator_size(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     node_inputs = [ctx.tensors_dict[inp] for inp in node.input]
@@ -5258,8 +5393,9 @@ class GgmlRuntimeBackend(Backend):
 
         Returns:
             GGML Backend Representation"""
-
-        super(GgmlRuntimeBackend, cls).prepare(model, device, **kwargs)
+        # This fails with large models.
+        # https://github.com/onnx/onnx/blob/b60f69412abb5393ab819b936b473f83867f6c87/onnx/backend/base.py#L85
+        # super(GgmlRuntimeBackend, cls).prepare(model, device, **kwargs)
         graph = model.graph
         weights: Dict[str, ggml.ggml_tensor_p] = {}
 
