@@ -596,7 +596,7 @@ class ggml_tensor(ctypes.Structure):
     Attributes:
         type (int): ggml_type
         backend (int): ggml_backend
-        buffer (ctypes.POINTER(ggml_backend_buffer)): pointer to backend buffer
+        buffer (ctypes.pointer[ggml_backend_buffer]): pointer to backend buffer
         n_dims (int): number of dimensions
         ne (ctypes.Array[ctypes.c_int64]): number of elements in each dimension
         nb (ctypes.Array[ctypes.c_size_t]): stride in bytes for each dimension
@@ -672,7 +672,7 @@ class ggml_cplan(ctypes.Structure):
 
     Attributes:
         work_size (int): size of work buffer
-        work_data (ctypes.POINTER(ctypes.c_uint8)): work buffer
+        work_data (ctypes.pointer[ctypes.c_uint8]): work buffer
         n_threads (int): number of threads
         abort_callback (abort_callback_t): abort callback
         abort_callback_data (ctypes.c_void_p): abort callback data
