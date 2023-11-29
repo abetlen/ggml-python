@@ -5104,6 +5104,7 @@ class GgmlOnnxExecutionContext:
         tensors_dict: Dict[str, ggml.ggml_tensor_p],
         ggml_context: ggml.ggml_context_p,
         refs: List[Any],
+        max_tensors: int,
     ):
         self.backend = backend
         self.tensors_dict = tensors_dict
@@ -5111,6 +5112,8 @@ class GgmlOnnxExecutionContext:
         self.refs = refs
         self.shapes: Dict[int, Tuple[int, ...]] = {}
         self.dtypes: Dict[str, npt.DTypeLike] = {}
+        self.gf = ggml.ggml_new_graph_custom(self.ggml_context, max_tensors, False)
+        self.n_threads = 8
 
     def set_tensor_shape(self, tensor: ggml.ggml_tensor_p, shape: Tuple[int, ...]):
         key = ctypes.addressof(tensor.contents)
@@ -5157,15 +5160,19 @@ class GgmlOnnxExecutionContext:
         return tensor
 
     def compute_graph(self, gf: ggml.ggml_cgraph_p):
-        gp = ggml.ggml_graph_plan(gf, 1)
+        gp = ggml.ggml_graph_plan(gf, self.n_threads)
+        gp.n_threads = self.n_threads
         work_buffer = (ctypes.c_uint8 * gp.work_size)() if gp.work_size > 0 else None
         if gp.work_size > 0:
             gp.work = ctypes.cast(work_buffer, ctypes.c_void_p)
         ggml.ggml_graph_compute(gf, ctypes.byref(gp))
+        work_buffer = None
+        gp.work = None
 
     def eval_tensor(self, tensor: ggml.ggml_tensor_p):
         self.alloc_tensor_cpu(tensor)
-        gf = ggml.ggml_new_graph(self.ggml_context)
+        gf = self.gf
+        ggml.ggml_graph_clear(gf)
         ggml.ggml_build_forward_expand(gf, tensor)
         # NOTE: Should probably save / restore data pointers here for intermediate tensors
         alignment = 32
@@ -5186,8 +5193,6 @@ class GgmlOnnxExecutionContext:
             return dst_tensor
         leafs = [copy_tensor(gf.contents.leafs[i]) for i in range(gf.contents.n_leafs)]
         nodes = [copy_tensor(gf.contents.nodes[i]) for i in range(gf.contents.n_nodes)]
-        # leaf_data = [ggml.ggml_get_data(gf.leafs[i]) for i in range(gf.n_leafs)]
-        # node_data = [ggml.ggml_get_data(gf.nodes[i]) for i in range(gf.n_nodes)]
         allocr = ggml.ggml_allocr_new(
             ctypes.cast(alloc_buffer, ctypes.c_void_p), alloc_size, alignment
         )
@@ -5196,11 +5201,12 @@ class GgmlOnnxExecutionContext:
         ggml.ggml_allocr_free(allocr)
         for i in range(gf.contents.n_leafs):
             copy_tensor(ctypes.pointer(leafs[i]), gf.contents.leafs[i])
-            # gf.leafs[i].contents.data = leaf_data[i]
         for i in range(gf.contents.n_nodes):
             copy_tensor(ctypes.pointer(nodes[i]), gf.contents.nodes[i])
-            # gf.nodes[i].contents.data = node_data[i]
-        return tensor
+        tensor_copy = ggml.ggml_dup_tensor(self.ggml_context, tensor)
+        tensor_copy.contents.data = tensor.contents.data
+        # copy_tensor(tensor_copy, tensor)
+        return tensor_copy
 
     def set_tensor_out(self, tensor: ggml.ggml_tensor_p, array: npt.NDArray[Any]):
         np.copyto(self.to_numpy(tensor), array, casting="unsafe")
@@ -5252,7 +5258,7 @@ class GgmlBackendRep(BackendRep):
 
         model_graph = self.graph
         exit_node = None
-        ggml_tensors = self.weights
+        ggml_tensors = self.weights.copy()
 
         input_context = ggml.ggml_init(
             params=ggml.ggml_init_params(
@@ -5323,20 +5329,21 @@ class GgmlBackendRep(BackendRep):
             np.copyto(ggml.utils.to_numpy(tensor), np.array(value))
 
         # Define context
-        max_overhead = 2 * ggml.GGML_DEFAULT_GRAPH_SIZE * ggml.ggml_tensor_overhead()
+        max_tensors = 8192
+        max_overhead = ggml.ggml_tensor_overhead() * max_tensors  + ggml.ggml_graph_overhead_custom(max_tensors, False)
+        mem_buffer = (ctypes.c_uint8 * max_overhead)()
         ggml_context = ggml.ggml_init(
             params=ggml.ggml_init_params(
-                mem_size=max_overhead, mem_buffer=None, no_alloc=True
+                mem_size=max_overhead, mem_buffer=ctypes.cast(mem_buffer, ctypes.c_void_p), no_alloc=True
             )
         )
 
         refs: List[Any] = []
+        refs.append(mem_buffer)
 
-        # gf = ggml.ggml_cgraph()
-        # gf_p = ctypes.pointer(gf)
         output_names = [output.name for output in model_graph.output]
 
-        ctx = GgmlOnnxExecutionContext(self, ggml_tensors, ggml_context, refs)
+        ctx = GgmlOnnxExecutionContext(self, ggml_tensors, ggml_context, refs, max_tensors)
 
         # Build layers
         for node in model_graph.node:
@@ -5351,16 +5358,15 @@ class GgmlBackendRep(BackendRep):
 
             for output in node.output:
                 if output in output_names:
-                    # ggml.ggml_build_forward_expand(gf_p, ggml_tensors[output])
                     ctx.eval_tensor(ggml_tensors[output])
 
         graph_outputs: List[npt.NDArray[Any]] = []
         for output in self.outputs:
             exit_node = ggml_tensors[output.name]
             # NOTE: 0 dimension in ggml may cause bugs
-            size = np.prod(ctx.get_tensor_shape(exit_node))
+            max_tensors = np.prod(ctx.get_tensor_shape(exit_node))
             graph_output: npt.NDArray[Any] = (
-                ggml.utils.to_numpy(exit_node) if size > 0 else np.empty((0))
+                ggml.utils.to_numpy(exit_node) if max_tensors > 0 else np.empty((0))
             )  # TODO: Add checks to convert values back to bool or etc types
             graph_output = graph_output.astype(
                 ctx.get_tensor_dtype(output.name)
