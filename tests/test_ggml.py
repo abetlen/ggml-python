@@ -56,8 +56,7 @@ def test_ggml_custom_op():
 
 
 def test_ggml_min_alloc():
-    overhead = ggml.ggml_tensor_overhead()
-    max_overhead = overhead * 2 * ggml.GGML_DEFAULT_GRAPH_SIZE
+    max_overhead = ggml.ggml_tensor_overhead() * ggml.GGML_DEFAULT_GRAPH_SIZE  + ggml.ggml_graph_overhead()
     assert max_overhead < 16 * 1024 * 1024  # 16MB
     params = ggml.ggml_init_params(
         mem_size=max_overhead, mem_buffer=None, no_alloc=True
@@ -87,7 +86,7 @@ def test_ggml_min_alloc():
     n_leafs = gf.contents.n_leafs
     leafs_size = sum(ggml.ggml_nbytes_pad(gf.contents.leafs[i]) for i in range(n_leafs))
 
-    mem_size = nodes_size + leafs_size + overhead * (n_nodes + n_leafs) + ggml.ggml_graph_overhead()
+    mem_size = nodes_size + leafs_size + ggml.ggml_tensor_overhead() * (n_nodes + n_leafs) + ggml.ggml_graph_overhead()
 
     ggml.ggml_free(ctx)
 
@@ -142,8 +141,7 @@ def test_ggml_alloc():
 
         return gf
 
-    overhead = ggml.ggml_tensor_overhead()
-    max_overhead = overhead * 2 * ggml.GGML_DEFAULT_GRAPH_SIZE
+    max_overhead = ggml.ggml_tensor_overhead() * ggml.GGML_DEFAULT_GRAPH_SIZE  + ggml.ggml_graph_overhead()
     assert max_overhead < 16 * 1024 * 1024  # 16MB
     params = ggml.ggml_init_params(
         mem_size=max_overhead, mem_buffer=None, no_alloc=True
@@ -196,8 +194,7 @@ def test_ggml_alloc():
     ggml.ggml_allocr_free(alloc)
 
 def test_ggml_alloc_one_pass():
-    overhead = ggml.ggml_tensor_overhead()
-    max_overhead = overhead * 2 * ggml.GGML_DEFAULT_GRAPH_SIZE
+    max_overhead = ggml.ggml_tensor_overhead() * ggml.GGML_DEFAULT_GRAPH_SIZE  + ggml.ggml_graph_overhead()
     assert max_overhead < 16 * 1024 * 1024  # 16MB
     params = ggml.ggml_init_params(
         mem_size=max_overhead, mem_buffer=None, no_alloc=True

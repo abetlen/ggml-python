@@ -72,8 +72,7 @@ def test_slice_tensor():
 
 
 def test_alloc_graph_measure():
-    overhead = ggml.ggml_tensor_overhead()
-    max_overhead = overhead * 2 * ggml.GGML_DEFAULT_GRAPH_SIZE
+    max_overhead = ggml.ggml_tensor_overhead() * ggml.GGML_DEFAULT_GRAPH_SIZE  + ggml.ggml_graph_overhead()
     assert max_overhead < 16 * 1024 * 1024  # 16MB
     params = ggml.ggml_init_params(
         mem_size=max_overhead, mem_buffer=None, no_alloc=True
