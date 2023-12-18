@@ -132,17 +132,17 @@ GGML_QNT_VERSION = 2
 GGML_QNT_VERSION_FACTOR = 1000
 
 # define GGML_MAX_DIMS           4
-# define GGML_MAX_PARAMS         1024
+# define GGML_MAX_PARAMS         2048
 # define GGML_MAX_CONTEXTS       64
-# define GGML_MAX_SRC            6
+# define GGML_MAX_SRC            10
 # define GGML_MAX_NAME           64
 # define GGML_MAX_OP_PARAMS      64
 # define GGML_DEFAULT_N_THREADS  4
 # define GGML_DEFAULT_GRAPH_SIZE 2048
 GGML_MAX_DIMS = 4
-GGML_MAX_PARAMS = 1024
+GGML_MAX_PARAMS = 2048
 GGML_MAX_CONTEXTS = 64
-GGML_MAX_SRC = 6
+GGML_MAX_SRC = 10
 GGML_MAX_NAME = 64
 GGML_MAX_OP_PARAMS = 64
 GGML_DEFAULT_N_THREADS = 4
@@ -378,7 +378,9 @@ GGML_FTYPE_MOSTLY_Q6_K = 14
 #     GGML_OP_POOL_1D,
 #     GGML_OP_POOL_2D,
 #     GGML_OP_UPSCALE, // nearest interpolate
+#     GGML_OP_PAD,
 #     GGML_OP_ARGSORT,
+#     GGML_OP_LEAKY_RELU,
 
 #     GGML_OP_FLASH_ATTN,
 #     GGML_OP_FLASH_FF,
@@ -457,26 +459,28 @@ GGML_OP_CONV_TRANSPOSE_2D = 47
 GGML_OP_POOL_1D = 48
 GGML_OP_POOL_2D = 49
 GGML_OP_UPSCALE = 50
-GGML_OP_ARGSORT = 51
-GGML_OP_FLASH_ATTN = 52
-GGML_OP_FLASH_FF = 53
-GGML_OP_FLASH_ATTN_BACK = 54
-GGML_OP_WIN_PART = 55
-GGML_OP_WIN_UNPART = 56
-GGML_OP_GET_REL_POS = 57
-GGML_OP_ADD_REL_POS = 58
-GGML_OP_UNARY = 59
-GGML_OP_MAP_UNARY = 60
-GGML_OP_MAP_BINARY = 61
-GGML_OP_MAP_CUSTOM1_F32 = 62
-GGML_OP_MAP_CUSTOM2_F32 = 63
-GGML_OP_MAP_CUSTOM3_F32 = 64
-GGML_OP_MAP_CUSTOM1 = 65
-GGML_OP_MAP_CUSTOM2 = 66
-GGML_OP_MAP_CUSTOM3 = 67
-GGML_OP_CROSS_ENTROPY_LOSS = 68
-GGML_OP_CROSS_ENTROPY_LOSS_BACK = 69
-GGML_OP_COUNT = 70
+GGML_OP_PAD = 51
+GGML_OP_ARGSORT = 52
+GGML_OP_LEAKY_RELU = 53
+GGML_OP_FLASH_ATTN = 54
+GGML_OP_FLASH_FF = 55
+GGML_OP_FLASH_ATTN_BACK = 56
+GGML_OP_WIN_PART = 57
+GGML_OP_WIN_UNPART = 58
+GGML_OP_GET_REL_POS = 59
+GGML_OP_ADD_REL_POS = 60
+GGML_OP_UNARY = 61
+GGML_OP_MAP_UNARY = 62
+GGML_OP_MAP_BINARY = 63
+GGML_OP_MAP_CUSTOM1_F32 = 64
+GGML_OP_MAP_CUSTOM2_F32 = 65
+GGML_OP_MAP_CUSTOM3_F32 = 66
+GGML_OP_MAP_CUSTOM1 = 67
+GGML_OP_MAP_CUSTOM2 = 68
+GGML_OP_MAP_CUSTOM3 = 69
+GGML_OP_CROSS_ENTROPY_LOSS = 70
+GGML_OP_CROSS_ENTROPY_LOSS_BACK = 71
+GGML_OP_COUNT = 72
 
 # enum ggml_unary_op {
 #     GGML_UNARY_OP_ABS,
@@ -2206,6 +2210,9 @@ lib.ggml_add1_inplace.argtypes = [
 lib.ggml_add1_inplace.restype = ctypes.POINTER(ggml_tensor)
 
 
+# // dst = a
+# // view(dst, nb1, nb2, nb3, offset) += b
+# // return dst
 # GGML_API struct ggml_tensor * ggml_acc(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a,
@@ -2976,24 +2983,33 @@ lib.ggml_relu.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
 lib.ggml_relu.restype = ctypes.POINTER(ggml_tensor)
 
 
-# GGML_API struct ggml_tensor * ggml_leaky(
+# GGML_API struct ggml_tensor * ggml_leaky_relu(
 #         struct ggml_context * ctx,
-#         struct ggml_tensor  * a);
-def ggml_leaky(ctx: ggml_context_p, a: ggml_tensor_p) -> ggml_tensor_p:
+#         struct ggml_tensor  * a, float negative_slope, bool inplace);
+def ggml_leaky_relu(
+    ctx: ggml_context_p, a: ggml_tensor_p, negative_slope: float, inplace: bool
+) -> ggml_tensor_p:
     """Apply the Leaky ReLU activation function to all elements in a tensor and return the result.
 
     Parameters:
         ctx: ggml context
         a: tensor
+        negative_slope: negative slope
+        inplace: whether to store the result in the first tensor
 
     Returns:
         Pointer to ggml_tensor"""
 
-    return lib.ggml_leaky(ctx, a)
+    return lib.ggml_leaky_relu(ctx, a, negative_slope, inplace)
 
 
-lib.ggml_leaky.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
-lib.ggml_leaky.restype = ctypes.POINTER(ggml_tensor)
+lib.ggml_leaky_relu.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.c_float,
+    ctypes.c_bool,
+]
+lib.ggml_leaky_relu.restype = ctypes.POINTER(ggml_tensor)
 
 
 # GGML_API struct ggml_tensor * ggml_relu_inplace(
@@ -3018,7 +3034,6 @@ lib.ggml_relu_inplace.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
 lib.ggml_relu_inplace.restype = ctypes.POINTER(ggml_tensor)
 
 
-# // TODO: double-check this computation is correct
 # GGML_API struct ggml_tensor * ggml_gelu(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
@@ -3398,13 +3413,15 @@ lib.ggml_mul_mat.restype = ctypes.POINTER(ggml_tensor)
 # //  ggml_mul_mat_id(ctx, as, ids, id, b) ~= ggml_mul_mat(as[ids[id]], b)
 # GGML_API struct ggml_tensor * ggml_mul_mat_id(
 #         struct ggml_context * ctx,
-#         struct ggml_tensor  * as[],
+#         struct ggml_tensor  * const as[],
+#         int                   n_as,
 #         struct ggml_tensor  * ids,
 #         int                   id,
 #         struct ggml_tensor  * b);
 def ggml_mul_mat_id(
     ctx: ggml_context_p,
-    as_: List[ggml_tensor_p],
+    as_,  # type: ctypes.POINTER(ctypes.POINTER(ggml_tensor)) # type: ignore
+    n_as: int,
     ids: ggml_tensor_p,
     id_: int,
     b: ggml_tensor_p,
@@ -3417,19 +3434,21 @@ def ggml_mul_mat_id(
 
     Parameters:
         ctx: ggml context
-        as_: list of tensors
+        as_: array of tensor pointers
+        n_as: int
         ids: tensor
         id_: int
         b: tensor
 
     Returns:
         Pointer to ggml_tensor"""
-    return lib.ggml_mul_mat_id(ctx, as_, ids, id_, b)
+    return lib.ggml_mul_mat_id(ctx, as_, n_as, ids, id_, b)
 
 
 lib.ggml_mul_mat_id.argtypes = [
     ggml_context_p,
     ctypes.POINTER(ctypes.POINTER(ggml_tensor)),
+    ctypes.c_int,
     ctypes.POINTER(ggml_tensor),
     ctypes.c_int,
     ctypes.POINTER(ggml_tensor),
@@ -4189,6 +4208,7 @@ lib.ggml_transpose.argtypes = [ggml_context_p, ctypes.POINTER(ggml_tensor)]
 lib.ggml_transpose.restype = ctypes.POINTER(ggml_tensor)
 
 
+# // supports 3D: a->ne[2] == b->ne[1]
 # GGML_API struct ggml_tensor * ggml_get_rows(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a,
@@ -5288,6 +5308,47 @@ lib.ggml_upscale.argtypes = [
     ctypes.c_int,
 ]
 lib.ggml_upscale.restype = ctypes.POINTER(ggml_tensor)
+
+
+# // pad each dimension with zeros: [x, ..., x] -> [x, ..., x, 0, ..., 0]
+# GGML_API struct ggml_tensor * ggml_pad(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         int                  p0,
+#         int                  p1,
+#         int                  p2,
+#         int                  p3);
+def ggml_pad(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    p0: Union[ctypes.c_int, int],
+    p1: Union[ctypes.c_int, int],
+    p2: Union[ctypes.c_int, int],
+    p3: Union[ctypes.c_int, int],
+) -> ggml_tensor_p:
+    """Pad tensor with zeros
+
+    Parameters:
+        a: input tensor
+        p0: padding
+        p1: padding
+        p2: padding
+        p3: padding
+
+    Returns:
+        output tensor"""
+    return lib.ggml_pad(ctx, a, p0, p1, p2, p3)
+
+
+lib.ggml_pad.argtypes = [
+    ggml_context_p,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+]
+lib.ggml_pad.restype = ctypes.POINTER(ggml_tensor)
 
 # // sort rows
 # enum ggml_sort_order {
@@ -8482,7 +8543,7 @@ lib.ggml_allocr_alloc_graph.restype = ctypes.c_size_t
 # // ggml-backend v2 API
 # //
 
-# // Seperate tensor and graph allocator objects
+# // Separate tensor and graph allocator objects
 # // This is necessary for multi-backend allocation because the graph allocator needs to use multiple tensor allocators
 # // The original API is kept as a wrapper around the new API
 
