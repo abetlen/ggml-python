@@ -68,7 +68,7 @@ def test_slice_tensor():
             slice(0, 1)
         ])
         x_slice = ggml.utils.to_numpy(t_slice)
-        assert np.array_equal(x_slice, x[:1, :2])
+        assert np.array_equal(x_slice, x[:1, :2].squeeze())
 
 
 def test_alloc_graph_measure():

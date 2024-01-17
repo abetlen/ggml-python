@@ -55,12 +55,13 @@ def to_numpy(
         ctypes_type = np.ctypeslib.as_ctypes_type(GGML_TYPE_TO_NUMPY_DTYPE[ggml_type])
 
     array = ctypes.cast(ggml.ggml_get_data(tensor), ctypes.POINTER(ctypes_type))
-    shape = tuple(reversed(tensor.contents.ne[: tensor.contents.n_dims]))
+    n_dims = ggml.ggml_n_dims(tensor)
+    shape = tuple(reversed(tensor.contents.ne[:n_dims]))
     output = np.ctypeslib.as_array(array, shape=shape)
     if ggml_type == GGML_TYPE.F16:
         output.dtype = np.float16
     return np.lib.stride_tricks.as_strided(
-        output, strides=tuple(reversed(tensor.contents.nb[: tensor.contents.n_dims]))
+        output, strides=tuple(reversed(tensor.contents.nb[:n_dims]))
     )
 
 
@@ -228,7 +229,7 @@ def get_ndims(tensor: ggml.ggml_tensor_p) -> int:
     Returns:
         Number of dimensions of tensor
     """
-    return tensor.contents.n_dims
+    return ggml.ggml_n_dims(tensor)
 
 
 def get_shape(tensor: ggml.ggml_tensor_p) -> Tuple[int, ...]:
@@ -240,7 +241,7 @@ def get_shape(tensor: ggml.ggml_tensor_p) -> Tuple[int, ...]:
     Returns:
         Shape of tensor
     """
-    return tensor.contents.ne[: tensor.contents.n_dims]
+    return tensor.contents.ne[: ggml.ggml_n_dims(tensor)]
 
 
 def get_strides(tensor: ggml.ggml_tensor_p) -> Tuple[int, ...]:
@@ -252,7 +253,7 @@ def get_strides(tensor: ggml.ggml_tensor_p) -> Tuple[int, ...]:
     Returns:
         Strides of tensor
     """
-    return tensor.contents.nb[: tensor.contents.n_dims]
+    return tensor.contents.nb[: ggml.ggml_n_dims(tensor)]
 
 
 def slice_tensor(
@@ -261,15 +262,15 @@ def slice_tensor(
     """Slice a ggml tensor along multiple dimensions.
 
     The slice is a view of the original tensor with the same number of dimensions.
-    
+
     Parameters:
         ctx: ggml context
         tensor: ggml tensor
         indices: indices to slice along
-        
+
     Returns:
         New ggml tensor slice view"""
-    ndims = get_ndims(tensor)
+    ndims = ggml.ggml_n_dims(tensor)
 
     # check that the number of dimensions match
     if len(indices) != ndims:
@@ -336,7 +337,12 @@ def slice_tensor(
             f"ggml tensors with {ndims} dimensions are not supported"
         )
 
-def alloc_graph_measure(graph: ggml.ggml_cgraph, alignment: int, alloc_tensors: Optional[List[ggml.ggml_tensor_p]] = None) -> int:
+
+def alloc_graph_measure(
+    graph: ggml.ggml_cgraph,
+    alignment: int,
+    alloc_tensors: Optional[List[ggml.ggml_tensor_p]] = None,
+) -> int:
     """Returns the number of bytes required by a ggml_allocr allocator to allocate the tensors in the graph.
 
     NOTE: This implementation saves a copy of the current data pointers of all graph nodes and leafs and restores them
@@ -356,7 +362,7 @@ def alloc_graph_measure(graph: ggml.ggml_cgraph, alignment: int, alloc_tensors: 
     for tensor in alloc_tensors:
         ggml.ggml_allocr_alloc(alloc, tensor)
     alloc_size = (
-        ggml.ggml_allocr_alloc_graph(alloc, ctypes.byref(graph)) + alignment # type: ignore
+        ggml.ggml_allocr_alloc_graph(alloc, ctypes.byref(graph)) + alignment  # type: ignore
     )
     ggml.ggml_allocr_free(alloc)
     for i in range(graph.n_leafs):
