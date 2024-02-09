@@ -1320,7 +1320,7 @@ lib.ggml_tensor_overhead.restype = ctypes.c_size_t
 # GGML_API struct ggml_context * ggml_init(struct ggml_init_params params);
 def ggml_init(
     params: ggml_init_params,
-) -> ggml_context_p:
+) -> Optional[ggml_context_p]:
     """Instantiate a new ggml context with params.
 
     You must call `ggml_free()` to free the context.
@@ -1329,7 +1329,7 @@ def ggml_init(
         params: ggml init params
 
     Returns:
-        Pointer to ggml_context"""
+        Pointer to ggml_context or None if failed to initialize context."""
     return lib.ggml_init(params)
 
 
@@ -9766,8 +9766,8 @@ ggml_backend_sched_eval_callback = ctypes.CFUNCTYPE(
 # // Initialize a backend scheduler
 # GGML_API ggml_backend_sched_t  ggml_backend_sched_new(ggml_backend_t * backends, ggml_backend_buffer_type_t * bufts, int n_backends, size_t graph_size);
 def ggml_backend_sched_new(
-    backends: "ctypes._Pointer(ggml_backend_t)",  # type: ignore
-    bufts: "ctypes._Pointer(ggml_backend_buffer_type_t)",  # type: ignore
+    backends: "ctypes._Pointer[ggml_backend_t]",  # type: ignore
+    bufts: "ctypes._Pointer[ggml_backend_buffer_type_t]",  # type: ignore
     n_backends: Union[ctypes.c_int, int],
     graph_size: Union[ctypes.c_size_t, int],
 ) -> ggml_backend_sched_t:
