@@ -8,7 +8,9 @@ import numpy as np
 def test_ggml_backend():
     def get_backend():
         if ggml.ggml_cpu_has_metal():
-            return ggml.ggml_backend_metal_init()
+            backend = ggml.ggml_backend_metal_init()
+            ggml.ggml_backend_metal_set_n_cb(backend, 1)
+            return backend
         elif ggml.ggml_cpu_has_cublas():
             return ggml.ggml_backend_cuda_init()
         elif ggml.ggml_cpu_has_vulkan():
