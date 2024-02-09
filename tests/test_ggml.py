@@ -8,6 +8,7 @@ def test_ggml():
 
     params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
     ctx = ggml.ggml_init(params=params)
+    assert ctx is not None
     assert ggml.ggml_used_mem(ctx) == 0
     x = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
     a = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
@@ -30,6 +31,7 @@ def test_ggml():
 def test_ggml_custom_op():
     params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
     ctx = ggml.ggml_init(params=params)
+    assert ctx is not None
     x_in = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
 
     @ggml.ggml_custom1_op_t
@@ -62,6 +64,7 @@ def test_ggml_min_alloc():
         mem_size=max_overhead, mem_buffer=None, no_alloc=True
     )
     ctx = ggml.ggml_init(params=params)
+    assert ctx is not None
 
     def build_graph(ctx: ggml.ggml_context_p):
         x = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
@@ -95,6 +98,7 @@ def test_ggml_min_alloc():
 
     params = ggml.ggml_init_params(mem_size=mem_size, mem_buffer=None)
     ctx = ggml.ggml_init(params=params)
+    assert ctx is not None
     gf = build_graph(ctx)
 
     a = ggml.ggml_get_tensor(ctx, b"a")
@@ -147,6 +151,7 @@ def test_ggml_alloc():
         mem_size=max_overhead, mem_buffer=None, no_alloc=True
     )
     ctx = ggml.ggml_init(params=params)
+    assert ctx is not None
 
     tensor_alignment = 32
     alloc = ggml.ggml_allocr_new_measure(tensor_alignment)
@@ -168,6 +173,7 @@ def test_ggml_alloc():
         mem_size=max_overhead, mem_buffer=None, no_alloc=True
     )
     ctx = ggml.ggml_init(params=params)
+    assert ctx is not None
     buffer = (ctypes.c_uint8 * alloc_size)()
     alloc = ggml.ggml_allocr_new(
         ctypes.cast(buffer, ctypes.c_void_p), alloc_size, tensor_alignment
@@ -187,7 +193,7 @@ def test_ggml_alloc():
     ggml.ggml_set_f32(b, 4.0)
 
     gp = ggml.ggml_graph_plan(gf, 1)
-    ggml.ggml_graph_compute(gf, gp)
+    ggml.ggml_graph_compute(gf, ctypes.pointer(gp))
     output = ggml.ggml_get_f32_1d(f, 0)
     assert output == 16.0
     ggml.ggml_free(ctx)
@@ -200,6 +206,7 @@ def test_ggml_alloc_one_pass():
         mem_size=max_overhead, mem_buffer=None, no_alloc=True
     )
     ctx = ggml.ggml_init(params=params)
+    assert ctx is not None
 
     # define the graph
     x = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
