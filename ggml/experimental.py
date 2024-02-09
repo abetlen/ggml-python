@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import enum
 import ctypes
 
@@ -45,7 +46,7 @@ class Context:
         self._current.append(self)
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type, exc_value, traceback): # type: ignore
         self._current.pop()
         return False
 
@@ -92,6 +93,7 @@ class Backend:
     def alloc_buffer(self, size: int) -> "BackendBuffer":
         buffer = ggml.ggml_backend_alloc_buffer(self.backend, size)
         return BackendBuffer(buffer)
+
 
 class BackendBuffer:
     def __init__(self, buffer: ggml.ggml_backend_buffer_t):
@@ -196,6 +198,8 @@ class Tensor:
         return ggml.ggml_get_data(self.tensor)
 
     def set_data(self, data: bytes):
+        if self.data is None:
+            raise ValueError("Data is not allocated")
         return ctypes.memmove(self.data, data, self.nbytes())
 
     def numpy(self):
@@ -645,16 +649,16 @@ class Tensor:
         return Tensor.with_buffer(tensor=op, ctx=ctx, src=[a, b])
 
     @staticmethod
-    def scale(a: Tensor, b: Tensor, ctx: Optional[Context] = None):
+    def scale(a: Tensor, s: float, ctx: Optional[Context] = None):
         ctx = ctx or Context.current_context()
-        op = ggml.ggml_scale(ctx.context, a.tensor, b.tensor)
-        return Tensor.with_buffer(tensor=op, ctx=ctx, src=[a, b])
+        op = ggml.ggml_scale(ctx.context, a.tensor, s)
+        return Tensor.with_buffer(tensor=op, ctx=ctx, src=[a])
 
     @staticmethod
-    def scale_inplace(a: Tensor, b: Tensor, ctx: Optional[Context] = None):
+    def scale_inplace(a: Tensor, s: float, ctx: Optional[Context] = None):
         ctx = ctx or Context.current_context()
-        op = ggml.ggml_scale_inplace(ctx.context, a.tensor, b.tensor)
-        return Tensor.with_buffer(tensor=op, ctx=ctx, src=[a, b])
+        op = ggml.ggml_scale_inplace(ctx.context, a.tensor, s)
+        return Tensor.with_buffer(tensor=op, ctx=ctx, src=[a])
 
     @staticmethod
     def set(
@@ -1019,8 +1023,13 @@ class Tensor:
         n_dims: int,
         mode: int,
         n_ctx: int,
+        n_orig_ctx: int,
         freq_base: float,
         freq_scale: float,
+        ext_factor: float,
+        attn_factor: float,
+        beta_fast: float,
+        beta_slow: float,
         xpos_base: float,
         xpos_down: bool,
         ctx: Optional[Context] = None,
@@ -1033,10 +1042,15 @@ class Tensor:
             n_dims,
             mode,
             n_ctx,
+            n_orig_ctx,
             freq_base,
             freq_scale,
+            ext_factor,
+            attn_factor,
+            beta_fast,
+            beta_slow,
             xpos_base,
-            xpos_down,
+            xpos_down
         )
         return Tensor.with_buffer(tensor=op, ctx=ctx, src=[a])
 
@@ -1173,9 +1187,10 @@ class Tensor:
 class CGraph:
     def __init__(self, cgraph: ggml.ggml_cgraph_p):
         self.cgraph = cgraph
-        self._tensors: List[Tensor] = []
+        self._output_tensors: List[Tensor] = []
 
     def build_forward_expand(self, tensor: Tensor):
+        self._output_tensors.append(tensor)
         ggml.ggml_build_forward_expand(self.cgraph, tensor.tensor)
 
     def compute(self, backend: Backend):
