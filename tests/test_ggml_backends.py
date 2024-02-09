@@ -6,8 +6,13 @@ import ctypes
 import numpy as np
 
 def test_ggml_backend():
+    @ggml.ggml_log_callback
+    def ggml_log_callback_default(level: ctypes.c_int, msg: ctypes.c_char_p, user: ctypes.c_void_p):
+        print(bytes(msg).decode('utf-8'), end="", flush=True)
+
     def get_backend():
         if ggml.ggml_cpu_has_metal():
+            ggml.ggml_backend_metal_log_set_callback(ggml_log_callback_default, ctypes.c_void_p(0))
             backend = ggml.ggml_backend_metal_init()
             if backend is not None:
                 ggml.ggml_backend_metal_set_n_cb(backend, 1)
