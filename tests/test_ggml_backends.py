@@ -5,10 +5,7 @@ import ctypes
 
 import numpy as np
 
-def test_ggml_backend():
-    def get_backend():
-        return ggml.ggml_backend_cpu_init()
-
+def test_ggml_cpu_backend():
     n_tensors = 1 + 2 # input (x) and weights (a, b)
     params = ggml.ggml_init_params(
         mem_size=ggml.ggml_tensor_overhead() * n_tensors, mem_buffer=None, no_alloc=True
@@ -16,7 +13,7 @@ def test_ggml_backend():
     ctx = ggml.ggml_init(params=params)
     assert ctx is not None
 
-    backend = get_backend()
+    backend = ggml.ggml_backend_cpu_init()
 
     assert backend is not None
 

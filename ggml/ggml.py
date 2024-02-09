@@ -56,7 +56,7 @@ import sys
 import ctypes
 import pathlib
 import importlib.resources
-from typing import Callable, List, Optional, Sequence, Union
+from typing import List, Optional, Sequence, Union
 from typing_extensions import TypeAlias
 
 
@@ -96,7 +96,7 @@ def load_shared_library(module_name: str, lib_base_name: str):
 
     # Try to load the shared library, handling potential errors
     try:
-        return ctypes.CDLL(str(path), **cdll_args)
+        return ctypes.CDLL(str(path), **cdll_args) # type: ignore
     except Exception as e:
         raise RuntimeError(f"Failed to load shared library '{path}': {e}")
 
@@ -3684,7 +3684,7 @@ def ggml_scale_inplace(
 
     Returns:
         Pointer to ggml_tensor"""
-    return lib.ggml_scale_inplace(ctx, a, b)
+    return lib.ggml_scale_inplace(ctx, a, s)
 
 
 lib.ggml_scale_inplace.argtypes = [
@@ -9910,7 +9910,7 @@ lib.ggml_backend_sched_reset.restype = None
 # GGML_API void                  ggml_backend_sched_set_eval_callback(ggml_backend_sched_t sched, ggml_backend_sched_eval_callback callback, void * user_data);
 def ggml_backend_sched_set_eval_callback(
     sched: ggml_backend_sched_t,
-    callback,
+    callback, # type: ignore
     user_data: ctypes.c_void_p,
 ):
     return lib.ggml_backend_sched_set_eval_callback(sched, callback, user_data)
@@ -9989,7 +9989,7 @@ def ggml_backend_compare_graph_backend(
     backend1: ggml_backend_t,
     backend2: ggml_backend_t,
     graph: ggml_cgraph_p,
-    callback,
+    callback, # type: ignore
     user_data: ctypes.c_void_p,
 ) -> bool:
     return lib.ggml_backend_compare_graph_backend(
@@ -10375,7 +10375,7 @@ ggml_backend_init_fn = ctypes.CFUNCTYPE(
 # GGML_CALL void ggml_backend_register(const char * name, ggml_backend_init_fn init_fn, ggml_backend_buffer_type_t default_buffer_type, void * user_data);
 def ggml_backend_register(
     name: bytes,
-    init_fn,
+    init_fn, # type: ignore
     default_buffer_type: ggml_backend_buffer_type_t,
     user_data: ctypes.c_void_p,
 ):
@@ -10622,7 +10622,7 @@ if GGML_USE_CUBLAS:
 #####################################################
 
 
-GGML_USE_METAL = hasattr(lib, "ggml_metal_init")
+GGML_USE_METAL = hasattr(lib, "ggml_backend_metal_init")
 
 
 # // max memory buffers that can be mapped to the device
@@ -10639,7 +10639,7 @@ GGML_METAL_MAX_COMMAND_BUFFERS = 32
 
 # GGML_API void ggml_backend_metal_log_set_callback(ggml_log_callback log_callback, void * user_data);
 def ggml_backend_metal_log_set_callback(
-    log_callback,
+    log_callback, # type: ignore
     user_data: ctypes.c_void_p,
 ):
     return lib.ggml_backend_metal_log_set_callback(log_callback, user_data)
