@@ -10654,7 +10654,7 @@ if GGML_USE_METAL:
 
 
 # GGML_API ggml_backend_t ggml_backend_metal_init(void);
-def ggml_backend_metal_init() -> ggml_backend_t:
+def ggml_backend_metal_init() -> Optional[ggml_backend_t]:
     return lib.ggml_backend_metal_init()
 
 
