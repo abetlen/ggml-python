@@ -10,7 +10,7 @@
 
 Python bindings for the [`ggml`](https://github.com/ggerganov/ggml) tensor library for machine learning.
 
-> **⚠️ This project is in a very early state and currently only offers the basic low-level bindings to ggml**
+> ⚠️ Neither this project nor `ggml` currently guarantee backwards-compatibility, if you are using this library in other applications I strongly recommend pinning to specific releases in your `requirements.txt` file.
 
 # Documentation
 
