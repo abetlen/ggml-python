@@ -9559,7 +9559,7 @@ def ggml_backend_tensor_copy_async(
 
 
 # GGML_API ggml_backend_t ggml_backend_cpu_init(void);
-def ggml_backend_cpu_init() -> ggml_backend_t:
+def ggml_backend_cpu_init() -> Optional[ggml_backend_t]:
     return lib.ggml_backend_cpu_init()
 
 
@@ -10512,7 +10512,7 @@ if GGML_USE_CUBLAS:
 
 # // backend API
 # GGML_API GGML_CALL ggml_backend_t ggml_backend_cuda_init(int device);
-def ggml_backend_cuda_init() -> ggml_backend_t:
+def ggml_backend_cuda_init() -> Optional[ggml_backend_t]:
     return lib.ggml_backend_cuda_init()
 
 
@@ -10992,7 +10992,7 @@ if GGML_USE_VULKAN:
 
 # // backend API
 # GGML_API GGML_CALL ggml_backend_t ggml_backend_vk_init(void);
-def ggml_backend_vk_init() -> ggml_backend_t:
+def ggml_backend_vk_init() -> Optional[ggml_backend_t]:
     return lib.ggml_backend_vk_init()
 
 
