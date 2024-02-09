@@ -682,7 +682,13 @@ ggml_tensor_p: TypeAlias = "ctypes._Pointer[ggml_tensor]"  # type: ignore
 Can be dereferenced to a [ggml_tensor][ggml.ggml_tensor] object using
 the `.contents` attribute."""
 
-abort_callback_t = ctypes.CFUNCTYPE(ctypes.c_bool, ctypes.c_void_p)
+
+# // Abort callback
+# // If not NULL, called before ggml computation
+# // If it returns true, the computation is aborted
+# typedef bool (*ggml_abort_callback)(void * data);
+ggml_abort_callback = ctypes.CFUNCTYPE(ctypes.c_bool, ctypes.c_void_p)
+
 
 # // the compute plan that needs to be prepared for ggml_graph_compute()
 # // since https://github.com/ggerganov/ggml/issues/287
@@ -694,8 +700,8 @@ abort_callback_t = ctypes.CFUNCTYPE(ctypes.c_bool, ctypes.c_void_p)
 
 
 #     // abort ggml_graph_compute when true
-#     bool (*abort_callback)(void * data);
-#     void * abort_callback_data;
+#     ggml_abort_callback abort_callback;
+#     void *              abort_callback_data;
 # };
 class ggml_cplan(ctypes.Structure):
     """Compute plan for a ggml computation graph
@@ -704,7 +710,7 @@ class ggml_cplan(ctypes.Structure):
         work_size (int): size of work buffer
         work_data (ctypes.pointer[ctypes.c_uint8]): work buffer
         n_threads (int): number of threads
-        abort_callback (abort_callback_t): abort callback
+        abort_callback (ggml_abort_callback): abort callback
         abort_callback_data (ctypes.c_void_p): abort callback data
     """
 
@@ -714,7 +720,7 @@ class ggml_cplan(ctypes.Structure):
         ("n_threads", ctypes.c_int),
         (
             "abort_callback",
-            abort_callback_t,
+            ggml_abort_callback,
         ),
         ("abort_callback_data", ctypes.c_void_p),
     ]
@@ -9567,7 +9573,7 @@ lib.ggml_backend_cpu_init.argtypes = []
 lib.ggml_backend_cpu_init.restype = ggml_backend_t
 
 
-# GGML_API GGML_CALL bool ggml_backend_is_cpu           (ggml_backend_t backend);
+# GGML_API GGML_CALL bool ggml_backend_is_cpu                (ggml_backend_t backend);
 def ggml_backend_is_cpu(
     backend: ggml_backend_t,
 ) -> bool:
@@ -9578,7 +9584,7 @@ lib.ggml_backend_is_cpu.argtypes = [ggml_backend_t]
 lib.ggml_backend_is_cpu.restype = ctypes.c_bool
 
 
-# GGML_API           void ggml_backend_cpu_set_n_threads(ggml_backend_t backend_cpu, int n_threads);
+# GGML_API           void ggml_backend_cpu_set_n_threads     (ggml_backend_t backend_cpu, int n_threads);
 def ggml_backend_cpu_set_n_threads(
     backend_cpu: ggml_backend_t,
     n_threads: Union[ctypes.c_int, int],
@@ -9588,6 +9594,25 @@ def ggml_backend_cpu_set_n_threads(
 
 lib.ggml_backend_cpu_set_n_threads.argtypes = [ggml_backend_t, ctypes.c_int]
 lib.ggml_backend_cpu_set_n_threads.restype = None
+
+
+# GGML_API           void ggml_backend_cpu_set_abort_callback(ggml_backend_t backend_cpu, ggml_abort_callback abort_callback, void * abort_callback_data);
+def ggml_backend_cpu_set_abort_callback(
+    backend_cpu: ggml_backend_t,
+    abort_callback, # type: ignore
+    abort_callback_data: ctypes.c_void_p,
+):
+    return lib.ggml_backend_cpu_set_abort_callback(
+        backend_cpu, abort_callback, abort_callback_data
+    )
+
+
+lib.ggml_backend_cpu_set_abort_callback.argtypes = [
+    ggml_backend_t,
+    ggml_abort_callback,
+    ctypes.c_void_p,
+]
+lib.ggml_backend_cpu_set_abort_callback.restype = None
 
 
 # // Create a backend buffer from an existing pointer
