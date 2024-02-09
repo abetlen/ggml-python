@@ -18,6 +18,8 @@ def test_ggml_backend():
 
     backend = get_backend()
 
+    assert backend is not None
+
     # create the tensors for input and weights
     x = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
 

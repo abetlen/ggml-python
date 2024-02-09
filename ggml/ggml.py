@@ -8636,9 +8636,9 @@ lib.ggml_internal_get_type_traits.restype = ggml_type_traits_t
 # struct ggml_backend;
 # struct ggml_backend_buffer;
 # struct ggml_backend_buffer_type;
-ggml_backend_t = ctypes.c_void_p
-ggml_backend_buffer_p = ctypes.c_void_p
-ggml_backend_buffer_type_p = ctypes.c_void_p
+ggml_backend_t: TypeAlias = ctypes.c_void_p
+ggml_backend_buffer_p: TypeAlias = ctypes.c_void_p
+ggml_backend_buffer_type_p: TypeAlias = ctypes.c_void_p
 
 # //
 # // Legacy API
@@ -9041,7 +9041,7 @@ lib.ggml_backend_alloc_ctx_tensors.restype = ggml_backend_buffer_p
 # typedef void * ggml_backend_graph_plan_t;
 ggml_backend_buffer_type_t = ctypes.c_void_p
 ggml_backend_buffer_t = ctypes.c_void_p
-ggml_backend_t = ctypes.c_void_p
+# ggml_backend_t = ctypes.c_void_p
 ggml_backend_graph_plan_t = ctypes.c_void_p
 
 # //
@@ -9949,7 +9949,7 @@ ggml_backend_graph_copy_t = ggml_backend_graph_copy
 
 # // Copy a graph to a different backend
 # GGML_API struct ggml_backend_graph_copy ggml_backend_graph_copy(ggml_backend_t backend, struct ggml_cgraph * graph);
-def ggml_backend_graph_copy(
+def ggml_backend_graph_copy_(
     backend: ggml_backend_t,
     graph: ggml_cgraph_p,
 ) -> ggml_backend_graph_copy_t:
