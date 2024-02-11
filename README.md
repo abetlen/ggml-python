@@ -10,7 +10,7 @@
 
 Python bindings for the [`ggml`](https://github.com/ggerganov/ggml) tensor library for machine learning.
 
-> **⚠️ This project is in a very early state and currently only offers the basic low-level bindings to ggml**
+> ⚠️ Neither this project nor `ggml` currently guarantee backwards-compatibility, if you are using this library in other applications I strongly recommend pinning to specific releases in your `requirements.txt` file.
 
 # Documentation
 
@@ -54,45 +54,31 @@ import ggml
 import ctypes
 
 # Allocate a new context with 16 MB of memory
-params = ggml.ggml_init_params(
-    mem_size=16 * 1024 * 1024,
-    mem_buffer=None
-)
+params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
 ctx = ggml.ggml_init(params=params)
 
 # Instantiate tensors
-x = ggml.ggml_new_tensor_1d(
-    ctx,
-    ggml.GGML_TYPE_F32,
-    ctypes.c_int64(1),
-)
-a = ggml.ggml_new_tensor_1d(
-    ctx,
-    ggml.GGML_TYPE_F32,
-    ctypes.c_int64(1),
-)
-b = ggml.ggml_new_tensor_1d(
-    ctx,
-    ggml.GGML_TYPE_F32,
-    ctypes.c_int64(1),
-)
+x = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
+a = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
+b = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
 
 # Use ggml operations to build a computational graph
 x2 = ggml.ggml_mul(ctx, x, x)
 f = ggml.ggml_add(ctx, ggml.ggml_mul(ctx, a, x2), b)
 
-gf = ggml.ggml_build_forward(f)
+gf = ggml.ggml_new_graph(ctx)
+ggml.ggml_build_forward_expand(gf, f)
 
 # Set the input values
-ggml.ggml_set_f32(x, ctypes.c_float(2.0))
-ggml.ggml_set_f32(a, ctypes.c_float(3.0))
-ggml.ggml_set_f32(b, ctypes.c_float(4.0))
+ggml.ggml_set_f32(x, 2.0)
+ggml.ggml_set_f32(a, 3.0)
+ggml.ggml_set_f32(b, 4.0)
 
 # Compute the graph
-ggml.ggml_graph_compute_with_ctx(ctx, ctypes.pointer(gf), 1)
+ggml.ggml_graph_compute_with_ctx(ctx, gf, 1)
 
 # Get the output value
-output = ggml.ggml_get_f32_1d(f, ctypes.c_int(0))
+output = ggml.ggml_get_f32_1d(f, 0)
 assert output == 16.0
 
 # Free the context

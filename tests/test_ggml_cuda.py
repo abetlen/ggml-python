@@ -14,85 +14,105 @@ run_if_ggml_cuda_available = pytest.mark.skipif(
 
 @run_if_ggml_cuda_available
 def test_cuda():
-    mem_size = 16 * 1024 * 1024
-    buf = ggml.ggml_cuda_host_malloc(mem_size)
-    assert buf is not None
-    params = ggml.ggml_init_params(mem_size, mem_buffer=buf)
+    n_tensors = 1 + 2 # input (x) and weights (a, b)
+    params = ggml.ggml_init_params(
+        mem_size=ggml.ggml_tensor_overhead() * n_tensors, mem_buffer=None, no_alloc=True
+    )
     ctx = ggml.ggml_init(params=params)
+    assert ctx is not None
 
+    backend = ggml.ggml_backend_cuda_init()
+
+    assert backend is not None
+
+    # create the tensors for input and weights
     x = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
-    ggml.ggml_set_f32(x, 2.0)
-    x.contents.backend = ggml.GGML_BACKEND_GPU
-    ggml.ggml_cuda_transform_tensor(x.contents.data, x)
 
     a = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
-    a.contents.backend = ggml.GGML_BACKEND_GPU
-    ggml.ggml_set_f32(a, 3.0)
-    ggml.ggml_cuda_transform_tensor(a.contents.data, a)
-
     b = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
-    b.contents.backend = ggml.GGML_BACKEND_GPU
-    ggml.ggml_set_f32(b, 4.0)
-    ggml.ggml_cuda_transform_tensor(b.contents.data, b)
 
-    x2 = ggml.ggml_mul(ctx, x, x)
-    ggml.ggml_cuda_assign_buffers_no_scratch(x2)
+    # allocate the tensors in the backend
+    buffer = ggml.ggml_backend_alloc_ctx_tensors(ctx, backend)
 
-    tmp = ggml.ggml_mul(ctx, a, x2)
-    ggml.ggml_cuda_assign_buffers_no_scratch(tmp)
+    # set the values of the weights
+    ggml.ggml_backend_tensor_set(
+        a,
+        ctypes.cast(np.array([3.0], dtype=np.single).ctypes.data, ctypes.c_void_p),
+        0,
+        ggml.ggml_nbytes(a),
+    )
+    ggml.ggml_backend_tensor_set(
+        b,
+        ctypes.cast(np.array([4.0], dtype=np.single).ctypes.data, ctypes.c_void_p),
+        0,
+        ggml.ggml_nbytes(a),
+    )
 
-    f = ggml.ggml_add(ctx, tmp, b)
+    max_nodes = 4096
 
-    gf = ggml.ggml_build_forward(f)
+    buf_size = (
+        ggml.ggml_tensor_overhead() * max_nodes
+        + ggml.ggml_graph_overhead_custom(max_nodes, False)
+    )
+    buf = (ctypes.c_uint8 * buf_size)()
 
-    ggml.ggml_graph_compute_with_ctx(ctx, ctypes.pointer(gf), 1)
-    output = ggml.ggml_get_f32_1d(f, 0)
-    assert output == 16.0
-    ggml.ggml_free(ctx)
-    ggml.ggml_cuda_free_data(a)
-    ggml.ggml_cuda_free_data(b)
-    ggml.ggml_cuda_free_data(x)
-    ggml.ggml_cuda_host_free(buf)
+    def build_graph(
+        x: ggml.ggml_tensor_p, a: ggml.ggml_tensor_p, b: ggml.ggml_tensor_p
+    ):
+        params = ggml.ggml_init_params(
+            mem_size=buf_size,
+            mem_buffer=ctypes.cast(buf, ctypes.c_void_p),
+            no_alloc=True,
+        )
+        ctx0 = ggml.ggml_init(params=params)
 
+        assert ctx0 is not None
 
-@run_if_ggml_cuda_available
-def test_cuda_mat_mul():
-    a = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.float32)  # 2 x 3
-    b = np.array([[7, 8], [9, 10], [11, 12]], dtype=np.float32)  # 3 x 2
-    c = np.matmul(a, b)
-    assert c.shape == (2, 2)
+        gf = ggml.ggml_new_graph_custom(ctx0, max_nodes, False)
 
-    mem_size = 16 * 1024 * 1024
-    buf = ggml.ggml_cuda_host_malloc(mem_size)
-    assert buf is not None
-    params = ggml.ggml_init_params(mem_size, mem_buffer=buf)
-    ctx = ggml.ggml_init(params=params)
+        x2 = ggml.ggml_mul(ctx0, x, x)
+        ax2 = ggml.ggml_mul(ctx0, a, x2)
+        f = ggml.ggml_add(ctx0, ax2, b)
 
-    ga = ggml.ggml_new_tensor_2d(ctx, ggml.GGML_TYPE_F32, a.shape[1], a.shape[0])
-    gb = ggml.ggml_new_tensor_2d(ctx, ggml.GGML_TYPE_F32, b.shape[0], b.shape[1])
+        ggml.ggml_set_name(x2, b"x2")
+        ggml.ggml_set_name(ax2, b"ax2")
+        ggml.ggml_set_name(f, b"f")
 
-    ggml.utils.to_numpy(ga)[:] = a
-    ga.contents.backend = ggml.GGML_BACKEND_GPU
-    ggml.ggml_cuda_transform_tensor(ga.contents.data, ga)
+        ggml.ggml_build_forward_expand(gf, f)
 
-    ggml.utils.to_numpy(gb)[:] = b.T
-    gb.contents.backend = ggml.GGML_BACKEND_GPU
-    ggml.ggml_cuda_transform_tensor(gb.contents.data, gb)
+        ggml.ggml_free(ctx0)
 
-    gc = ggml.ggml_mul_mat(ctx, ga, gb)
-    ggml.ggml_cuda_assign_buffers_no_scratch(gc)
+        return gf
 
-    out = ggml.utils.copy_to_cpu(ctx, gc)
+    allocr = ggml.ggml_gallocr_new(ggml.ggml_backend_get_default_buffer_type(backend))
 
-    gf = ggml.ggml_build_forward(out)
+    gf = build_graph(x, a, b)
 
-    ggml.ggml_graph_compute_with_ctx(ctx, ctypes.pointer(gf), 1)
+    ggml.ggml_gallocr_reserve(allocr, gf)
 
-    c2 = ggml.utils.to_numpy(out)
+    gf = build_graph(x, a, b)
 
-    assert np.allclose(c, c2.T)
+    ggml.ggml_gallocr_alloc_graph(allocr, gf)
 
-    ggml.ggml_cuda_free_data(ga)
-    ggml.ggml_cuda_free_data(gb)
-    ggml.ggml_cuda_host_free(buf)
+    ggml.ggml_backend_tensor_set(
+        x,
+        ctypes.cast(np.array([2.0], dtype=np.single).ctypes.data, ctypes.c_void_p),
+        0,
+        ggml.ggml_nbytes(x),
+    )
+
+    ggml.ggml_backend_graph_compute(backend, gf)
+
+    f = ggml.ggml_graph_get_tensor(gf, b"f")
+
+    output = np.zeros(1, dtype=np.single)
+    ggml.ggml_backend_tensor_get(
+        f, ctypes.cast(output.ctypes.data, ctypes.c_void_p), 0, ggml.ggml_nbytes(x)
+    )
+
+    assert output[0] == 16.0
+
+    ggml.ggml_gallocr_free(allocr)
+    ggml.ggml_backend_buffer_free(buffer)
+    ggml.ggml_backend_free(backend)
     ggml.ggml_free(ctx)

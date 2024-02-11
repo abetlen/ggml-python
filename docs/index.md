@@ -77,7 +77,8 @@ b = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
 x2 = ggml.ggml_mul(ctx, x, x)
 f = ggml.ggml_add(ctx, ggml.ggml_mul(ctx, a, x2), b)
 
-gf = ggml.ggml_build_forward(f)
+gf = ggml.ggml_new_graph(ctx)
+ggml.ggml_build_forward_expand(gf, f)
 
 # Set the input values
 ggml.ggml_set_f32(x, 2.0)
@@ -85,7 +86,7 @@ ggml.ggml_set_f32(a, 3.0)
 ggml.ggml_set_f32(b, 4.0)
 
 # Compute the graph
-ggml.ggml_graph_compute_with_ctx(ctx, ctypes.pointer(gf), 1)
+ggml.ggml_graph_compute_with_ctx(ctx, gf, 1)
 
 # Get the output value
 output = ggml.ggml_get_f32_1d(f, 0)

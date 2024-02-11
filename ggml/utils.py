@@ -2,9 +2,8 @@
 """
 import enum
 import ctypes
-import contextlib
 
-from typing import Any, List, Optional, Sequence, Tuple
+from typing import Any, Optional, Sequence, Tuple
 
 from ggml import ggml
 
@@ -12,7 +11,7 @@ import numpy as np
 import numpy.typing as npt
 
 
-class GGML_TYPE(enum.Enum):
+class GGML_TYPE(enum.IntEnum):
     F32 = ggml.GGML_TYPE_F32
     F16 = ggml.GGML_TYPE_F16
     Q4_0 = ggml.GGML_TYPE_Q4_0
@@ -53,14 +52,18 @@ def to_numpy(
         ctypes_type = ctypes.c_uint16
     else:
         ctypes_type = np.ctypeslib.as_ctypes_type(GGML_TYPE_TO_NUMPY_DTYPE[ggml_type])
-
-    array = ctypes.cast(ggml.ggml_get_data(tensor), ctypes.POINTER(ctypes_type))
-    shape = tuple(reversed(tensor.contents.ne[: tensor.contents.n_dims]))
+    
+    data = ggml.ggml_get_data(tensor)
+    if data is None:
+        raise ValueError("tensor data is None")
+    array = ctypes.cast(data, ctypes.POINTER(ctypes_type))
+    n_dims = ggml.ggml_n_dims(tensor)
+    shape = tuple(reversed(tensor.contents.ne[:n_dims]))
     output = np.ctypeslib.as_array(array, shape=shape)
     if ggml_type == GGML_TYPE.F16:
-        output.dtype = np.float16
+        output.dtype = np.float16 # type: ignore
     return np.lib.stride_tricks.as_strided(
-        output, strides=tuple(reversed(tensor.contents.nb[: tensor.contents.n_dims]))
+        output, strides=tuple(reversed(tensor.contents.nb[:n_dims]))
     )
 
 
@@ -88,33 +91,6 @@ def from_numpy(x: npt.NDArray[Any], ctx: ggml.ggml_context_p) -> ggml.ggml_tenso
     if ggml.ggml_get_data(tensor) is not None:
         to_numpy(tensor)[:] = x
     return tensor
-
-
-@contextlib.contextmanager
-def ggml_context_manager(params: ggml.ggml_init_params):
-    """Creates a context manager for a new ggml context that free's it after use.
-
-    Example:
-        ```python
-        import ggml
-        from ggml.utils import ggml_context_manager
-
-        params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024)
-        with ggml_context_manager(params) as ctx:
-            # do stuff with ctx
-        ```
-
-    Parameters:
-        params: context parameters
-
-    Returns:
-        (contextlib.AbstractContextManager): ggml_context_p context manager
-    """
-    ctx = ggml.ggml_init(params)
-    try:
-        yield ctx
-    finally:
-        ggml.ggml_free(ctx)
 
 
 def copy_to_cpu(
@@ -228,7 +204,7 @@ def get_ndims(tensor: ggml.ggml_tensor_p) -> int:
     Returns:
         Number of dimensions of tensor
     """
-    return tensor.contents.n_dims
+    return ggml.ggml_n_dims(tensor)
 
 
 def get_shape(tensor: ggml.ggml_tensor_p) -> Tuple[int, ...]:
@@ -240,7 +216,7 @@ def get_shape(tensor: ggml.ggml_tensor_p) -> Tuple[int, ...]:
     Returns:
         Shape of tensor
     """
-    return tensor.contents.ne[: tensor.contents.n_dims]
+    return tensor.contents.ne[: ggml.ggml_n_dims(tensor)]
 
 
 def get_strides(tensor: ggml.ggml_tensor_p) -> Tuple[int, ...]:
@@ -252,7 +228,7 @@ def get_strides(tensor: ggml.ggml_tensor_p) -> Tuple[int, ...]:
     Returns:
         Strides of tensor
     """
-    return tensor.contents.nb[: tensor.contents.n_dims]
+    return tensor.contents.nb[: ggml.ggml_n_dims(tensor)]
 
 
 def slice_tensor(
@@ -261,15 +237,15 @@ def slice_tensor(
     """Slice a ggml tensor along multiple dimensions.
 
     The slice is a view of the original tensor with the same number of dimensions.
-    
+
     Parameters:
         ctx: ggml context
         tensor: ggml tensor
         indices: indices to slice along
-        
+
     Returns:
         New ggml tensor slice view"""
-    ndims = get_ndims(tensor)
+    ndims = ggml.ggml_n_dims(tensor)
 
     # check that the number of dimensions match
     if len(indices) != ndims:
@@ -336,31 +312,3 @@ def slice_tensor(
             f"ggml tensors with {ndims} dimensions are not supported"
         )
 
-def alloc_graph_measure(graph: ggml.ggml_cgraph, alignment: int, alloc_tensors: Optional[List[ggml.ggml_tensor_p]] = None) -> int:
-    """Returns the number of bytes required by a ggml_allocr allocator to allocate the tensors in the graph.
-
-    NOTE: This implementation saves a copy of the current data pointers of all graph nodes and leafs and restores them
-    after measuring the allocation size so that the graph can be re-used.
-
-    Parameters:
-        graph: ggml graph
-        alignment: alignment of the allocation
-        alloc_tensors: list of tensors to allocate individually using ggml_allocr_alloc
-
-    Returns:
-        Size of the required allocation buffer in bytes"""
-    alloc_tensors = alloc_tensors or []
-    leaf_data = [ggml.ggml_get_data(graph.leafs[i]) for i in range(graph.n_leafs)]
-    node_data = [ggml.ggml_get_data(graph.nodes[i]) for i in range(graph.n_nodes)]
-    alloc = ggml.ggml_allocr_new_measure(alignment)
-    for tensor in alloc_tensors:
-        ggml.ggml_allocr_alloc(alloc, tensor)
-    alloc_size = (
-        ggml.ggml_allocr_alloc_graph(alloc, ctypes.byref(graph)) + alignment # type: ignore
-    )
-    ggml.ggml_allocr_free(alloc)
-    for i in range(graph.n_leafs):
-        graph.leafs[i].contents.data = leaf_data[i]
-    for i in range(graph.n_nodes):
-        graph.nodes[i].contents.data = node_data[i]
-    return alloc_size
