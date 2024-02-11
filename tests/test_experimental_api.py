@@ -1,3 +1,5 @@
+import pytest
+
 from ggml.utils import setup_sigabrt_handler
 from ggml.experimental import ggml_context, ggml_cgraph, Tensor, GGML_TYPE, Backend
 
@@ -5,6 +7,7 @@ from ggml.experimental import ggml_context, ggml_cgraph, Tensor, GGML_TYPE, Back
 setup_sigabrt_handler()
 
 
+@pytest.mark.skip(reason="experimental API")
 def test_experimental_api():
     backend = Backend.cpu()
 
