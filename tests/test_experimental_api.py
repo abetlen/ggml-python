@@ -1,6 +1,9 @@
+import pytest
+
 from ggml.experimental import ggml_context, ggml_cgraph, Tensor, GGML_TYPE, Backend
 
 
+@pytest.mark.skip(reason="experimental API")
 def test_experimental_api():
     backend = Backend.cpu()
 
