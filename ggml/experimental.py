@@ -46,7 +46,7 @@ class Context:
         self._current.append(self)
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback): # type: ignore
+    def __exit__(self, exc_type, exc_value, traceback):  # type: ignore
         self._current.pop()
         return False
 
@@ -77,7 +77,9 @@ class Backend:
 
     def alloc_ctx_tensors(self, ctx: Optional[Context] = None) -> "BackendBuffer":
         ctx = ctx or Context.current_context()
-        return BackendBuffer(ggml.ggml_backend_alloc_ctx_tensors(ctx.context, self.backend))
+        return BackendBuffer(
+            ggml.ggml_backend_alloc_ctx_tensors(ctx.context, self.backend)
+        )
 
     @staticmethod
     def cpu():
@@ -87,7 +89,9 @@ class Backend:
         return Backend(backend=backend)
 
     def new_gallocr(self) -> "GAllocr":
-        allocr = ggml.ggml_gallocr_new(ggml.ggml_backend_get_default_buffer_type(self.backend))
+        allocr = ggml.ggml_gallocr_new(
+            ggml.ggml_backend_get_default_buffer_type(self.backend)
+        )
         return GAllocr(allocr)
 
     def new_backend_buffer(self, size: int) -> "BackendBuffer":
@@ -1049,7 +1053,7 @@ class Tensor:
             beta_fast,
             beta_slow,
             xpos_base,
-            xpos_down
+            xpos_down,
         )
         return Tensor(tensor=op, ctx=ctx, src=[a])
 
