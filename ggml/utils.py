@@ -1,7 +1,11 @@
 """Utility functions for ggml-python.
 """
+
 import enum
 import ctypes
+import signal
+import platform
+import traceback
 
 from typing import Any, Optional, Sequence, Tuple
 
@@ -52,7 +56,7 @@ def to_numpy(
         ctypes_type = ctypes.c_uint16
     else:
         ctypes_type = np.ctypeslib.as_ctypes_type(GGML_TYPE_TO_NUMPY_DTYPE[ggml_type])
-    
+
     data = ggml.ggml_get_data(tensor)
     if data is None:
         raise ValueError("tensor data is None")
@@ -61,7 +65,7 @@ def to_numpy(
     shape = tuple(reversed(tensor.contents.ne[:n_dims]))
     output = np.ctypeslib.as_array(array, shape=shape)
     if ggml_type == GGML_TYPE.F16:
-        output.dtype = np.float16 # type: ignore
+        output.dtype = np.float16  # type: ignore
     return np.lib.stride_tricks.as_strided(
         output, strides=tuple(reversed(tensor.contents.nb[:n_dims]))
     )
@@ -312,3 +316,18 @@ def slice_tensor(
             f"ggml tensors with {ndims} dimensions are not supported"
         )
 
+
+def setup_sigabrt_handler():
+    if platform.system() == "Windows":
+        c_globals = ctypes.windll.kernel32
+        signal_type = signal.CTRL_C_EVENT
+    else:
+        c_globals = ctypes.CDLL(None)  # POSIX
+        signal_type = signal.SIGABRT
+
+    @ctypes.CFUNCTYPE(None, ctypes.c_int)
+    def sigabrt_handler(sig):
+        traceback.print_stack()
+        raise Exception("GGML SIGABRT")
+
+    c_globals.signal(signal_type, sigabrt_handler)
