@@ -86,11 +86,11 @@ class Backend:
             raise ValueError("Failed to initialize CPU backend")
         return Backend(backend=backend)
 
-    def new_measure(self) -> "Allocr":
-        allocr = ggml.ggml_allocr_new_measure_from_backend(self.backend)
-        return Allocr(allocr)
+    def new_graph_allocator(self) -> "GraphAllocator":
+        allocr = ggml.ggml_gallocr_new(ggml.ggml_backend_get_default_buffer_type(self.backend))
+        return GraphAllocator(allocr)
 
-    def alloc_buffer(self, size: int) -> "BackendBuffer":
+    def new_backend_buffer(self, size: int) -> "BackendBuffer":
         buffer = ggml.ggml_backend_alloc_buffer(self.backend, size)
         return BackendBuffer(buffer)
 
@@ -102,20 +102,17 @@ class BackendBuffer:
     def __del__(self):
         ggml.ggml_backend_buffer_free(self.buffer)
 
-    def new_allocr(self) -> "Allocr":
-        allocr = ggml.ggml_allocr_new_from_buffer(self.buffer)
-        return Allocr(allocr)
 
-
-class Allocr:
-    def __init__(self, allocr: ggml.ggml_allocr_t):
+class GraphAllocator:
+    def __init__(self, allocr: ggml.ggml_gallocr):
         self.allocr = allocr
 
     def __del__(self):
-        ggml.ggml_allocr_free(self.allocr)
+        ggml.ggml_gallocr_free(self.allocr)
 
-    def alloc_graph(self, graph: "CGraph") -> int:
-        return ggml.ggml_allocr_alloc_graph(self.allocr, graph.cgraph)
+    def allocate_graph(self, graph: "CGraph"):
+        ggml.ggml_gallocr_reserve(self.allocr, graph.cgraph)
+        ggml.ggml_gallocr_alloc_graph(self.allocr, graph.cgraph)
 
 
 class GGML_TYPE(enum.IntEnum):

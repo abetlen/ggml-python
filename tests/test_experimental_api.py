@@ -71,16 +71,10 @@ def test_experimental_api():
 
         assert f.shape == (1,)
 
-        measure_allocr = backend.new_measure()
-
         graph = ggml_cgraph(f)
 
-        mem_size = measure_allocr.alloc_graph(graph)
-
-        buffer = backend.alloc_buffer(mem_size)
-
-        allocr = buffer.new_allocr()
-        allocr.alloc_graph(graph)
+        gallocr = backend.new_graph_allocator()
+        gallocr.allocate_graph(graph)
 
         x[0] = 2.0
 

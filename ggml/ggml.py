@@ -96,7 +96,7 @@ def load_shared_library(module_name: str, lib_base_name: str):
 
     # Try to load the shared library, handling potential errors
     try:
-        return ctypes.CDLL(str(path), **cdll_args) # type: ignore
+        return ctypes.CDLL(str(path), **cdll_args)  # type: ignore
     except Exception as e:
         raise RuntimeError(f"Failed to load shared library '{path}': {e}")
 
@@ -543,14 +543,25 @@ GGML_OBJECT_WORK_BUFFER = 2
 
 # enum ggml_log_level {
 #     GGML_LOG_LEVEL_ERROR = 2,
-#     GGML_LOG_LEVEL_WARN = 3,
-#     GGML_LOG_LEVEL_INFO = 4,
+#     GGML_LOG_LEVEL_WARN  = 3,
+#     GGML_LOG_LEVEL_INFO  = 4,
 #     GGML_LOG_LEVEL_DEBUG = 5
 # };
 GGML_LOG_LEVEL_ERROR = 2
 GGML_LOG_LEVEL_WARN = 3
 GGML_LOG_LEVEL_INFO = 4
 GGML_LOG_LEVEL_DEBUG = 5
+
+
+# enum ggml_tensor_flag {
+#     GGML_TENSOR_FLAG_INPUT  = 1,
+#     GGML_TENSOR_FLAG_OUTPUT = 2,
+#     GGML_TENSOR_FLAG_PARAM  = 4,
+# };
+GGML_TENSOR_FLAG_INPUT = 1
+GGML_TENSOR_FLAG_OUTPUT = 2
+GGML_TENSOR_FLAG_PARAM = 4
+
 
 # // ggml object
 # struct ggml_object {
@@ -600,7 +611,7 @@ GGML_OBJECT_SIZE = ctypes.sizeof(ggml_object)
 #     // op params - allocated as int32_t for alignment
 #     int32_t op_params[GGML_MAX_OP_PARAMS / sizeof(int32_t)];
 
-#     bool is_param;
+#     int32_t flags;
 
 #     struct ggml_tensor * grad;
 #     struct ggml_tensor * src[GGML_MAX_SRC];
@@ -633,7 +644,7 @@ class ggml_tensor(ctypes.Structure):
         nb (ctypes.Array[ctypes.c_size_t]): stride in bytes for each dimension
         op (int): ggml operation
         op_params (ctypes.Array[ctypes.c_int32]): `GGML_MAX_OP_PARAMS`-length array of operation parameters
-        is_param (bool): is this a parameter tensor
+        flags (int): tensor flags
         grad (ggml_tensor_p): reference to gradient tensor
         src (ctypes.Array[ggml_tensor_p]): `GGML_MAX_SRC`-length array of source tensors
         perf_runs (int): number of performance runs
@@ -660,7 +671,7 @@ ggml_tensor._fields_ = [
         "op_params",
         ctypes.c_int32 * (GGML_MAX_OP_PARAMS // ctypes.sizeof(ctypes.c_int32)),
     ),
-    ("is_param", ctypes.c_bool),
+    ("flags", ctypes.c_int),
     ("grad", ctypes.POINTER(ggml_tensor)),
     ("src", ctypes.POINTER(ggml_tensor) * GGML_MAX_SRC),
     ("perf_runs", ctypes.c_int),
@@ -676,7 +687,7 @@ ggml_tensor._fields_ = [
 
 GGML_TENSOR_SIZE = ctypes.sizeof(ggml_tensor)
 
-ggml_tensor_p: TypeAlias = "ctypes._Pointer[ggml_tensor]"  # type: ignore
+ggml_tensor_p: TypeAlias = "ctypes._Pointer[ggml_tensor]" # type: ignore
 """ctypes pointer to a [ggml_tensor][ggml.ggml_tensor]
 
 Can be dereferenced to a [ggml_tensor][ggml.ggml_tensor] object using
@@ -805,7 +816,7 @@ class ggml_cgraph(ctypes.Structure):
     ]
 
 
-ggml_cgraph_p: TypeAlias = "ctypes._Pointer[ggml_cgraph]"  # type: ignore
+ggml_cgraph_p: TypeAlias = "ctypes._Pointer[ggml_cgraph]" # type: ignore
 """ctypes pointer to a [ggml_cgraph][ggml.ggml_cgraph]
 
 Can be dereferenced to a [ggml_cgraph][ggml.ggml_cgraph] object using
@@ -4994,7 +5005,8 @@ lib.ggml_clamp.restype = ctypes.POINTER(ggml_tensor)
 #         int                  p1,
 #         int                  d0,
 #         int                  d1,
-#         bool                 is_2D);
+#         bool                 is_2D,
+#         enum ggml_type       dst_type);
 def ggml_im2col(
     ctx: ggml_context_p,
     a: ggml_tensor_p,
@@ -5006,8 +5018,9 @@ def ggml_im2col(
     d0: Union[ctypes.c_int, int],
     d1: Union[ctypes.c_int, int],
     is_2D: Union[ctypes.c_bool, bool],
+    dst_type: Union[ctypes.c_int, int],
 ) -> ggml_tensor_p:
-    return lib.ggml_im2col(ctx, a, b, s0, s1, p0, p1, d0, d1, is_2D)
+    return lib.ggml_im2col(ctx, a, b, s0, s1, p0, p1, d0, d1, is_2D, dst_type)
 
 
 lib.ggml_im2col.argtypes = [
@@ -5021,6 +5034,7 @@ lib.ggml_im2col.argtypes = [
     ctypes.c_int,
     ctypes.c_int,
     ctypes.c_bool,
+    ctypes.c_int,
 ]
 lib.ggml_im2col.restype = ctypes.POINTER(ggml_tensor)
 
@@ -7172,9 +7186,32 @@ lib.ggml_opt_resume_g.argtypes = [
 ]
 lib.ggml_opt_resume_g.restype = ctypes.c_int
 
+
+# //
+# // tensor flags
+# //
+# GGML_API void ggml_set_input(struct ggml_tensor * tensor);
+def ggml_set_input(tensor: ggml_tensor_p):
+    return lib.ggml_set_input(tensor)
+
+
+lib.ggml_set_input.argtypes = [ctypes.POINTER(ggml_tensor)]
+lib.ggml_set_input.restype = None
+
+
+# GGML_API void ggml_set_output(struct ggml_tensor * tensor);
+def ggml_set_output(tensor: ggml_tensor_p):
+    return lib.ggml_set_output(tensor)
+
+
+lib.ggml_set_output.argtypes = [ctypes.POINTER(ggml_tensor)]
+lib.ggml_set_output.restype = None
+
+
 # //
 # // quantization
 # //
+
 
 # // - ggml_quantize_init can be called multiple times with the same type
 # //   it will only initialize the quantization tables for the first call or after ggml_quantize_free
@@ -8537,6 +8574,15 @@ lib.ggml_cpu_has_vulkan.argtypes = []
 lib.ggml_cpu_has_vulkan.restype = ctypes.c_int
 
 
+# GGML_API int ggml_cpu_has_kompute    (void);
+def ggml_cpu_has_kompute() -> int:
+    return lib.ggml_cpu_has_kompute()
+
+
+lib.ggml_cpu_has_kompute.argtypes = []
+lib.ggml_cpu_has_kompute.restype = ctypes.c_int
+
+
 # GGML_API int ggml_cpu_has_gpublas    (void);
 def ggml_cpu_has_gpublas() -> int:
     return lib.ggml_cpu_has_gpublas()
@@ -8562,6 +8608,7 @@ def ggml_cpu_has_ssse3() -> int:
 
 lib.ggml_cpu_has_ssse3.argtypes = []
 lib.ggml_cpu_has_ssse3.restype = ctypes.c_int
+
 
 # GGML_API int ggml_cpu_has_sycl       (void);
 def ggml_cpu_has_sycl() -> int:
@@ -8639,402 +8686,186 @@ lib.ggml_internal_get_type_traits.restype = ggml_type_traits_t
 # source: include/ggml/ggml-alloc.h
 #####################################################
 
-# struct ggml_backend;
-# struct ggml_backend_buffer;
-# struct ggml_backend_buffer_type;
+
+# typedef struct ggml_backend_buffer_type * ggml_backend_buffer_type_t;
+# typedef struct ggml_backend_buffer * ggml_backend_buffer_t;
+# typedef struct ggml_backend * ggml_backend_t;
+ggml_backend_buffer_type_t: TypeAlias = ctypes.c_void_p
+ggml_backend_buffer_t: TypeAlias = ctypes.c_void_p
 ggml_backend_t: TypeAlias = ctypes.c_void_p
-ggml_backend_buffer_p: TypeAlias = ctypes.c_void_p
-ggml_backend_buffer_type_p: TypeAlias = ctypes.c_void_p
 
-# //
-# // Legacy API
-# //
-
-# typedef struct ggml_allocr * ggml_allocr_t;
-ggml_allocr_t = ctypes.c_void_p
-
-
-# // initialize allocator for use with CPU backend only
-# GGML_API ggml_allocr_t ggml_allocr_new(void * data, size_t size, size_t alignment);
-def ggml_allocr_new(
-    data: ctypes.c_void_p,
-    size: Union[ctypes.c_size_t, int],
-    alignment: Union[ctypes.c_size_t, int],
-) -> ggml_allocr_t:
-    return lib.ggml_allocr_new(data, size, alignment)
-
-
-lib.ggml_allocr_new.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_size_t]
-lib.ggml_allocr_new.restype = ggml_allocr_t
-
-
-# GGML_API ggml_allocr_t ggml_allocr_new_measure(size_t alignment);
-def ggml_allocr_new_measure(alignment: Union[ctypes.c_size_t, int]) -> ggml_allocr_t:
-    return lib.ggml_allocr_new_measure(alignment)
-
-
-lib.ggml_allocr_new_measure.argtypes = [ctypes.c_size_t]
-lib.ggml_allocr_new_measure.restype = ggml_allocr_t
-
-
-# // initialize allocator for use with ggml-backend
-# GGML_API ggml_allocr_t ggml_allocr_new_from_buffer(struct ggml_backend_buffer * buffer);
-def ggml_allocr_new_from_buffer(buffer: ggml_backend_buffer_p) -> ggml_allocr_t:
-    return lib.ggml_allocr_new_from_buffer(buffer)
-
-
-lib.ggml_allocr_new_from_buffer.argtypes = [ggml_backend_buffer_p]
-lib.ggml_allocr_new_from_buffer.restype = ggml_allocr_t
-
-
-# GGML_API ggml_allocr_t ggml_allocr_new_from_backend(struct ggml_backend * backend, size_t size); // allocates an owned buffer
-def ggml_allocr_new_from_backend(
-    backend: ggml_backend_t, size: Union[ctypes.c_size_t, int]
-) -> ggml_allocr_t:
-    return lib.ggml_allocr_new_from_backend(backend, size)
-
-
-lib.ggml_allocr_new_from_backend.argtypes = [ggml_backend_t, ctypes.c_size_t]
-lib.ggml_allocr_new_from_backend.restype = ggml_allocr_t
-
-
-# GGML_API ggml_allocr_t ggml_allocr_new_measure_from_backend(struct ggml_backend * backend);
-def ggml_allocr_new_measure_from_backend(backend: ggml_backend_t) -> ggml_allocr_t:
-    return lib.ggml_allocr_new_measure_from_backend(backend)
-
-
-lib.ggml_allocr_new_measure_from_backend.argtypes = [ggml_backend_t]
-lib.ggml_allocr_new_measure_from_backend.restype = ggml_allocr_t
-
-
-# GGML_API struct ggml_backend_buffer * ggml_allocr_get_buffer(ggml_allocr_t alloc);
-def ggml_allocr_get_buffer(alloc: ggml_allocr_t) -> ggml_backend_buffer_p:
-    return lib.ggml_allocr_get_buffer(alloc)
-
-
-lib.ggml_allocr_get_buffer.argtypes = [ggml_allocr_t]
-lib.ggml_allocr_get_buffer.restype = ggml_backend_buffer_p
-
-
-# // tell the allocator to parse nodes following the order described in the list
-# // you should call this if your graph are optimized to execute out-of-order
-# GGML_API void   ggml_allocr_set_parse_seq(ggml_allocr_t alloc, const int * list, int n);
-def ggml_allocr_set_parse_seq(
-    alloc: ggml_allocr_t,
-    list: "ctypes._Pointer(ctypes.c_int)",  # type: ignore
-    n: Union[ctypes.c_int, int],
-) -> None:
-    return lib.ggml_allocr_set_parse_seq(alloc, list, n)
-
-
-lib.ggml_allocr_set_parse_seq.argtypes = [
-    ggml_allocr_t,
-    ctypes.POINTER(ctypes.c_int),
-    ctypes.c_int,
-]
-lib.ggml_allocr_set_parse_seq.restype = None
-
-
-# GGML_API void   ggml_allocr_free       (ggml_allocr_t alloc);
-def ggml_allocr_free(alloc: ggml_allocr_t) -> None:
-    return lib.ggml_allocr_free(alloc)
-
-
-lib.ggml_allocr_free.argtypes = [ggml_allocr_t]
-lib.ggml_allocr_free.restype = None
-
-
-# GGML_API bool   ggml_allocr_is_measure (ggml_allocr_t alloc);
-def ggml_allocr_is_measure(alloc: ggml_allocr_t) -> ctypes.c_bool:
-    return lib.ggml_allocr_is_measure(alloc)
-
-
-lib.ggml_allocr_is_measure.argtypes = [ggml_allocr_t]
-lib.ggml_allocr_is_measure.restype = ctypes.c_bool
-
-
-# GGML_API void   ggml_allocr_reset      (ggml_allocr_t alloc);
-def ggml_allocr_reset(alloc: ggml_allocr_t) -> None:
-    return lib.ggml_allocr_reset(alloc)
-
-
-lib.ggml_allocr_reset.argtypes = [ggml_allocr_t]
-lib.ggml_allocr_reset.restype = None
-
-
-# GGML_API void   ggml_allocr_alloc      (ggml_allocr_t alloc, struct ggml_tensor * tensor);
-def ggml_allocr_alloc(alloc: ggml_allocr_t, tensor: ggml_tensor_p) -> None:
-    return lib.ggml_allocr_alloc(alloc, tensor)
-
-
-lib.ggml_allocr_alloc.argtypes = [ggml_allocr_t, ctypes.POINTER(ggml_tensor)]
-lib.ggml_allocr_alloc.restype = None
-
-
-# GGML_API size_t ggml_allocr_max_size   (ggml_allocr_t alloc);
-def ggml_allocr_max_size(alloc: ggml_allocr_t) -> Union[ctypes.c_size_t, int]:
-    return lib.ggml_allocr_max_size(alloc)
-
-
-lib.ggml_allocr_max_size.argtypes = [ggml_allocr_t]
-lib.ggml_allocr_max_size.restype = ctypes.c_size_t
-
-
-# GGML_API size_t ggml_allocr_alloc_graph(ggml_allocr_t alloc, struct ggml_cgraph * graph);
-def ggml_allocr_alloc_graph(alloc: ggml_allocr_t, graph: ggml_cgraph_p) -> int:
-    return lib.ggml_allocr_alloc_graph(alloc, graph)
-
-
-lib.ggml_allocr_alloc_graph.argtypes = [ggml_allocr_t, ctypes.POINTER(ggml_cgraph)]
-lib.ggml_allocr_alloc_graph.restype = ctypes.c_size_t
-
-# //
-# // ggml-backend v2 API
-# //
-
-# // Separate tensor and graph allocator objects
-# // This is necessary for multi-backend allocation because the graph allocator needs to use multiple tensor allocators
-# // The original API is kept as a wrapper around the new API
 
 # // Tensor allocator
 # typedef struct ggml_tallocr * ggml_tallocr_t;
-ggml_tallocr_t = ctypes.c_void_p
+ggml_tallocr: TypeAlias = ctypes.c_void_p
 
 
-# GGML_API ggml_tallocr_t ggml_tallocr_new(void * data, size_t size, size_t alignment);
-def ggml_tallocr_new(
-    data: ctypes.c_void_p,
-    size: Union[ctypes.c_size_t, int],
-    alignment: Union[ctypes.c_size_t, int],
-) -> ggml_tallocr_t:
-    return lib.ggml_tallocr_new(data, size, alignment)
+# GGML_API ggml_tallocr_t ggml_tallocr_new(ggml_backend_buffer_t buffer);
+def ggml_tallocr_new(buffer: ggml_backend_buffer_t) -> ggml_tallocr:
+    return lib.ggml_tallocr_new(buffer)
 
 
-lib.ggml_tallocr_new.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_size_t]
-lib.ggml_tallocr_new.restype = ggml_tallocr_t
+lib.ggml_tallocr_new.argtypes = [ggml_backend_buffer_t]
+lib.ggml_tallocr_new.restype = ggml_tallocr
 
 
-# GGML_API ggml_tallocr_t ggml_tallocr_new_measure(size_t alignment);
-def ggml_tallocr_new_measure(alignment: Union[ctypes.c_size_t, int]) -> ggml_tallocr_t:
-    return lib.ggml_tallocr_new_measure(alignment)
-
-
-lib.ggml_tallocr_new_measure.argtypes = [ctypes.c_size_t]
-lib.ggml_tallocr_new_measure.restype = ggml_tallocr_t
-
-
-# GGML_API ggml_tallocr_t ggml_tallocr_new_from_buft(struct ggml_backend_buffer_type * buft, size_t size);
-def ggml_tallocr_new_from_buft(
-    buft: ggml_backend_buffer_type_p, size: Union[ctypes.c_size_t, int]
-) -> ggml_tallocr_t:
-    return lib.ggml_tallocr_new_from_buft(buft, size)
-
-
-lib.ggml_tallocr_new_from_buft.argtypes = [ggml_backend_buffer_type_p, ctypes.c_size_t]
-lib.ggml_tallocr_new_from_buft.restype = ggml_tallocr_t
-
-
-# GGML_API ggml_tallocr_t ggml_tallocr_new_from_backend(struct ggml_backend * backend, size_t size); // allocates an owned buffer
-def ggml_tallocr_new_from_backend(
-    backend: ggml_backend_t, size: Union[ctypes.c_size_t, int]
-) -> ggml_tallocr_t:
-    return lib.ggml_tallocr_new_from_backend(backend, size)
-
-
-lib.ggml_tallocr_new_from_backend.argtypes = [ggml_backend_t, ctypes.c_size_t]
-lib.ggml_tallocr_new_from_backend.restype = ggml_tallocr_t
-
-
-# GGML_API ggml_tallocr_t ggml_tallocr_new_from_buffer(struct ggml_backend_buffer * buffer);
-def ggml_tallocr_new_from_buffer(buffer: ggml_backend_buffer_p) -> ggml_tallocr_t:
-    return lib.ggml_tallocr_new_from_buffer(buffer)
-
-
-lib.ggml_tallocr_new_from_buffer.argtypes = [ggml_backend_buffer_p]
-lib.ggml_tallocr_new_from_buffer.restype = ggml_tallocr_t
-
-
-# GGML_API ggml_tallocr_t ggml_tallocr_new_measure_from_buft(struct ggml_backend_buffer_type * buft);
-def ggml_tallocr_new_measure_from_buft(
-    buft: ggml_backend_buffer_type_p,
-) -> ggml_tallocr_t:
-    return lib.ggml_tallocr_new_measure_from_buft(buft)
-
-
-lib.ggml_tallocr_new_measure_from_buft.argtypes = [ggml_backend_buffer_type_p]
-lib.ggml_tallocr_new_measure_from_buft.restype = ggml_tallocr_t
-
-
-# GGML_API ggml_tallocr_t ggml_tallocr_new_measure_from_backend(struct ggml_backend * backend);
-def ggml_tallocr_new_measure_from_backend(backend: ggml_backend_t) -> ggml_tallocr_t:
-    return lib.ggml_tallocr_new_measure_from_backend(backend)
-
-
-lib.ggml_tallocr_new_measure_from_backend.argtypes = [ggml_backend_t]
-lib.ggml_tallocr_new_measure_from_backend.restype = ggml_tallocr_t
-
-
-# GGML_API struct ggml_backend_buffer * ggml_tallocr_get_buffer(ggml_tallocr_t talloc);
-def ggml_tallocr_get_buffer(talloc: ggml_tallocr_t) -> ggml_backend_buffer_p:
-    return lib.ggml_tallocr_get_buffer(talloc)
-
-
-lib.ggml_tallocr_get_buffer.argtypes = [ggml_tallocr_t]
-lib.ggml_tallocr_get_buffer.restype = ggml_backend_buffer_p
-
-
-# GGML_API void   ggml_tallocr_free       (ggml_tallocr_t talloc);
-def ggml_tallocr_free(talloc: ggml_tallocr_t) -> None:
+# GGML_API void           ggml_tallocr_free(ggml_tallocr_t talloc);
+def ggml_tallocr_free(talloc: ggml_tallocr) -> None:
     return lib.ggml_tallocr_free(talloc)
 
 
-lib.ggml_tallocr_free.argtypes = [ggml_tallocr_t]
+lib.ggml_tallocr_free.argtypes = [ggml_tallocr]
 lib.ggml_tallocr_free.restype = None
 
 
-# GGML_API bool   ggml_tallocr_is_measure (ggml_tallocr_t talloc);
-def ggml_tallocr_is_measure(talloc: ggml_tallocr_t) -> bool:
-    return lib.ggml_tallocr_is_measure(talloc)
-
-
-lib.ggml_tallocr_is_measure.argtypes = [ggml_tallocr_t]
-lib.ggml_tallocr_is_measure.restype = ctypes.c_bool
-
-
-# GGML_API void   ggml_tallocr_reset      (ggml_tallocr_t talloc);
-def ggml_tallocr_reset(talloc: ggml_tallocr_t) -> None:
-    return lib.ggml_tallocr_reset(talloc)
-
-
-lib.ggml_tallocr_reset.argtypes = [ggml_tallocr_t]
-lib.ggml_tallocr_reset.restype = None
-
-
-# GGML_API void   ggml_tallocr_alloc      (ggml_tallocr_t talloc, struct ggml_tensor * tensor);
-def ggml_tallocr_alloc(talloc: ggml_tallocr_t, tensor: ggml_tensor_p) -> None:
+# GGML_API void           ggml_tallocr_alloc(ggml_tallocr_t talloc, struct ggml_tensor * tensor);
+def ggml_tallocr_alloc(talloc: ggml_tallocr, tensor: ggml_tensor_p) -> None:
     return lib.ggml_tallocr_alloc(talloc, tensor)
 
 
-lib.ggml_tallocr_alloc.argtypes = [ggml_tallocr_t, ctypes.POINTER(ggml_tensor)]
+lib.ggml_tallocr_alloc.argtypes = [ggml_tallocr, ctypes.POINTER(ggml_tensor)]
 lib.ggml_tallocr_alloc.restype = None
 
 
-# GGML_API size_t ggml_tallocr_max_size   (ggml_tallocr_t talloc);
-def ggml_tallocr_max_size(talloc: ggml_tallocr_t) -> Union[ctypes.c_size_t, int]:
-    return lib.ggml_tallocr_max_size(talloc)
-
-
-lib.ggml_tallocr_max_size.argtypes = [ggml_tallocr_t]
-lib.ggml_tallocr_max_size.restype = ctypes.c_size_t
-
-
 # // Graph allocator
+# /*
+#   Example usage:
+#     ggml_gallocr_t galloc = ggml_gallocr_new(ggml_bacckend_cpu_buffer_type());
+
+#     // optional: create a worst-case graph and reserve the buffers to avoid reallocations
+#     ggml_gallocr_reserve(galloc, build_graph(max_batch));
+
+#     // allocate the graph
+#     struct ggml_cgraph * graph = build_graph(batch);
+#     ggml_gallocr_alloc_graph(galloc, graph);
+
+#     printf("compute buffer size: %zu bytes\n", ggml_gallocr_get_buffer_size(galloc, 0));
+
+#     // evaluate the graph
+#     ggml_backend_graph_compute(backend, graph);
+# */
+
+# // special tensor flags for use with the graph allocator:
+# //   ggml_set_input(): all input tensors are allocated at the beginning of the graph in non-overlapping addresses
+# //   ggml_set_output(): output tensors are never freed and never overwritten
+
+
 # typedef struct ggml_gallocr * ggml_gallocr_t;
-ggml_gallocr_t = ctypes.c_void_p
+ggml_gallocr: TypeAlias = ctypes.c_void_p
 
 
-# GGML_API ggml_gallocr_t ggml_gallocr_new(void);
-def ggml_gallocr_new() -> ggml_gallocr_t:
-    return lib.ggml_gallocr_new()
+# GGML_API ggml_gallocr_t ggml_gallocr_new(ggml_backend_buffer_type_t buft);
+def ggml_gallocr_new(buft: ggml_backend_buffer_type_t) -> ggml_gallocr:
+    return lib.ggml_gallocr_new(buft)
 
 
-lib.ggml_gallocr_new.argtypes = []
-lib.ggml_gallocr_new.restype = ggml_gallocr_t
+lib.ggml_gallocr_new.argtypes = [ggml_backend_buffer_type_t]
+lib.ggml_gallocr_new.restype = ggml_gallocr
 
 
-# GGML_API void   ggml_gallocr_free(ggml_gallocr_t galloc);
-def ggml_gallocr_free(galloc: ggml_gallocr_t) -> None:
+# GGML_API ggml_gallocr_t ggml_gallocr_new_n(ggml_backend_buffer_type_t * bufts, int n_bufs);
+def ggml_gallocr_new_n(bufts: ggml_backend_buffer_type_t, n_bufs: int) -> ggml_gallocr:
+    return lib.ggml_gallocr_new_n(bufts, n_bufs)
+
+
+lib.ggml_gallocr_new_n.argtypes = [ggml_backend_buffer_type_t, ctypes.c_int]
+lib.ggml_gallocr_new_n.restype = ggml_gallocr
+
+
+# GGML_API void           ggml_gallocr_free(ggml_gallocr_t galloc);
+def ggml_gallocr_free(galloc: ggml_gallocr) -> None:
     return lib.ggml_gallocr_free(galloc)
 
 
-lib.ggml_gallocr_free.argtypes = [ggml_gallocr_t]
+lib.ggml_gallocr_free.argtypes = [ggml_gallocr]
 lib.ggml_gallocr_free.restype = None
 
 
-# GGML_API void   ggml_gallocr_set_parse_seq(ggml_gallocr_t galloc, const int * list, int n);
-def ggml_gallocr_set_parse_seq(
-    galloc: ggml_gallocr_t,
-    list: "ctypes._Pointer(ctypes.c_int)",  # type: ignore
-    n: Union[ctypes.c_int, int],
-) -> None:
-    return lib.ggml_gallocr_set_parse_seq(galloc, list, n)
+# // pre-allocate buffers from a measure graph - does not allocate or modify the graph
+# // call with a worst-case graph to avoid buffer reallocations
+# // not strictly required for single buffer usage: ggml_gallocr_alloc_graph will reallocate the buffers automatically if needed
+# // returns false if the buffer allocation failed
+# GGML_API bool ggml_gallocr_reserve(ggml_gallocr_t galloc, struct ggml_cgraph * graph);
+def ggml_gallocr_reserve(galloc: ggml_gallocr, graph: ggml_cgraph_p) -> bool:
+    """pre-allocate buffers from a measure graph - does not allocate or modify the graph
+    call with a worst-case graph to avoid buffer reallocations
+    not strictly required for single buffer usage: ggml_gallocr_alloc_graph will reallocate the buffers automatically if needed
+    returns false if the buffer allocation failed"""
+    return lib.ggml_gallocr_reserve(galloc, graph)
 
 
-lib.ggml_gallocr_set_parse_seq.argtypes = [
-    ggml_gallocr_t,
-    ctypes.POINTER(ctypes.c_int),
-    ctypes.c_int,
-]
-lib.ggml_gallocr_set_parse_seq.restype = None
+lib.ggml_gallocr_reserve.argtypes = [ggml_gallocr, ctypes.POINTER(ggml_cgraph)]
+lib.ggml_gallocr_reserve.restype = ctypes.c_bool
 
 
-# GGML_API size_t ggml_gallocr_alloc_graph(ggml_gallocr_t galloc, ggml_tallocr_t talloc, struct ggml_cgraph * graph);
-def ggml_gallocr_alloc_graph(
-    galloc: ggml_gallocr_t, talloc: ggml_tallocr_t, graph: ggml_cgraph_p
-) -> Union[ctypes.c_size_t, int]:
-    return lib.ggml_gallocr_alloc_graph(galloc, talloc, graph)
-
-
-lib.ggml_gallocr_alloc_graph.argtypes = [
-    ggml_gallocr_t,
-    ggml_tallocr_t,
-    ctypes.POINTER(ggml_cgraph),
-]
-lib.ggml_gallocr_alloc_graph.restype = ctypes.c_size_t
-
-
-# // Allocate tensors from the allocators given by the hash table
-# GGML_API void   ggml_gallocr_alloc_graph_n(
-#                     ggml_gallocr_t galloc,
-#                     struct ggml_cgraph * graph,
-#                     struct ggml_hash_set hash_set,
-#                     ggml_tallocr_t * hash_node_talloc);
-def ggml_gallocr_alloc_graph_n(
-    galloc: ggml_gallocr_t,
+# GGML_API bool ggml_gallocr_reserve_n(ggml_gallocr_t galloc, struct ggml_cgraph * graph, const int * node_buffer_ids);
+def ggml_gallocr_reserve_n(
+    galloc: ggml_gallocr,
     graph: ggml_cgraph_p,
-    hash_set: ggml_hash_set,
-    hash_node_talloc: "ctypes._Pointer(ggml_tallocr_t)",  # type: ignore
-) -> None:
-    return lib.ggml_gallocr_alloc_graph_n(galloc, graph, hash_set, hash_node_talloc)
+    node_buffer_ids: "ctypes._Pointer[ctypes.c_int]",  # type: ignore
+) -> bool:
+    return lib.ggml_gallocr_reserve_n(galloc, graph, node_buffer_ids)
 
 
-lib.ggml_gallocr_alloc_graph_n.argtypes = [
-    ggml_gallocr_t,
+lib.ggml_gallocr_reserve_n.argtypes = [
+    ggml_gallocr,
     ctypes.POINTER(ggml_cgraph),
-    ggml_hash_set,
-    ctypes.POINTER(ggml_tallocr_t),
+    ctypes.POINTER(ctypes.c_int),
 ]
-lib.ggml_gallocr_alloc_graph_n.restype = None
+lib.ggml_gallocr_reserve_n.restype = ctypes.c_bool
+
+
+# // automatic reallocation if the topology changes when using a single buffer
+# // returns false if using multiple buffers and a re-allocation is needed (call ggml_gallocr_reserve_n first to set the node buffers)
+# GGML_API bool ggml_gallocr_alloc_graph(ggml_gallocr_t galloc, struct ggml_cgraph * graph);
+def ggml_gallocr_alloc_graph(galloc: ggml_gallocr, graph: ggml_cgraph_p) -> bool:
+    """automatic reallocation if the topology changes when using a single buffer
+    returns false if using multiple buffers and a re-allocation is needed (call ggml_gallocr_reserve_n first to set the node buffers)"""
+    return lib.ggml_gallocr_alloc_graph(galloc, graph)
+
+
+lib.ggml_gallocr_alloc_graph.argtypes = [ggml_gallocr, ctypes.POINTER(ggml_cgraph)]
+lib.ggml_gallocr_alloc_graph.restype = ctypes.c_bool
+
+
+# GGML_API size_t ggml_gallocr_get_buffer_size(ggml_gallocr_t galloc, int buffer_id);
+def ggml_gallocr_get_buffer_size(
+    galloc: ggml_gallocr, buffer_id: Union[ctypes.c_int, int]
+) -> int:
+    return lib.ggml_gallocr_get_buffer_size(galloc, buffer_id)
+
+
+lib.ggml_gallocr_get_buffer_size.argtypes = [ggml_gallocr, ctypes.c_int]
+lib.ggml_gallocr_get_buffer_size.restype = ctypes.c_size_t
 
 
 # // Utils
 # // Create a buffer and allocate all the tensors in a ggml_context
-# GGML_API struct ggml_backend_buffer * ggml_backend_alloc_ctx_tensors_from_buft(struct ggml_context * ctx, struct ggml_backend_buffer_type * buft);
+# GGML_API struct ggml_backend_buffer * ggml_backend_alloc_ctx_tensors_from_buft(struct ggml_context * ctx, ggml_backend_buffer_type_t buft);
 def ggml_backend_alloc_ctx_tensors_from_buft(
-    ctx: ggml_context_p, buft: ggml_backend_buffer_type_p
-) -> ggml_backend_buffer_p:
+    ctx: ggml_context_p, buft: ggml_backend_buffer_type_t
+) -> ggml_backend_buffer_t:
+    """Create a buffer and allocate all the tensors in a ggml_context"""
     return lib.ggml_backend_alloc_ctx_tensors_from_buft(ctx, buft)
 
 
 lib.ggml_backend_alloc_ctx_tensors_from_buft.argtypes = [
     ggml_context_p,
-    ggml_backend_buffer_type_p,
+    ggml_backend_buffer_type_t,
 ]
-lib.ggml_backend_alloc_ctx_tensors_from_buft.restype = ggml_backend_buffer_p
+lib.ggml_backend_alloc_ctx_tensors_from_buft.restype = ggml_backend_buffer_t
 
 
-# GGML_API struct ggml_backend_buffer * ggml_backend_alloc_ctx_tensors(struct ggml_context * ctx, struct ggml_backend * backend);
+# GGML_API struct ggml_backend_buffer * ggml_backend_alloc_ctx_tensors(struct ggml_context * ctx, ggml_backend_t backend);
 def ggml_backend_alloc_ctx_tensors(
     ctx: ggml_context_p, backend: ggml_backend_t
-) -> ggml_backend_buffer_p:
+) -> ggml_backend_buffer_t:
     return lib.ggml_backend_alloc_ctx_tensors(ctx, backend)
 
 
-lib.ggml_backend_alloc_ctx_tensors.argtypes = [
-    ggml_context_p,
-    ggml_backend_t,
-]
-lib.ggml_backend_alloc_ctx_tensors.restype = ggml_backend_buffer_p
+lib.ggml_backend_alloc_ctx_tensors.argtypes = [ggml_context_p, ggml_backend_t]
+lib.ggml_backend_alloc_ctx_tensors.restype = ggml_backend_buffer_t
+
 
 #####################################################
 # GGML Backend API
@@ -9045,10 +8876,7 @@ lib.ggml_backend_alloc_ctx_tensors.restype = ggml_backend_buffer_p
 # typedef struct ggml_backend_buffer * ggml_backend_buffer_t;
 # typedef struct ggml_backend * ggml_backend_t;
 # typedef void * ggml_backend_graph_plan_t;
-ggml_backend_buffer_type_t = ctypes.c_void_p
-ggml_backend_buffer_t = ctypes.c_void_p
-# ggml_backend_t = ctypes.c_void_p
-ggml_backend_graph_plan_t = ctypes.c_void_p
+ggml_backend_graph_plan_t: TypeAlias = ctypes.c_void_p
 
 # //
 # // Backend buffer
@@ -9599,7 +9427,7 @@ lib.ggml_backend_cpu_set_n_threads.restype = None
 # GGML_API           void ggml_backend_cpu_set_abort_callback(ggml_backend_t backend_cpu, ggml_abort_callback abort_callback, void * abort_callback_data);
 def ggml_backend_cpu_set_abort_callback(
     backend_cpu: ggml_backend_t,
-    abort_callback, # type: ignore
+    abort_callback,  # type: ignore
     abort_callback_data: ctypes.c_void_p,
 ):
     return lib.ggml_backend_cpu_set_abort_callback(
@@ -9751,11 +9579,7 @@ lib.ggml_backend_reg_alloc_buffer.restype = ggml_backend_buffer_t
 
 #     // in build_graph:
 #     build_graph(...) {
-#         // allocating tensors in a specific backend (optional, recommended: pre-allocate inputs in a different buffer)
-#         alloc_cpu = ggml_backend_sched_get_allocr(sched, backend_cpu);
-#         ggml_allocr_alloc(alloc_cpu, tensor);
-
-#         // manually assigning nodes to a backend (optional, shouldn't be needed in most cases)
+#         // manually assign nodes to a backend (optional, should not be needed in most cases)
 #         struct ggml_tensor * node = ggml_mul_mat(ctx, ...);
 #         ggml_backend_sched_set_node_backend(sched, node, backend_gpu);
 #     }
@@ -9783,8 +9607,7 @@ ggml_backend_sched_t = ctypes.c_void_p
 # //
 # typedef bool (*ggml_backend_sched_eval_callback)(struct ggml_tensor * t, bool ask, void * user_data);
 ggml_backend_sched_eval_callback = ctypes.CFUNCTYPE(
-    ctypes.c_bool,
-    ctypes.POINTER(ggml_tensor), ctypes.c_bool, ctypes.c_void_p
+    ctypes.c_bool, ctypes.POINTER(ggml_tensor), ctypes.c_bool, ctypes.c_void_p
 )
 
 
@@ -9820,19 +9643,20 @@ lib.ggml_backend_sched_free.restype = None
 
 
 # // Initialize backend buffers from a measure graph
-# GGML_API void                  ggml_backend_sched_init_measure(ggml_backend_sched_t sched, struct ggml_cgraph * measure_graph);
-def ggml_backend_sched_init_measure(
+# GGML_API bool                  ggml_backend_sched_reserve(ggml_backend_sched_t sched, struct ggml_cgraph * measure_graph);
+def ggml_backend_sched_reserve(
     sched: ggml_backend_sched_t,
     measure_graph: ggml_cgraph_p,
-):
-    return lib.ggml_backend_sched_init_measure(sched, measure_graph)
+) -> bool:
+    """Initialize backend buffers from a measure graph."""
+    return lib.ggml_backend_sched_reserve(sched, measure_graph)
 
 
-lib.ggml_backend_sched_init_measure.argtypes = [
+lib.ggml_backend_sched_reserve.argtypes = [
     ggml_backend_sched_t,
     ctypes.POINTER(ggml_cgraph),
 ]
-lib.ggml_backend_sched_init_measure.restype = None
+lib.ggml_backend_sched_reserve.restype = ctypes.c_bool
 
 
 # // Get the number of splits of the last graph
@@ -9840,6 +9664,7 @@ lib.ggml_backend_sched_init_measure.restype = None
 def ggml_backend_sched_get_n_splits(
     sched: ggml_backend_sched_t,
 ) -> int:
+    """Get the number of splits of the last graph."""
     return lib.ggml_backend_sched_get_n_splits(sched)
 
 
@@ -9847,28 +9672,16 @@ lib.ggml_backend_sched_get_n_splits.argtypes = [ggml_backend_sched_t]
 lib.ggml_backend_sched_get_n_splits.restype = ctypes.c_int
 
 
-# GGML_API ggml_tallocr_t        ggml_backend_sched_get_tallocr(ggml_backend_sched_t sched, ggml_backend_t backend);
-def ggml_backend_sched_get_tallocr(
+# GGML_API size_t                ggml_backend_sched_get_buffer_size(ggml_backend_sched_t sched, ggml_backend_t backend);
+def ggml_backend_sched_get_buffer_size(
     sched: ggml_backend_sched_t,
     backend: ggml_backend_t,
-) -> ggml_tallocr_t:
-    return lib.ggml_backend_sched_get_tallocr(sched, backend)
+) -> int:
+    return lib.ggml_backend_sched_get_buffer_size(sched, backend)
 
 
-lib.ggml_backend_sched_get_tallocr.argtypes = [ggml_backend_sched_t, ggml_backend_t]
-lib.ggml_backend_sched_get_tallocr.restype = ggml_tallocr_t
-
-
-# GGML_API ggml_backend_buffer_t ggml_backend_sched_get_buffer (ggml_backend_sched_t sched, ggml_backend_t backend);
-def ggml_backend_sched_get_buffer(
-    sched: ggml_backend_sched_t,
-    backend: ggml_backend_t,
-) -> ggml_backend_buffer_t:
-    return lib.ggml_backend_sched_get_buffer(sched, backend)
-
-
-lib.ggml_backend_sched_get_buffer.argtypes = [ggml_backend_sched_t, ggml_backend_t]
-lib.ggml_backend_sched_get_buffer.restype = ggml_backend_buffer_t
+lib.ggml_backend_sched_get_buffer_size.argtypes = [ggml_backend_sched_t, ggml_backend_t]
+lib.ggml_backend_sched_get_buffer_size.restype = ctypes.c_size_t
 
 
 # GGML_API void                  ggml_backend_sched_set_node_backend(ggml_backend_sched_t sched, struct ggml_tensor * node, ggml_backend_t backend);
@@ -9905,10 +9718,12 @@ lib.ggml_backend_sched_get_node_backend.restype = ggml_backend_t
 
 # // Allocate and compute graph on the backend scheduler
 # GGML_API void                  ggml_backend_sched_graph_compute(ggml_backend_sched_t sched, struct ggml_cgraph * graph);
+# GGML_API bool                  ggml_backend_sched_graph_compute(ggml_backend_sched_t sched, struct ggml_cgraph * graph);
 def ggml_backend_sched_graph_compute(
     sched: ggml_backend_sched_t,
     graph: ggml_cgraph_p,
-):
+) -> bool:
+    """Allocate and compute graph on the backend scheduler."""
     return lib.ggml_backend_sched_graph_compute(sched, graph)
 
 
@@ -9916,14 +9731,15 @@ lib.ggml_backend_sched_graph_compute.argtypes = [
     ggml_backend_sched_t,
     ctypes.POINTER(ggml_cgraph),
 ]
-lib.ggml_backend_sched_graph_compute.restype = None
+lib.ggml_backend_sched_graph_compute.restype = ctypes.c_bool
 
 
-# // Reset all assignments and allocators - must be called before using the sched allocators to allocate inputs
+# // Reset all assignments and allocators - must be called before changing the node backends
 # GGML_API void                  ggml_backend_sched_reset(ggml_backend_sched_t sched);
 def ggml_backend_sched_reset(
     sched: ggml_backend_sched_t,
 ):
+    """Reset all assignments and allocators - must be called before changing the node backends."""
     return lib.ggml_backend_sched_reset(sched)
 
 
@@ -9935,7 +9751,7 @@ lib.ggml_backend_sched_reset.restype = None
 # GGML_API void                  ggml_backend_sched_set_eval_callback(ggml_backend_sched_t sched, ggml_backend_sched_eval_callback callback, void * user_data);
 def ggml_backend_sched_set_eval_callback(
     sched: ggml_backend_sched_t,
-    callback, # type: ignore
+    callback,  # type: ignore
     user_data: ctypes.c_void_p,
 ):
     return lib.ggml_backend_sched_set_eval_callback(sched, callback, user_data)
@@ -9943,7 +9759,7 @@ def ggml_backend_sched_set_eval_callback(
 
 lib.ggml_backend_sched_set_eval_callback.argtypes = [
     ggml_backend_sched_t,
-    ggml_backend_sched_eval_callback, # TODO: this may need to also accept NULL
+    ggml_backend_sched_eval_callback,  # TODO: this may need to also accept NULL
     ctypes.c_void_p,
 ]
 lib.ggml_backend_sched_set_eval_callback.restype = None
@@ -10014,7 +9830,7 @@ def ggml_backend_compare_graph_backend(
     backend1: ggml_backend_t,
     backend2: ggml_backend_t,
     graph: ggml_cgraph_p,
-    callback, # type: ignore
+    callback,  # type: ignore
     user_data: ctypes.c_void_p,
 ) -> bool:
     return lib.ggml_backend_compare_graph_backend(
@@ -10400,7 +10216,7 @@ ggml_backend_init_fn = ctypes.CFUNCTYPE(
 # GGML_CALL void ggml_backend_register(const char * name, ggml_backend_init_fn init_fn, ggml_backend_buffer_type_t default_buffer_type, void * user_data);
 def ggml_backend_register(
     name: bytes,
-    init_fn, # type: ignore
+    init_fn,  # type: ignore
     default_buffer_type: ggml_backend_buffer_type_t,
     user_data: ctypes.c_void_p,
 ):
@@ -10664,7 +10480,7 @@ GGML_METAL_MAX_COMMAND_BUFFERS = 32
 
 # GGML_API void ggml_backend_metal_log_set_callback(ggml_log_callback log_callback, void * user_data);
 def ggml_backend_metal_log_set_callback(
-    log_callback, # type: ignore
+    log_callback,  # type: ignore
     user_data: ctypes.c_void_p,
 ):
     return lib.ggml_backend_metal_log_set_callback(log_callback, user_data)
@@ -10815,6 +10631,7 @@ def ggml_cl_add(
 ):
     return lib.ggml_cl_add(src0, src1, dst)
 
+
 if GGML_USE_CLBLAST:
     lib.ggml_cl_add.argtypes = [
         ctypes.POINTER(ggml_tensor),
@@ -10933,118 +10750,181 @@ if GGML_USE_CLBLAST:
 
 #####################################################
 # GGML Vulkan API
-# source: ggml-vulkan.h
+# source: src/ggml-vulkan.h
 #####################################################
 
+GGML_HAS_VULKAN = hasattr(lib, "ggml_vk_init_cpu_assist")
 
-GGML_USE_VULKAN = hasattr(lib, "ggml_vk_init")
-
-
-# GGML_API void ggml_vk_init(void);
-def ggml_vk_init():
-    return lib.ggml_vk_init()
-
-
-if GGML_USE_VULKAN:
-    lib.ggml_vk_init.argtypes = []
-    lib.ggml_vk_init.restype = None
+# #define GGML_VK_NAME "Vulkan"
+# #define GGML_VK_MAX_DEVICES 16
+GGML_VK_NAME = "Vulkan"
+GGML_VK_MAX_DEVICES = 16
 
 
-# GGML_API void ggml_vk_preallocate_buffers_graph(struct ggml_tensor * node);
-def ggml_vk_preallocate_buffers_graph(
-    node: ggml_tensor_p,
-):
-    return lib.ggml_vk_preallocate_buffers_graph(node)
+# GGML_API void ggml_vk_init_cpu_assist(void);
+def ggml_vk_init_cpu_assist():
+    return lib.ggml_vk_init_cpu_assist()
 
 
-if GGML_USE_VULKAN:
-    lib.ggml_vk_preallocate_buffers_graph.argtypes = [
-        ctypes.POINTER(ggml_tensor),
+if GGML_HAS_VULKAN:
+    lib.ggml_vk_init_cpu_assist.argtypes = []
+    lib.ggml_vk_init_cpu_assist.restype = None
+
+
+# GGML_API void ggml_vk_preallocate_buffers_graph_cpu_assist(struct ggml_tensor * node);
+def ggml_vk_preallocate_buffers_graph_cpu_assist(node: ggml_tensor_p):
+    return lib.ggml_vk_preallocate_buffers_graph_cpu_assist(node)
+
+
+if GGML_HAS_VULKAN:
+    lib.ggml_vk_preallocate_buffers_graph_cpu_assist.argtypes = [
+        ctypes.POINTER(ggml_tensor)
     ]
-    lib.ggml_vk_preallocate_buffers_graph.restype = None
+    lib.ggml_vk_preallocate_buffers_graph_cpu_assist.restype = None
 
 
-# GGML_API void ggml_vk_preallocate_buffers(void);
-def ggml_vk_preallocate_buffers():
-    return lib.ggml_vk_preallocate_buffers()
+# GGML_API void ggml_vk_preallocate_buffers_cpu_assist(void);
+def ggml_vk_preallocate_buffers_cpu_assist():
+    return lib.ggml_vk_preallocate_buffers_cpu_assist()
 
 
-if GGML_USE_VULKAN:
-    lib.ggml_vk_preallocate_buffers.argtypes = []
-    lib.ggml_vk_preallocate_buffers.restype = None
+if GGML_HAS_VULKAN:
+    lib.ggml_vk_preallocate_buffers_cpu_assist.argtypes = []
+    lib.ggml_vk_preallocate_buffers_cpu_assist.restype = None
 
 
-# GGML_API void ggml_vk_build_graph(struct ggml_tensor * node, bool last_node);
-def ggml_vk_build_graph(
-    node: ggml_tensor_p,
-    last_node: bool,
-):
-    return lib.ggml_vk_build_graph(node, last_node)
+# GGML_API void ggml_vk_build_graph_cpu_assist(struct ggml_tensor * node, bool last_node);
+def ggml_vk_build_graph_cpu_assist(node: ggml_tensor_p, last_node: bool):
+    return lib.ggml_vk_build_graph_cpu_assist(node, last_node)
 
 
-if GGML_USE_VULKAN:
-    lib.ggml_vk_build_graph.argtypes = [
+if GGML_HAS_VULKAN:
+    lib.ggml_vk_build_graph_cpu_assist.argtypes = [
         ctypes.POINTER(ggml_tensor),
         ctypes.c_bool,
     ]
-    lib.ggml_vk_build_graph.restype = None
+    lib.ggml_vk_build_graph_cpu_assist.restype = None
 
 
-# GGML_API bool ggml_vk_compute_forward(struct ggml_compute_params * params, struct ggml_tensor * tensor);
-def ggml_vk_compute_forward(
-    params: ggml_compute_params_p,
-    tensor: ggml_tensor_p,
+# GGML_API bool ggml_vk_compute_forward_cpu_assist(struct ggml_compute_params * params, struct ggml_tensor * tensor);
+def ggml_vk_compute_forward_cpu_assist(
+    params: ggml_compute_params_p, tensor: ggml_tensor_p
 ) -> bool:
-    return lib.ggml_vk_compute_forward(params, tensor)
+    return lib.ggml_vk_compute_forward_cpu_assist(params, tensor)
 
-if GGML_USE_VULKAN:
-    lib.ggml_vk_compute_forward.argtypes = [
+
+if GGML_HAS_VULKAN:
+    lib.ggml_vk_compute_forward_cpu_assist.argtypes = [
         ctypes.POINTER(ggml_compute_params),
         ctypes.POINTER(ggml_tensor),
     ]
-    lib.ggml_vk_compute_forward.restype = ctypes.c_bool
+    lib.ggml_vk_compute_forward_cpu_assist.restype = ctypes.c_bool
+
+# #ifdef GGML_VULKAN_CHECK_RESULTS
+# void ggml_vk_check_results_1_cpu_assist(struct ggml_compute_params * params, struct ggml_tensor * tensor);
+# #endif
 
 
-# GGML_API void ggml_vk_graph_cleanup(void);
-def ggml_vk_graph_cleanup():
-    return lib.ggml_vk_graph_cleanup()
+# GGML_API void ggml_vk_graph_cleanup_cpu_assist(void);
+def ggml_vk_graph_cleanup_cpu_assist():
+    return lib.ggml_vk_graph_cleanup_cpu_assist()
 
 
-if GGML_USE_VULKAN:
-    lib.ggml_vk_graph_cleanup.argtypes = []
-    lib.ggml_vk_graph_cleanup.restype = None
+if GGML_HAS_VULKAN:
+    lib.ggml_vk_graph_cleanup_cpu_assist.argtypes = []
+    lib.ggml_vk_graph_cleanup_cpu_assist.restype = None
+
+
+# GGML_API void ggml_vk_free_cpu_assist(void);
+def ggml_vk_free_cpu_assist():
+    return lib.ggml_vk_free_cpu_assist()
+
+
+if GGML_HAS_VULKAN:
+    lib.ggml_vk_free_cpu_assist.argtypes = []
+    lib.ggml_vk_free_cpu_assist.restype = None
 
 
 # // backend API
-# GGML_API GGML_CALL ggml_backend_t ggml_backend_vk_init(void);
-def ggml_backend_vk_init() -> Optional[ggml_backend_t]:
-    return lib.ggml_backend_vk_init()
+# GGML_API GGML_CALL ggml_backend_t ggml_backend_vk_init(size_t dev_num);
+def ggml_backend_vk_init(
+    dev_num: Union[ctypes.c_size_t, int]
+) -> Optional[ggml_backend_t]:
+    return lib.ggml_backend_vk_init(dev_num)
 
 
-if GGML_USE_VULKAN:
-    lib.ggml_backend_vk_init.argtypes = []
+if GGML_HAS_VULKAN:
+    lib.ggml_backend_vk_init.argtypes = [ctypes.c_size_t]
     lib.ggml_backend_vk_init.restype = ggml_backend_t
 
 
 # GGML_API GGML_CALL bool ggml_backend_is_vk(ggml_backend_t backend);
-def ggml_backend_is_vk(
-    backend: ggml_backend_t,
-) -> bool:
+def ggml_backend_is_vk(backend: ggml_backend_t) -> bool:
     return lib.ggml_backend_is_vk(backend)
 
 
-if GGML_USE_VULKAN:
+if GGML_HAS_VULKAN:
     lib.ggml_backend_is_vk.argtypes = [ggml_backend_t]
     lib.ggml_backend_is_vk.restype = ctypes.c_bool
 
 
-# GGML_API GGML_CALL ggml_backend_buffer_type_t ggml_backend_vk_buffer_type(void);
-def ggml_backend_vk_buffer_type() -> ggml_backend_buffer_type_t:
-    return lib.ggml_backend_vk_buffer_type()
+# GGML_API GGML_CALL int  ggml_backend_vk_get_device_count(void);
+def ggml_backend_vk_get_device_count() -> int:
+    return lib.ggml_backend_vk_get_device_count()
 
 
-if GGML_USE_VULKAN:
-    lib.ggml_backend_vk_buffer_type.argtypes = []
+if GGML_HAS_VULKAN:
+    lib.ggml_backend_vk_get_device_count.argtypes = []
+    lib.ggml_backend_vk_get_device_count.restype = ctypes.c_int
+
+
+# GGML_API GGML_CALL void ggml_backend_vk_get_device_description(int device, char * description, size_t description_size);
+def ggml_backend_vk_get_device_description(
+    device: Union[ctypes.c_int, int],
+    description: bytes,
+    description_size: Union[ctypes.c_size_t, int],
+):
+    return lib.ggml_backend_vk_get_device_description(
+        device, description, description_size
+    )
+
+
+if GGML_HAS_VULKAN:
+    lib.ggml_backend_vk_get_device_description.argtypes = [
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_size_t,
+    ]
+    lib.ggml_backend_vk_get_device_description.restype = None
+
+
+# GGML_API GGML_CALL void ggml_backend_vk_get_device_memory(int device, size_t * free, size_t * total);
+def ggml_backend_vk_get_device_memory(
+    device: Union[ctypes.c_int, int],
+    free: "ctypes._Pointer[ctypes.c_size_t]",  # type: ignore
+    total: "ctypes._Pointer[ctypes.c_size_t]",  # type: ignore
+):
+    return lib.ggml_backend_vk_get_device_memory(device, free, total)
+
+
+if GGML_HAS_VULKAN:
+    lib.ggml_backend_vk_get_device_memory.argtypes = [
+        ctypes.c_int,
+        ctypes.POINTER(ctypes.c_size_t),
+        ctypes.POINTER(ctypes.c_size_t),
+    ]
+    lib.ggml_backend_vk_get_device_memory.restype = None
+
+
+# GGML_API GGML_CALL ggml_backend_buffer_type_t ggml_backend_vk_buffer_type(size_t dev_num);
+def ggml_backend_vk_buffer_type(
+    dev_num: Union[ctypes.c_size_t, int]
+) -> ggml_backend_buffer_type_t:
+    return lib.ggml_backend_vk_buffer_type(dev_num)
+
+
+if GGML_HAS_VULKAN:
+    lib.ggml_backend_vk_buffer_type.argtypes = [ctypes.c_size_t]
     lib.ggml_backend_vk_buffer_type.restype = ggml_backend_buffer_type_t
 
 
@@ -11054,10 +10934,9 @@ def ggml_backend_vk_host_buffer_type() -> ggml_backend_buffer_type_t:
     return lib.ggml_backend_vk_host_buffer_type()
 
 
-if GGML_USE_VULKAN:
+if GGML_HAS_VULKAN:
     lib.ggml_backend_vk_host_buffer_type.argtypes = []
     lib.ggml_backend_vk_host_buffer_type.restype = ggml_backend_buffer_type_t
-
 
 # TODO: Add ggml-sycl.h
 

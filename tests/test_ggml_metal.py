@@ -11,7 +11,6 @@ run_if_ggml_metal_available = pytest.mark.skipif(
     reason="METAL not available",
 )
 
-
 @run_if_ggml_metal_available
 def test_metal():
     n_tensors = 1 + 2 # input (x) and weights (a, b)
@@ -50,12 +49,19 @@ def test_metal():
 
     max_nodes = 4096
 
-    buf_size = ggml.ggml_tensor_overhead() * max_nodes + ggml.ggml_graph_overhead_custom(max_nodes, False)
+    buf_size = (
+        ggml.ggml_tensor_overhead() * max_nodes
+        + ggml.ggml_graph_overhead_custom(max_nodes, False)
+    )
     buf = (ctypes.c_uint8 * buf_size)()
 
-    def build_graph(x: ggml.ggml_tensor_p, a: ggml.ggml_tensor_p, b: ggml.ggml_tensor_p):
+    def build_graph(
+        x: ggml.ggml_tensor_p, a: ggml.ggml_tensor_p, b: ggml.ggml_tensor_p
+    ):
         params = ggml.ggml_init_params(
-            mem_size=buf_size, mem_buffer=ctypes.cast(buf, ctypes.c_void_p), no_alloc=True
+            mem_size=buf_size,
+            mem_buffer=ctypes.cast(buf, ctypes.c_void_p),
+            no_alloc=True,
         )
         ctx0 = ggml.ggml_init(params=params)
 
@@ -77,22 +83,15 @@ def test_metal():
 
         return gf
 
-    allocr = ggml.ggml_allocr_new_measure_from_backend(backend)
+    allocr = ggml.ggml_gallocr_new(ggml.ggml_backend_get_default_buffer_type(backend))
 
     gf = build_graph(x, a, b)
 
-    mem_size = ggml.ggml_allocr_alloc_graph(allocr, gf)
-
-    ggml.ggml_allocr_free(allocr)
-
-    buf_compute = ggml.ggml_backend_alloc_buffer(backend, mem_size)
-    allocr = ggml.ggml_allocr_new_from_buffer(buf_compute)
-
-    ggml.ggml_allocr_reset(allocr)
+    ggml.ggml_gallocr_reserve(allocr, gf)
 
     gf = build_graph(x, a, b)
 
-    ggml.ggml_allocr_alloc_graph(allocr, gf)
+    ggml.ggml_gallocr_alloc_graph(allocr, gf)
 
     ggml.ggml_backend_tensor_set(
         x,
@@ -106,11 +105,13 @@ def test_metal():
     f = ggml.ggml_graph_get_tensor(gf, b"f")
 
     output = np.zeros(1, dtype=np.single)
-    ggml.ggml_backend_tensor_get(f, ctypes.cast(output.ctypes.data, ctypes.c_void_p), 0, ggml.ggml_nbytes(x))
+    ggml.ggml_backend_tensor_get(
+        f, ctypes.cast(output.ctypes.data, ctypes.c_void_p), 0, ggml.ggml_nbytes(x)
+    )
 
     assert output[0] == 16.0
 
+    ggml.ggml_gallocr_free(allocr)
     ggml.ggml_backend_buffer_free(buffer)
-    ggml.ggml_backend_buffer_free(buf_compute)
     ggml.ggml_backend_free(backend)
     ggml.ggml_free(ctx)
