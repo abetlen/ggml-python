@@ -319,11 +319,10 @@ def slice_tensor(
 
 def setup_sigabrt_handler():
     if platform.system() == "Windows":
-        c_globals = ctypes.windll.kernel32
-        signal_type = signal.CTRL_C_EVENT
-    else:
-        c_globals = ctypes.CDLL(None)  # POSIX
-        signal_type = signal.SIGABRT
+        return
+
+    c_globals = ctypes.CDLL(None)  # POSIX
+    signal_type = signal.SIGABRT
 
     @ctypes.CFUNCTYPE(None, ctypes.c_int)
     def sigabrt_handler(sig):
