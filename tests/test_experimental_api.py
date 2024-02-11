@@ -73,8 +73,9 @@ def test_experimental_api():
 
         graph = ggml_cgraph(f)
 
-        gallocr = backend.new_graph_allocator()
-        gallocr.allocate_graph(graph)
+        gallocr = backend.new_gallocr()
+        gallocr.reserve(graph)
+        gallocr.alloc_graph(graph)
 
         x[0] = 2.0
 
