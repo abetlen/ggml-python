@@ -75,9 +75,9 @@ class Backend:
     def __init__(self, backend: ggml.ggml_backend_t):
         self.backend = backend
 
-    def alloc_ctx_tensors(self, ctx: Optional[Context] = None):
+    def alloc_ctx_tensors(self, ctx: Optional[Context] = None) -> "BackendBuffer":
         ctx = ctx or Context.current_context()
-        return ggml.ggml_backend_alloc_ctx_tensors(ctx.context, self.backend)
+        return BackendBuffer(ggml.ggml_backend_alloc_ctx_tensors(ctx.context, self.backend))
 
     @staticmethod
     def cpu():
