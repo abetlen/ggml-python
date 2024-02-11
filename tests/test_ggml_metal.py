@@ -4,6 +4,10 @@ import ctypes
 import pytest
 import numpy as np
 
+from ggml.utils import setup_sigabrt_handler
+
+setup_sigabrt_handler()
+
 ggml_metal_available = ggml.GGML_USE_METAL
 
 run_if_ggml_metal_available = pytest.mark.skipif(
