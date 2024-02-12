@@ -687,7 +687,7 @@ ggml_tensor._fields_ = [
 
 GGML_TENSOR_SIZE = ctypes.sizeof(ggml_tensor)
 
-ggml_tensor_p: TypeAlias = "ctypes._Pointer[ggml_tensor]" # type: ignore
+ggml_tensor_p: TypeAlias = "ctypes._Pointer[ggml_tensor]"  # type: ignore
 """ctypes pointer to a [ggml_tensor][ggml.ggml_tensor]
 
 Can be dereferenced to a [ggml_tensor][ggml.ggml_tensor] object using
@@ -816,7 +816,7 @@ class ggml_cgraph(ctypes.Structure):
     ]
 
 
-ggml_cgraph_p: TypeAlias = "ctypes._Pointer[ggml_cgraph]" # type: ignore
+ggml_cgraph_p: TypeAlias = "ctypes._Pointer[ggml_cgraph]"  # type: ignore
 """ctypes pointer to a [ggml_cgraph][ggml.ggml_cgraph]
 
 Can be dereferenced to a [ggml_cgraph][ggml.ggml_cgraph] object using
@@ -8628,6 +8628,15 @@ lib.ggml_cpu_has_vsx.argtypes = []
 lib.ggml_cpu_has_vsx.restype = ctypes.c_int
 
 
+# GGML_API int ggml_cpu_has_matmul_int8(void);
+def ggml_cpu_has_matmul_int8() -> int:
+    return lib.ggml_cpu_has_matmul_int8()
+
+
+lib.ggml_cpu_has_matmul_int8.argtypes = []
+lib.ggml_cpu_has_matmul_int8.restype = ctypes.c_int
+
+
 # //
 # // Internal types and functions exposed for tests and benchmarks
 # //
@@ -8642,9 +8651,18 @@ ggml_from_float_t = ctypes.CFUNCTYPE(
     None, ctypes.POINTER(ctypes.c_float), ctypes.c_void_p, ctypes.c_int
 )
 
-# typedef void (*ggml_vec_dot_t)(const int n, float * s, const void * x, const void * y);
+# typedef void (*ggml_vec_dot_t)   (int n, float * GGML_RESTRICT s, size_t bs, const void * GGML_RESTRICT x, size_t bx,
+#                                   const void * GGML_RESTRICT y, size_t by, int nrc);
 ggml_vec_dot_t = ctypes.CFUNCTYPE(
-    None, ctypes.c_int, ctypes.POINTER(ctypes.c_float), ctypes.c_void_p, ctypes.c_void_p
+    None,
+    ctypes.c_int,
+    ctypes.POINTER(ctypes.c_float),
+    ctypes.c_size_t,
+    ctypes.c_void_p,
+    ctypes.c_size_t,
+    ctypes.c_void_p,
+    ctypes.c_size_t,
+    ctypes.c_int,
 )
 
 
@@ -8658,6 +8676,7 @@ ggml_vec_dot_t = ctypes.CFUNCTYPE(
 #     ggml_from_float_t from_float_reference;
 #     ggml_vec_dot_t    vec_dot;
 #     enum ggml_type    vec_dot_type;
+#     int64_t           nrows; // number of rows to process simultaneously;
 # } ggml_type_traits_t;
 class ggml_type_traits_t(ctypes.Structure):
     _fields_ = [
@@ -8670,6 +8689,7 @@ class ggml_type_traits_t(ctypes.Structure):
         ("from_float_reference", ggml_from_float_t),
         ("vec_dot", ggml_vec_dot_t),
         ("vec_dot_type", ctypes.c_int),
+        ("nrows", ctypes.c_int64),
     ]
 
 
@@ -8820,7 +8840,8 @@ lib.ggml_gallocr_reserve_n.restype = ctypes.c_bool
 # GGML_API bool ggml_gallocr_alloc_graph(ggml_gallocr_t galloc, struct ggml_cgraph * graph);
 def ggml_gallocr_alloc_graph(galloc: ggml_gallocr, graph: ggml_cgraph_p) -> bool:
     """automatic reallocation if the topology changes when using a single buffer
-    returns false if using multiple buffers and a re-allocation is needed (call ggml_gallocr_reserve_n first to set the node buffers)"""
+    returns false if using multiple buffers and a re-allocation is needed (call ggml_gallocr_reserve_n first to set the node buffers)
+    """
     return lib.ggml_gallocr_alloc_graph(galloc, graph)
 
 
@@ -10469,8 +10490,6 @@ GGML_USE_METAL = hasattr(lib, "ggml_backend_metal_init")
 # // max memory buffers that can be mapped to the device
 # #define GGML_METAL_MAX_BUFFERS 64
 GGML_METAL_MAX_BUFFERS = 64
-# #define GGML_METAL_MAX_COMMAND_BUFFERS 32
-GGML_METAL_MAX_COMMAND_BUFFERS = 32
 
 # //
 # // backend API
