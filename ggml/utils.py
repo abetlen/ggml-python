@@ -325,7 +325,7 @@ def setup_sigabrt_handler():
     signal_type = signal.SIGABRT
 
     @ctypes.CFUNCTYPE(None, ctypes.c_int)
-    def sigabrt_handler(sig):
+    def sigabrt_handler(sig): # type: ignore
         traceback.print_stack()
         raise Exception("GGML SIGABRT")
 
