@@ -10753,7 +10753,7 @@ if GGML_USE_CLBLAST:
 # source: src/ggml-vulkan.h
 #####################################################
 
-GGML_HAS_VULKAN = hasattr(lib, "ggml_vk_init_cpu_assist")
+GGML_USE_VULKAN = hasattr(lib, "ggml_vk_init_cpu_assist")
 
 # #define GGML_VK_NAME "Vulkan"
 # #define GGML_VK_MAX_DEVICES 16
@@ -10766,7 +10766,7 @@ def ggml_vk_init_cpu_assist():
     return lib.ggml_vk_init_cpu_assist()
 
 
-if GGML_HAS_VULKAN:
+if GGML_USE_VULKAN:
     lib.ggml_vk_init_cpu_assist.argtypes = []
     lib.ggml_vk_init_cpu_assist.restype = None
 
@@ -10776,7 +10776,7 @@ def ggml_vk_preallocate_buffers_graph_cpu_assist(node: ggml_tensor_p):
     return lib.ggml_vk_preallocate_buffers_graph_cpu_assist(node)
 
 
-if GGML_HAS_VULKAN:
+if GGML_USE_VULKAN:
     lib.ggml_vk_preallocate_buffers_graph_cpu_assist.argtypes = [
         ctypes.POINTER(ggml_tensor)
     ]
@@ -10788,7 +10788,7 @@ def ggml_vk_preallocate_buffers_cpu_assist():
     return lib.ggml_vk_preallocate_buffers_cpu_assist()
 
 
-if GGML_HAS_VULKAN:
+if GGML_USE_VULKAN:
     lib.ggml_vk_preallocate_buffers_cpu_assist.argtypes = []
     lib.ggml_vk_preallocate_buffers_cpu_assist.restype = None
 
@@ -10798,7 +10798,7 @@ def ggml_vk_build_graph_cpu_assist(node: ggml_tensor_p, last_node: bool):
     return lib.ggml_vk_build_graph_cpu_assist(node, last_node)
 
 
-if GGML_HAS_VULKAN:
+if GGML_USE_VULKAN:
     lib.ggml_vk_build_graph_cpu_assist.argtypes = [
         ctypes.POINTER(ggml_tensor),
         ctypes.c_bool,
@@ -10813,7 +10813,7 @@ def ggml_vk_compute_forward_cpu_assist(
     return lib.ggml_vk_compute_forward_cpu_assist(params, tensor)
 
 
-if GGML_HAS_VULKAN:
+if GGML_USE_VULKAN:
     lib.ggml_vk_compute_forward_cpu_assist.argtypes = [
         ctypes.POINTER(ggml_compute_params),
         ctypes.POINTER(ggml_tensor),
@@ -10830,7 +10830,7 @@ def ggml_vk_graph_cleanup_cpu_assist():
     return lib.ggml_vk_graph_cleanup_cpu_assist()
 
 
-if GGML_HAS_VULKAN:
+if GGML_USE_VULKAN:
     lib.ggml_vk_graph_cleanup_cpu_assist.argtypes = []
     lib.ggml_vk_graph_cleanup_cpu_assist.restype = None
 
@@ -10840,7 +10840,7 @@ def ggml_vk_free_cpu_assist():
     return lib.ggml_vk_free_cpu_assist()
 
 
-if GGML_HAS_VULKAN:
+if GGML_USE_VULKAN:
     lib.ggml_vk_free_cpu_assist.argtypes = []
     lib.ggml_vk_free_cpu_assist.restype = None
 
@@ -10853,7 +10853,7 @@ def ggml_backend_vk_init(
     return lib.ggml_backend_vk_init(dev_num)
 
 
-if GGML_HAS_VULKAN:
+if GGML_USE_VULKAN:
     lib.ggml_backend_vk_init.argtypes = [ctypes.c_size_t]
     lib.ggml_backend_vk_init.restype = ggml_backend_t
 
@@ -10863,7 +10863,7 @@ def ggml_backend_is_vk(backend: ggml_backend_t) -> bool:
     return lib.ggml_backend_is_vk(backend)
 
 
-if GGML_HAS_VULKAN:
+if GGML_USE_VULKAN:
     lib.ggml_backend_is_vk.argtypes = [ggml_backend_t]
     lib.ggml_backend_is_vk.restype = ctypes.c_bool
 
@@ -10873,7 +10873,7 @@ def ggml_backend_vk_get_device_count() -> int:
     return lib.ggml_backend_vk_get_device_count()
 
 
-if GGML_HAS_VULKAN:
+if GGML_USE_VULKAN:
     lib.ggml_backend_vk_get_device_count.argtypes = []
     lib.ggml_backend_vk_get_device_count.restype = ctypes.c_int
 
@@ -10889,7 +10889,7 @@ def ggml_backend_vk_get_device_description(
     )
 
 
-if GGML_HAS_VULKAN:
+if GGML_USE_VULKAN:
     lib.ggml_backend_vk_get_device_description.argtypes = [
         ctypes.c_int,
         ctypes.c_char_p,
@@ -10907,7 +10907,7 @@ def ggml_backend_vk_get_device_memory(
     return lib.ggml_backend_vk_get_device_memory(device, free, total)
 
 
-if GGML_HAS_VULKAN:
+if GGML_USE_VULKAN:
     lib.ggml_backend_vk_get_device_memory.argtypes = [
         ctypes.c_int,
         ctypes.POINTER(ctypes.c_size_t),
@@ -10923,7 +10923,7 @@ def ggml_backend_vk_buffer_type(
     return lib.ggml_backend_vk_buffer_type(dev_num)
 
 
-if GGML_HAS_VULKAN:
+if GGML_USE_VULKAN:
     lib.ggml_backend_vk_buffer_type.argtypes = [ctypes.c_size_t]
     lib.ggml_backend_vk_buffer_type.restype = ggml_backend_buffer_type_t
 
@@ -10934,7 +10934,7 @@ def ggml_backend_vk_host_buffer_type() -> ggml_backend_buffer_type_t:
     return lib.ggml_backend_vk_host_buffer_type()
 
 
-if GGML_HAS_VULKAN:
+if GGML_USE_VULKAN:
     lib.ggml_backend_vk_host_buffer_type.argtypes = []
     lib.ggml_backend_vk_host_buffer_type.restype = ggml_backend_buffer_type_t
 

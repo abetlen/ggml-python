@@ -23,6 +23,9 @@ build.cublas: ${submodules} update-pip ## Build ggml-python with cublas / cuda s
 build.clblast: ${submodules} update-pip ## Build ggml-python with clblast / opencl support
 	CMAKE_ARGS="-DGGML_CLBLAST=On" python3 -m pip install --verbose --editable .
 
+build.vulkan: ${submodules} update-pip ## Build ggml-python with clblast / opencl support
+	CMAKE_ARGS="-DGGML_VULKAN=On" python3 -m pip install --verbose --editable .
+
 sdist: ## Build source distribution
 	python3 -m build --sdist
 
