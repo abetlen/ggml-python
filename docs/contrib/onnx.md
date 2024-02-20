@@ -141,3 +141,12 @@ This table is generated from [`operator_sets.h`](https://github.com/onnx/onnx/bl
 | [Unsqueeze](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Unsqueeze)                   | :white_check_mark: |                  |
 | ~~[Upsample](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Upsample)~~                 |  :x: (Deprecated)  |                  |
 | [Xor](https://github.com/onnx/onnx/blob/main/docs/Operators.md#Xor)                               | :white_check_mark: |                  |
+
+## Acknowledgements
+
+The GGML ONNX runtime is built on top of the [ONNX](https://onnx.ai/) and [GGML](ggml.ai)
+
+The core of the runtime was written by Andrei Betlen (@abetlen), David Miller (@dmille), and 
+Mohammadreza Anvari (@mrezanvari)
+
+This work would also not be possible without the ggml community, in particular @slaren for their work on the ggml backends and memory allocation api.
