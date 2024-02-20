@@ -8790,7 +8790,7 @@ ggml_gallocr: TypeAlias = ctypes.c_void_p
 
 
 # GGML_API ggml_gallocr_t ggml_gallocr_new(ggml_backend_buffer_type_t buft);
-def ggml_gallocr_new(buft: ggml_backend_buffer_type_t) -> ggml_gallocr:
+def ggml_gallocr_new(buft: ggml_backend_buffer_type_t) -> Optional[ggml_gallocr]:
     return lib.ggml_gallocr_new(buft)
 
 
