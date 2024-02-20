@@ -264,3 +264,99 @@ def test_ggml_cpu_backend():
     ggml.ggml_backend_buffer_free(buffer)
     ggml.ggml_backend_free(backend)
     ggml.ggml_free(ctx)
+
+
+def test_graph_chaining():
+    """Test for chaining together mulitple ggml graphs
+    """
+    backend = ggml.ggml_backend_cpu_init()
+    assert backend is not None
+
+    no_op_n_calls = 0
+
+    @ggml.ggml_custom1_op_t
+    def no_op(
+        tensor_out: ggml.ggml_tensor_p,
+        tensor_in: ggml.ggml_tensor_p,
+        ith: int,
+        nth: int,
+        userdata: Optional[ctypes.c_void_p],
+    ):
+        data = (ctypes.c_uint8 * ggml.ggml_nbytes(tensor_in))()
+        ggml.ggml_backend_tensor_get(
+            tensor_in,
+            ctypes.cast(data, ctypes.c_void_p),
+            0,
+            ggml.ggml_nbytes(tensor_in),
+        )
+        tensor_out_size = ggml.ggml_nbytes(tensor_out)
+        ggml.ggml_backend_tensor_set(
+            tensor_out,
+            ctypes.cast(data, ctypes.c_void_p),
+            0,
+            tensor_out_size,
+        )
+        nonlocal no_op_n_calls
+        no_op_n_calls += 1
+
+    params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None, no_alloc=True)
+    ctx = ggml.ggml_init(params=params)
+    assert ctx is not None
+    assert ggml.ggml_used_mem(ctx) == 0
+    x = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
+    a = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
+    b = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
+    x2 = ggml.ggml_mul(ctx, x, x)
+    x2 = ggml.ggml_map_custom1(ctx, x2, no_op, 1, None)
+    f = ggml.ggml_add(ctx, ggml.ggml_mul(ctx, a, x2), b)
+
+    buffer = ggml.ggml_backend_alloc_ctx_tensors(ctx, backend)
+
+    gf = ggml.ggml_new_graph(ctx)
+    ggml.ggml_build_forward_expand(gf, f)
+
+    ggml.ggml_set_f32(x, 2.0)
+    ggml.ggml_set_f32(a, 3.0)
+    ggml.ggml_set_f32(b, 4.0)
+
+    ggml.ggml_graph_compute_with_ctx(ctx, gf, 1)
+    output = ggml.ggml_get_f32_1d(f, 0)
+    assert output == 16.0
+    assert no_op_n_calls == 1
+
+    params_eval = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None, no_alloc=True)
+    ctx_eval = ggml.ggml_init(params=params_eval)
+    assert ctx_eval is not None
+
+    f_copy = ggml.ggml_dup_tensor(ctx_eval, f)
+    f_buffer = ggml.ggml_backend_alloc_buffer(backend, ggml.ggml_nbytes(f_copy))
+    tallocr = ggml.ggml_tallocr_new(f_buffer)
+    ggml.ggml_tallocr_alloc(tallocr, f_copy)
+    ggml.ggml_tallocr_free(tallocr)
+
+    ggml.ggml_backend_tensor_copy(f, f_copy)
+
+    params2 = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None, no_alloc=True)
+
+    ctx2 = ggml.ggml_init(params=params2)
+    assert ctx2 is not None
+
+    g = ggml.ggml_add(ctx2, f_copy, a)
+
+    buffer2 = ggml.ggml_backend_alloc_ctx_tensors(ctx2, backend)
+
+    gf2 = ggml.ggml_new_graph(ctx2)
+    ggml.ggml_build_forward_expand(gf2, g)
+
+    ggml.ggml_graph_compute_with_ctx(ctx2, gf2, 1)
+
+    output = ggml.ggml_get_f32_1d(g, 0)
+
+    assert output == 19.0
+    assert no_op_n_calls == 1
+
+    ggml.ggml_free(ctx)
+    ggml.ggml_free(ctx2)
+    ggml.ggml_backend_buffer_free(buffer)
+    ggml.ggml_backend_buffer_free(buffer2)
+    ggml.ggml_backend_free(backend)
