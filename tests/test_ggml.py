@@ -32,6 +32,46 @@ def test_ggml():
     ggml.ggml_free(ctx)
 
 
+def test_ggml_pythonic():
+    import contextlib
+
+    with contextlib.ExitStack() as stack:
+        backend = ggml.ggml_backend_cpu_init()
+        assert backend is not None
+        stack.callback(ggml.ggml_backend_free, backend)
+
+        params = ggml.ggml_init_params(
+            mem_size=ggml.ggml_tensor_overhead() * 6 + ggml.ggml_graph_overhead(),
+            no_alloc=True,
+        )
+        ctx = ggml.ggml_init(params)
+        assert ctx is not None
+        stack.callback(ggml.ggml_free, ctx)
+
+        x = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
+        a = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
+        b = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
+        x2 = ggml.ggml_mul(ctx, x, x)
+        f = ggml.ggml_add(ctx, ggml.ggml_mul(ctx, a, x2), b)
+        gf = ggml.ggml_new_graph(ctx)
+
+        ggml.ggml_build_forward_expand(gf, f)
+
+        buffer = ggml.ggml_backend_alloc_ctx_tensors(ctx, backend)
+        assert buffer is not None
+        stack.callback(ggml.ggml_backend_buffer_free, buffer)
+
+        ggml.ggml_set_f32(x, 2.0)
+        ggml.ggml_set_f32(a, 3.0)
+        ggml.ggml_set_f32(b, 4.0)
+
+        ggml.ggml_backend_graph_compute(backend, gf)
+
+        output = ggml.ggml_get_f32_1d(f, 0)
+
+        assert output == 16.0
+
+
 def test_ggml_custom_op():
     params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
     ctx = ggml.ggml_init(params)
