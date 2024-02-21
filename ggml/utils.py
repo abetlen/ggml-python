@@ -1,5 +1,6 @@
 """Utility functions for ggml-python.
 """
+from __future__ import annotations
 
 import enum
 import ctypes
@@ -42,6 +43,7 @@ GGML_TYPE_TO_NUMPY_DTYPE = {v: k for k, v in NUMPY_DTYPE_TO_GGML_TYPE.items()}
 
 def to_numpy(
     tensor: ggml.ggml_tensor_p,
+    shape: Optional[Tuple[int, ...]] = None,
 ) -> npt.NDArray[Any]:
     """Get the data of a ggml tensor as a numpy array.
 
@@ -64,14 +66,15 @@ def to_numpy(
     data = ggml.ggml_get_data(tensor)
     if data is None:
         raise ValueError("tensor data is None")
-    array = ctypes.cast(data, ctypes.POINTER(ctypes_type))
+    array = (ctypes_type * ggml.ggml_nelements(tensor)).from_address(data)
     n_dims = ggml.ggml_n_dims(tensor)
-    shape = tuple(reversed(tensor.contents.ne[:n_dims]))
-    output = np.ctypeslib.as_array(array, shape=shape)
+    shape_ = tuple(reversed(tensor.contents.ne[:n_dims]))
+    strides = tuple(reversed(tensor.contents.nb[:n_dims]))
+    output = np.ctypeslib.as_array(array)
     if ggml_type == GGML_TYPE.F16:
         output.dtype = np.float16  # type: ignore
     return np.lib.stride_tricks.as_strided(
-        output, strides=tuple(reversed(tensor.contents.nb[:n_dims]))
+        output, shape=shape if shape is not None else shape_, strides=strides
     )
 
 
@@ -127,12 +130,12 @@ def copy_to_cpu(
 
 
 def quantize_0(
-    data_f32: ggml.CFloatArray,
+    data_f32: ggml.CtypesArray[ctypes.c_float],
     nelements: int,
     ne0: int,
     ttype: GGML_TYPE,
-    hist: Optional[ggml.CInt64Array] = None,
-    work: Optional[ggml.CFloatArray] = None,
+    hist: Optional[ggml.CtypesArray[ctypes.c_int64]] = None,
+    work: Optional[ggml.CtypesArray[ctypes.c_float]] = None,
 ):
     """Quantize a float32 array.
 
@@ -167,7 +170,7 @@ def quantize_0(
 
 
 def quantize_row(
-    data_f32: ggml.CFloatArray,
+    data_f32: ggml.CtypesArray[ctypes.c_float],
     nelements: int,
     ttype: GGML_TYPE,
     work: Optional[ctypes.c_void_p] = None,
@@ -233,7 +236,7 @@ def get_shape(tensor: ggml.ggml_tensor_p) -> Tuple[int, ...]:
     Returns:
         Shape of tensor
     """
-    return tensor.contents.ne[: ggml.ggml_n_dims(tensor)]
+    return tuple(tensor.contents.ne[: ggml.ggml_n_dims(tensor)])
 
 
 def get_strides(tensor: ggml.ggml_tensor_p) -> Tuple[int, ...]:
@@ -245,7 +248,7 @@ def get_strides(tensor: ggml.ggml_tensor_p) -> Tuple[int, ...]:
     Returns:
         Strides of tensor
     """
-    return tensor.contents.nb[: ggml.ggml_n_dims(tensor)]
+    return tuple(tensor.contents.nb[: ggml.ggml_n_dims(tensor)])
 
 
 def slice_tensor(
@@ -338,7 +341,7 @@ def setup_sigabrt_handler():
     signal_type = signal.SIGABRT
 
     @ctypes.CFUNCTYPE(None, ctypes.c_int)
-    def sigabrt_handler(sig): # type: ignore
+    def sigabrt_handler(sig):  # type: ignore
         traceback.print_stack()
         raise Exception("GGML SIGABRT")
 

@@ -11,7 +11,7 @@ def test_ggml():
     assert ggml.GGML_FILE_VERSION == 1
 
     params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
-    ctx = ggml.ggml_init(params=params)
+    ctx = ggml.ggml_init(params)
     assert ctx is not None
     assert ggml.ggml_used_mem(ctx) == 0
     x = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
@@ -32,9 +32,49 @@ def test_ggml():
     ggml.ggml_free(ctx)
 
 
+def test_ggml_pythonic():
+    import contextlib
+
+    with contextlib.ExitStack() as stack:
+        backend = ggml.ggml_backend_cpu_init()
+        assert backend is not None
+        stack.callback(ggml.ggml_backend_free, backend)
+
+        params = ggml.ggml_init_params(
+            mem_size=ggml.ggml_tensor_overhead() * 6 + ggml.ggml_graph_overhead(),
+            no_alloc=True,
+        )
+        ctx = ggml.ggml_init(params)
+        assert ctx is not None
+        stack.callback(ggml.ggml_free, ctx)
+
+        x = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
+        a = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
+        b = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
+        x2 = ggml.ggml_mul(ctx, x, x)
+        f = ggml.ggml_add(ctx, ggml.ggml_mul(ctx, a, x2), b)
+        gf = ggml.ggml_new_graph(ctx)
+
+        ggml.ggml_build_forward_expand(gf, f)
+
+        buffer = ggml.ggml_backend_alloc_ctx_tensors(ctx, backend)
+        assert buffer is not None
+        stack.callback(ggml.ggml_backend_buffer_free, buffer)
+
+        ggml.ggml_set_f32(x, 2.0)
+        ggml.ggml_set_f32(a, 3.0)
+        ggml.ggml_set_f32(b, 4.0)
+
+        ggml.ggml_backend_graph_compute(backend, gf)
+
+        output = ggml.ggml_get_f32_1d(f, 0)
+
+        assert output == 16.0
+
+
 def test_ggml_custom_op():
     params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
-    ctx = ggml.ggml_init(params=params)
+    ctx = ggml.ggml_init(params)
     assert ctx is not None
     x_in = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
 
@@ -58,76 +98,6 @@ def test_ggml_custom_op():
     ggml.ggml_graph_compute_with_ctx(ctx, gf, 1)
     output = ggml.ggml_get_f32_1d(x_out, 0)
     assert output == 42.0
-    ggml.ggml_free(ctx)
-
-
-def test_ggml_min_alloc():
-    max_overhead = (
-        ggml.ggml_tensor_overhead() * ggml.GGML_DEFAULT_GRAPH_SIZE
-        + ggml.ggml_graph_overhead()
-    )
-    assert max_overhead < 16 * 1024 * 1024  # 16MB
-    params = ggml.ggml_init_params(
-        mem_size=max_overhead, mem_buffer=None, no_alloc=True
-    )
-    ctx = ggml.ggml_init(params=params)
-    assert ctx is not None
-
-    def build_graph(ctx: ggml.ggml_context_p):
-        x = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
-        ggml.ggml_set_name(x, b"x")
-        a = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
-        ggml.ggml_set_name(a, b"a")
-        b = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
-        ggml.ggml_set_name(b, b"b")
-        x2 = ggml.ggml_mul(ctx, x, x)
-        tmp = ggml.ggml_mul(ctx, a, x2)
-        f = ggml.ggml_add(ctx, tmp, b)
-        ggml.ggml_set_name(f, b"f")
-        gf = ggml.ggml_new_graph(ctx)
-        ggml.ggml_build_forward_expand(gf, f)
-        return gf
-
-    gf = build_graph(ctx)
-    gp = ggml.ggml_graph_plan(gf, 1)
-
-    n_nodes = gf.contents.n_nodes
-    nodes_size = sum(ggml.ggml_nbytes_pad(gf.contents.nodes[i]) for i in range(n_nodes))
-    n_leafs = gf.contents.n_leafs
-    leafs_size = sum(ggml.ggml_nbytes_pad(gf.contents.leafs[i]) for i in range(n_leafs))
-
-    mem_size = (
-        nodes_size
-        + leafs_size
-        + ggml.ggml_tensor_overhead() * (n_nodes + n_leafs)
-        + ggml.ggml_graph_overhead()
-    )
-
-    ggml.ggml_free(ctx)
-
-    assert n_nodes == 3  # 3 nodes: mul, mul, add
-    assert n_leafs == 3  # 3 leafs: x, a, b
-
-    params = ggml.ggml_init_params(mem_size=mem_size, mem_buffer=None)
-    ctx = ggml.ggml_init(params=params)
-    assert ctx is not None
-    gf = build_graph(ctx)
-
-    a = ggml.ggml_get_tensor(ctx, b"a")
-    b = ggml.ggml_get_tensor(ctx, b"b")
-    x = ggml.ggml_get_tensor(ctx, b"x")
-    f = ggml.ggml_get_tensor(ctx, b"f")
-
-    assert a is not None and b is not None and x is not None and f is not None
-
-    ggml.ggml_set_f32(x, 2.0)
-    ggml.ggml_set_f32(a, 3.0)
-    ggml.ggml_set_f32(b, 4.0)
-
-    gp = ggml.ggml_graph_plan(gf, 1)
-    ggml.ggml_graph_compute(gf, ctypes.pointer(gp))
-    output = ggml.ggml_get_f32_1d(f, 0)
-    assert output == 16.0
     ggml.ggml_free(ctx)
 
 
@@ -166,7 +136,7 @@ def test_ggml_cpu_backend():
     params = ggml.ggml_init_params(
         mem_size=ggml.ggml_tensor_overhead() * n_tensors, mem_buffer=None, no_alloc=True
     )
-    ctx = ggml.ggml_init(params=params)
+    ctx = ggml.ggml_init(params)
     assert ctx is not None
 
     backend = ggml.ggml_backend_cpu_init()
@@ -181,6 +151,7 @@ def test_ggml_cpu_backend():
 
     # allocate the tensors in the backend
     buffer = ggml.ggml_backend_alloc_ctx_tensors(ctx, backend)
+    assert buffer is not None
 
     # set the values of the weights
     ggml.ggml_backend_tensor_set(
@@ -212,7 +183,7 @@ def test_ggml_cpu_backend():
             mem_buffer=ctypes.cast(buf, ctypes.c_void_p),
             no_alloc=True,
         )
-        ctx0 = ggml.ggml_init(params=params)
+        ctx0 = ggml.ggml_init(params)
 
         assert ctx0 is not None
 
@@ -232,7 +203,10 @@ def test_ggml_cpu_backend():
 
         return gf
 
-    allocr = ggml.ggml_gallocr_new(ggml.ggml_backend_get_default_buffer_type(backend))
+    buffer_type = ggml.ggml_backend_get_default_buffer_type(backend)
+    assert buffer_type is not None
+    allocr = ggml.ggml_gallocr_new(buffer_type)
+    assert allocr is not None
 
     gf = build_graph(x, a, b)
 

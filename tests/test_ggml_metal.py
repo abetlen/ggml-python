@@ -21,7 +21,7 @@ def test_metal():
     params = ggml.ggml_init_params(
         mem_size=ggml.ggml_tensor_overhead() * n_tensors, mem_buffer=None, no_alloc=True
     )
-    ctx = ggml.ggml_init(params=params)
+    ctx = ggml.ggml_init(params)
     assert ctx is not None
 
     backend = ggml.ggml_backend_metal_init()
@@ -67,7 +67,7 @@ def test_metal():
             mem_buffer=ctypes.cast(buf, ctypes.c_void_p),
             no_alloc=True,
         )
-        ctx0 = ggml.ggml_init(params=params)
+        ctx0 = ggml.ggml_init(params)
 
         assert ctx0 is not None
 

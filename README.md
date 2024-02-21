@@ -55,7 +55,7 @@ import ctypes
 
 # Allocate a new context with 16 MB of memory
 params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
-ctx = ggml.ggml_init(params=params)
+ctx = ggml.ggml_init(params)
 
 # Instantiate tensors
 x = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
