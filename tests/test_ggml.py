@@ -11,7 +11,7 @@ def test_ggml():
     assert ggml.GGML_FILE_VERSION == 1
 
     params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
-    ctx = ggml.ggml_init(params=params)
+    ctx = ggml.ggml_init(params)
     assert ctx is not None
     assert ggml.ggml_used_mem(ctx) == 0
     x = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
@@ -34,7 +34,7 @@ def test_ggml():
 
 def test_ggml_custom_op():
     params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
-    ctx = ggml.ggml_init(params=params)
+    ctx = ggml.ggml_init(params)
     assert ctx is not None
     x_in = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
 
@@ -70,7 +70,7 @@ def test_ggml_min_alloc():
     params = ggml.ggml_init_params(
         mem_size=max_overhead, mem_buffer=None, no_alloc=True
     )
-    ctx = ggml.ggml_init(params=params)
+    ctx = ggml.ggml_init(params)
     assert ctx is not None
 
     def build_graph(ctx: ggml.ggml_context_p):
@@ -109,7 +109,7 @@ def test_ggml_min_alloc():
     assert n_leafs == 3  # 3 leafs: x, a, b
 
     params = ggml.ggml_init_params(mem_size=mem_size, mem_buffer=None)
-    ctx = ggml.ggml_init(params=params)
+    ctx = ggml.ggml_init(params)
     assert ctx is not None
     gf = build_graph(ctx)
 
@@ -166,7 +166,7 @@ def test_ggml_cpu_backend():
     params = ggml.ggml_init_params(
         mem_size=ggml.ggml_tensor_overhead() * n_tensors, mem_buffer=None, no_alloc=True
     )
-    ctx = ggml.ggml_init(params=params)
+    ctx = ggml.ggml_init(params)
     assert ctx is not None
 
     backend = ggml.ggml_backend_cpu_init()
@@ -181,6 +181,7 @@ def test_ggml_cpu_backend():
 
     # allocate the tensors in the backend
     buffer = ggml.ggml_backend_alloc_ctx_tensors(ctx, backend)
+    assert buffer is not None
 
     # set the values of the weights
     ggml.ggml_backend_tensor_set(
@@ -212,7 +213,7 @@ def test_ggml_cpu_backend():
             mem_buffer=ctypes.cast(buf, ctypes.c_void_p),
             no_alloc=True,
         )
-        ctx0 = ggml.ggml_init(params=params)
+        ctx0 = ggml.ggml_init(params)
 
         assert ctx0 is not None
 
@@ -232,7 +233,10 @@ def test_ggml_cpu_backend():
 
         return gf
 
-    allocr = ggml.ggml_gallocr_new(ggml.ggml_backend_get_default_buffer_type(backend))
+    buffer_type = ggml.ggml_backend_get_default_buffer_type(backend)
+    assert buffer_type is not None
+    allocr = ggml.ggml_gallocr_new(buffer_type)
+    assert allocr is not None
 
     gf = build_graph(x, a, b)
 

@@ -8,7 +8,7 @@ import jax
 from typing import Optional
 
 params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
-ctx = ggml.ggml_init(params=params)
+ctx = ggml.ggml_init(params)
 x_in = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
 
 @ggml.ggml_custom1_op_t
