@@ -38,6 +38,7 @@ input = "ggml/__init__.py"
 
 [tool.pytest.ini_options]
 addopts = "--ignore=vendor"
+testpaths = "tests"
 
 [project.optional-dependencies]
 test = ["pytest"]
