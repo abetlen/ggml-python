@@ -10427,14 +10427,14 @@ def ggml_init_cublas():
 
 # // Returns `true` if there are available CUDA devices and cublas loads successfully; otherwise, it returns `false`.
 # GGML_API GGML_CALL bool   ggml_cublas_loaded(void);
-@ctypes_function("ggml_cublas_loaded,", [], ctypes.c_bool, enabled=GGML_USE_CUBLAS)
+@ctypes_function("ggml_cublas_loaded", [], ctypes.c_bool, enabled=GGML_USE_CUBLAS)
 def ggml_cublas_loaded() -> bool:
     ...
 
 
 # GGML_API GGML_CALL void * ggml_cuda_host_malloc(size_t size);
 @ctypes_function(
-    "ggml_cuda_host_malloc,,",
+    "ggml_cuda_host_malloc",
     [ctypes.c_size_t],
     ctypes.c_void_p,
     enabled=GGML_USE_CUBLAS,
@@ -10447,7 +10447,7 @@ def ggml_cuda_host_malloc(
 
 # GGML_API GGML_CALL void   ggml_cuda_host_free(void * ptr);
 @ctypes_function(
-    "ggml_cuda_host_free,", [ctypes.c_void_p], None, enabled=GGML_USE_CUBLAS
+    "ggml_cuda_host_free", [ctypes.c_void_p], None, enabled=GGML_USE_CUBLAS
 )
 def ggml_cuda_host_free(ptr: Union[ctypes.c_void_p, int, None], /):
     ...
@@ -10673,7 +10673,7 @@ def ggml_backend_metal_init() -> Optional[ggml_backend_t]:
 
 # GGML_API bool ggml_backend_is_metal(ggml_backend_t backend);
 @ctypes_function(
-    "ggml_backend_is_metal,,",
+    "ggml_backend_is_metal",
     [ggml_backend_t_ctypes],
     ctypes.c_bool,
     enabled=GGML_USE_METAL,
