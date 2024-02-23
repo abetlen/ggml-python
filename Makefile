@@ -11,8 +11,8 @@ update-pip:
 build: ${submodules} update-pip ## Build ggml-python with cpu support
 	python3 -m pip install --verbose --editable .
 
-build.debug: ${submodules} update-pip ## Build ggml-python with cpu support and debug symbols
-	CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Debug" python3 -m pip install --verbose --config-settings=cmake.verbose=true --config-settings=logging.level=INFO --config-settings=install.strip=false  --editable .
+build.debug: ${submodules} update-pip ## Build ggml-python with cpu support, debug symbols, and lines
+	CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS=-g3 -DCMAKE_C_FLAGS=-g3" python3 -m pip install --verbose --config-settings=cmake.verbose=true --config-settings=logging.level=INFO --config-settings=install.strip=false  --editable .
 
 build.openblas: ${submodules} update-pip ## Build ggml-python with openblas support
 	CMAKE_ARGS="-DGGML_OPENBLAS=On" python3 -m pip install --verbose --editable .
@@ -33,7 +33,7 @@ test: ## Run tests
 	python3 -m pytest
 
 test.gdb: ## Run tests with gdb
-	gdb -ex r -ex "thread apply all bt" --args python -m pytest -s -vvvv
+	gdb -ex "set pagination off" -ex r -ex "bt 5" --args python -m pytest -s -vvvv
 
 docs: ## Build documentation using mkdocs and serve it
 	mkdocs serve
