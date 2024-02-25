@@ -149,12 +149,13 @@ def byref(obj: CtypesCData, offset: Optional[int] = None) -> CtypesRef[CtypesCDa
     """Type-annotated version of ctypes.byref"""
     return ctypes.byref(obj, offset) if offset is not None else ctypes.byref(obj)  # type: ignore
 
+F = TypeVar("F", bound=Callable[..., Any])
 
 def ctypes_function_for_shared_library(lib: ctypes.CDLL):
     def ctypes_function(
         name: str, argtypes: List[Any], restype: Any, enabled: bool = True
     ):
-        def decorator(f: Callable[..., Any]):
+        def decorator(f: F) -> F:
             if enabled:
                 func = getattr(lib, name)
                 func.argtypes = argtypes
