@@ -53,6 +53,30 @@ def test_numpy_arrays_transposed():
     ggml.ggml_free(ctx)
 
 
+def test_numpy_arrays_transposed_diff_ctx():
+    params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024)
+    ctx = ggml.ggml_init(params)
+    assert ctx is not None
+    x = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int32)
+    t = ggml.utils.from_numpy(x, ctx)
+
+    ggml.utils.to_numpy(t)[:] = x
+
+    params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024)
+    ctx2 = ggml.ggml_init(params)
+    assert ctx2 is not None
+
+    t_T = ggml.ggml_transpose(ctx2, t)
+
+    assert ggml.utils.get_shape(t_T) == (2, 3)
+    assert ggml.utils.get_strides(t_T) == (12, 4)
+
+    assert np.array_equal(ggml.utils.to_numpy(t_T, shape=x.T.shape), x.T)
+
+    ggml.ggml_free(ctx)
+    ggml.ggml_free(ctx2)
+
+
 def test_numpy_arrays_permute_transpose():
     params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024)
     ctx = ggml.ggml_init(params)
