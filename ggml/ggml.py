@@ -344,13 +344,13 @@ GGML_PREC_DEFAULT = 0
 GGML_PREC_F32 = 1
 
 # enum ggml_backend_type {
-#     GGML_BACKEND_CPU = 0,
-#     GGML_BACKEND_GPU = 10,
-#     GGML_BACKEND_GPU_SPLIT = 20,
+#     GGML_BACKEND_TYPE_CPU = 0,
+#     GGML_BACKEND_TYPE_GPU = 10,
+#     GGML_BACKEND_TYPE_GPU_SPLIT = 20,
 # };
-GGML_BACKEND_CPU = 0
-GGML_BACKEND_GPU = 10
-GGML_BACKEND_GPU_SPLIT = 20
+GGML_BACKEND_TYPE_CPU = 0
+GGML_BACKEND_TYPE_GPU = 10
+GGML_BACKEND_TYPE_GPU_SPLIT = 20
 
 
 # // model file types
@@ -374,6 +374,7 @@ GGML_BACKEND_GPU_SPLIT = 20
 #     GGML_FTYPE_MOSTLY_IQ3_XXS = 17, // except 1d tensors
 #     GGML_FTYPE_MOSTLY_IQ1_S   = 18, // except 1d tensors
 #     GGML_FTYPE_MOSTLY_IQ4_NL  = 19, // except 1d tensors
+#     GGML_FTYPE_MOSTLY_IQ3_S   = 20, // except 1d tensors
 # };
 GGML_FTYPE_UNKNOWN = -1
 GGML_FTYPE_ALL_F32 = 0
@@ -394,6 +395,7 @@ GGML_FTYPE_MOSTLY_IQ2_XS = 16
 GGML_FTYPE_MOSTLY_IQ3_XXS = 17
 GGML_FTYPE_MOSTLY_IQ1_S = 18
 GGML_FTYPE_MOSTLY_IQ4_NL = 19
+GGML_FTYPE_MOSTLY_IQ3_S = 20
 
 
 # // available tensor operations:
@@ -587,13 +589,13 @@ GGML_UNARY_OP_HARDSIGMOID = 11
 GGML_UNARY_OP_COUNT = 12
 
 # enum ggml_object_type {
-#     GGML_OBJECT_TENSOR,
-#     GGML_OBJECT_GRAPH,
-#     GGML_OBJECT_WORK_BUFFER
+#     GGML_OBJECT_TYPE_TENSOR,
+#     GGML_OBJECT_TYPE_GRAPH,
+#     GGML_OBJECT_TYPE_WORK_BUFFER
 # };
-GGML_OBJECT_TENSOR = 0
-GGML_OBJECT_GRAPH = 1
-GGML_OBJECT_WORK_BUFFER = 2
+GGML_OBJECT_TYPE_TENSOR = 0
+GGML_OBJECT_TYPE_GRAPH = 1
+GGML_OBJECT_TYPE_WORK_BUFFER = 2
 
 # enum ggml_log_level {
 #     GGML_LOG_LEVEL_ERROR = 2,
@@ -921,13 +923,13 @@ class ggml_init_params(ctypes.Structure):
 # // NOTE: the INIT or FINALIZE pass is not scheduled unless explicitly enabled.
 # // This behavior was changed since https://github.com/ggerganov/llama.cpp/pull/1995.
 # enum ggml_task_type {
-#     GGML_TASK_INIT = 0,
-#     GGML_TASK_COMPUTE,
-#     GGML_TASK_FINALIZE,
+#     GGML_TASK_TYPE_INIT = 0,
+#     GGML_TASK_TYPE_COMPUTE,
+#     GGML_TASK_TYPE_FINALIZE,
 # };
-GGML_TASK_INIT = 0
-GGML_TASK_COMPUTE = 1
-GGML_TASK_FINALIZE = 2
+GGML_TASK_TYPE_INIT = 0
+GGML_TASK_TYPE_COMPUTE = 1
+GGML_TASK_TYPE_FINALIZE = 2
 
 # struct ggml_compute_params {
 #     enum ggml_task_type type;
@@ -968,6 +970,29 @@ GGML_NUMA_STRATEGY_ISOLATE = 2
 GGML_NUMA_STRATEGY_NUMACTL = 3
 GGML_NUMA_STRATEGY_MIRROR = 4
 GGML_NUMA_STRATEGY_COUNT = 5
+
+
+# //
+# // GUID
+# //
+
+# // GUID types
+# typedef uint8_t ggml_guid[16];
+# typedef ggml_guid * ggml_guid_t;
+if TYPE_CHECKING:
+    ggml_guid = CtypesArray[ctypes.c_uint8]
+    ggml_guid_t = CtypesPointer[ggml_guid]
+
+
+ggml_guid_ctypes = ctypes.c_uint8 * 16
+ggml_guid_t_ctypes = ctypes.POINTER(ggml_guid_ctypes)
+
+
+# GGML_API bool ggml_guid_matches(ggml_guid_t guid_a, ggml_guid_t guid_b);
+# TODO: Verify type signature
+@ctypes_function("ggml_guid_matches", [ggml_guid_t_ctypes, ggml_guid_t_ctypes], ctypes.c_bool)
+def ggml_guid_matches(guid_a: ggml_guid_t, guid_b: ggml_guid_t, /) -> bool:
+    ...
 
 
 # // misc
@@ -5717,11 +5742,11 @@ def ggml_pad(
 
 # // sort rows
 # enum ggml_sort_order {
-#     GGML_SORT_ASC,
-#     GGML_SORT_DESC,
+#     GGML_SORT_ORDER_ASC,
+#     GGML_SORT_ORDER_DESC,
 # };
-GGML_SORT_ASC = 0
-GGML_SORT_DESC = 1
+GGML_SORT_ORDER_ASC = 0
+GGML_SORT_ORDER_DESC = 1
 
 
 # GGML_API struct ggml_tensor * ggml_argsort(
@@ -7020,11 +7045,11 @@ def ggml_build_backward_gradient_checkpointing(
 
 # // optimization methods
 # enum ggml_opt_type {
-#     GGML_OPT_ADAM,
-#     GGML_OPT_LBFGS,
+#     GGML_OPT_TYPE_ADAM,
+#     GGML_OPT_TYPE_LBFGS,
 # };
-GGML_OPT_ADAM = 0
-GGML_OPT_LBFGS = 1
+GGML_OPT_TYPE_ADAM = 0
+GGML_OPT_TYPE_LBFGS = 1
 
 # // linesearch methods
 # enum ggml_linesearch {
@@ -7041,12 +7066,12 @@ GGML_LINESEARCH_BACKTRACKING_STRONG_WOLFE = 2
 
 # // optimization return values
 # enum ggml_opt_result {
-#     GGML_OPT_OK = 0,
-#     GGML_OPT_DID_NOT_CONVERGE,
-#     GGML_OPT_NO_CONTEXT,
-#     GGML_OPT_INVALID_WOLFE,
-#     GGML_OPT_FAIL,
-#     GGML_OPT_CANCEL,
+#     GGML_OPT_RESULT_OK = 0,
+#     GGML_OPT_RESULT_DID_NOT_CONVERGE,
+#     GGML_OPT_RESULT_NO_CONTEXT,
+#     GGML_OPT_RESULT_INVALID_WOLFE,
+#     GGML_OPT_RESULT_FAIL,
+#     GGML_OPT_RESULT_CANCEL,
 
 #     GGML_LINESEARCH_FAIL = -128,
 #     GGML_LINESEARCH_MINIMUM_STEP,
@@ -7054,12 +7079,12 @@ GGML_LINESEARCH_BACKTRACKING_STRONG_WOLFE = 2
 #     GGML_LINESEARCH_MAXIMUM_ITERATIONS,
 #     GGML_LINESEARCH_INVALID_PARAMETERS,
 # };
-GGML_OPT_OK = 0
-GGML_OPT_DID_NOT_CONVERGE = 1
-GGML_OPT_NO_CONTEXT = 2
-GGML_OPT_INVALID_WOLFE = 3
-GGML_OPT_FAIL = 4
-GGML_OPT_CANCEL = 5
+GGML_OPT_RESULT_OK = 0
+GGML_OPT_RESULT_DID_NOT_CONVERGE = 1
+GGML_OPT_RESULT_NO_CONTEXT = 2
+GGML_OPT_RESULT_INVALID_WOLFE = 3
+GGML_OPT_RESULT_FAIL = 4
+GGML_OPT_RESULT_CANCEL = 5
 GGML_LINESEARCH_FAIL = -128
 GGML_LINESEARCH_MINIMUM_STEP = -127
 GGML_LINESEARCH_MAXIMUM_STEP = -126
@@ -9326,6 +9351,11 @@ def ggml_backend_buffer_reset(buffer: Union[ggml_backend_buffer_t, int], /):
 # //
 
 
+# GGML_API ggml_guid_t  ggml_backend_guid(ggml_backend_t backend);
+def ggml_backend_guid(backend: Union[ggml_backend_t, int], /) -> int:
+    ...
+
+
 # GGML_API const char * ggml_backend_name(ggml_backend_t backend);
 @ctypes_function("ggml_backend_name", [ggml_backend_t_ctypes], ctypes.c_char_p)
 def ggml_backend_name(backend: Union[ggml_backend_t, int], /) -> bytes:
@@ -10365,13 +10395,15 @@ class ggml_backend_i(ctypes.Structure):
 
 
 # struct ggml_backend {
-#     struct ggml_backend_i iface;
+#     ggml_guid_t guid;
 
+#     struct ggml_backend_i iface;
 
 #     ggml_backend_context_t context;
 # };
 class ggml_backend(ctypes.Structure):
     _fields_ = [
+        ("guid", ggml_guid_t_ctypes),
         ("iface", ggml_backend_i),
         ("context", ggml_backend_context_t_ctypes),
     ]
