@@ -274,7 +274,7 @@ def test_graph_chaining():
         no_op_n_calls += 1
 
     params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None, no_alloc=True)
-    ctx = ggml.ggml_init(params=params)
+    ctx = ggml.ggml_init(params)
     assert ctx is not None
     assert ggml.ggml_used_mem(ctx) == 0
     x = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1)
@@ -299,7 +299,7 @@ def test_graph_chaining():
     assert no_op_n_calls == 1
 
     params_eval = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None, no_alloc=True)
-    ctx_eval = ggml.ggml_init(params=params_eval)
+    ctx_eval = ggml.ggml_init(params_eval)
     assert ctx_eval is not None
 
     f_copy = ggml.ggml_dup_tensor(ctx_eval, f)
@@ -312,7 +312,7 @@ def test_graph_chaining():
 
     params2 = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None, no_alloc=True)
 
-    ctx2 = ggml.ggml_init(params=params2)
+    ctx2 = ggml.ggml_init(params2)
     assert ctx2 is not None
 
     g = ggml.ggml_add(ctx2, f_copy, a)
