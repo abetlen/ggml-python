@@ -4,6 +4,7 @@ import ggml.utils
 import pytest
 
 import numpy as np
+import numpy.typing as npt
 
 
 def test_utils():
@@ -110,4 +111,28 @@ def test_slice_tensor():
     x_slice = x[:2, :1]
     t_slice_array = ggml.utils.to_numpy(t_slice)
     assert np.array_equal(t_slice_array, x_slice)
+    ggml.ggml_free(ctx)
+
+
+@pytest.mark.parametrize("a, b", [
+    [np.array([1], dtype=np.float32), np.array([1], dtype=np.float32)],
+    [np.array([1, 1], dtype=np.float32), np.array([1], dtype=np.float32)],
+    [np.array([1, 1], dtype=np.float32), np.array([[1, 2]], dtype=np.float32)],
+])
+def test_broadcast_tensor(a: npt.NDArray[np.float32], b: npt.NDArray[np.float32]):
+    params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024)
+    ctx = ggml.ggml_init(params)
+    assert ctx is not None
+    params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024)
+    ctx2 = ggml.ggml_init(params)
+    assert ctx2 is not None
+    t_a = ggml.utils.from_numpy(a, ctx)
+    t_b = ggml.utils.from_numpy(b, ctx)
+    t_sum = ggml.ggml_add(ctx2, t_a, t_b)
+    gf = ggml.ggml_new_graph(ctx2)
+    ggml.ggml_build_forward_expand(gf, t_sum)
+    ggml.ggml_graph_compute_with_ctx(ctx2, gf, 1)
+    expected = a + b
+    result = ggml.utils.to_numpy(t_sum).reshape(expected.shape)
+    assert np.array_equal(result, expected)
     ggml.ggml_free(ctx)

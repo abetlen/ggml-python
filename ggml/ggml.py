@@ -310,6 +310,7 @@ ggml_context_p_ctypes = ctypes.c_void_p  # type: ignore
 #     GGML_TYPE_Q5_1 = 7,
 #     GGML_TYPE_Q8_0 = 8,
 #     GGML_TYPE_Q8_1 = 9,
+#     // k-quantizations
 #     GGML_TYPE_Q2_K = 10,
 #     GGML_TYPE_Q3_K = 11,
 #     GGML_TYPE_Q4_K = 12,
@@ -321,6 +322,9 @@ ggml_context_p_ctypes = ctypes.c_void_p  # type: ignore
 #     GGML_TYPE_IQ3_XXS = 18,
 #     GGML_TYPE_IQ1_S   = 19,
 #     GGML_TYPE_IQ4_NL  = 20,
+#     GGML_TYPE_IQ3_S   = 21,
+#     GGML_TYPE_IQ2_S   = 22,
+#     GGML_TYPE_IQ4_XS  = 23,
 #     GGML_TYPE_I8,
 #     GGML_TYPE_I16,
 #     GGML_TYPE_I32,
@@ -345,10 +349,14 @@ GGML_TYPE_IQ2_XS = 17
 GGML_TYPE_IQ3_XXS = 18
 GGML_TYPE_IQ1_S = 19
 GGML_TYPE_IQ4_NL = 20
-GGML_TYPE_I8 = 21
-GGML_TYPE_I16 = 22
-GGML_TYPE_I32 = 23
-GGML_TYPE_COUNT = 24
+GGML_TYPE_IQ3_S = 21
+GGML_TYPE_IQ2_S = 22
+GGML_TYPE_IQ4_XS = 23
+GGML_TYPE_I8 = 24
+GGML_TYPE_I16 = 25
+GGML_TYPE_I32 = 26
+GGML_TYPE_COUNT = 27
+
 
 # // precision
 # enum ggml_prec {
@@ -390,6 +398,8 @@ GGML_BACKEND_TYPE_GPU_SPLIT = 20
 #     GGML_FTYPE_MOSTLY_IQ1_S   = 18, // except 1d tensors
 #     GGML_FTYPE_MOSTLY_IQ4_NL  = 19, // except 1d tensors
 #     GGML_FTYPE_MOSTLY_IQ3_S   = 20, // except 1d tensors
+#     GGML_FTYPE_MOSTLY_IQ2_S   = 21, // except 1d tensors
+#     GGML_FTYPE_MOSTLY_IQ4_XS  = 22, // except 1d tensors
 # };
 GGML_FTYPE_UNKNOWN = -1
 GGML_FTYPE_ALL_F32 = 0
@@ -411,6 +421,8 @@ GGML_FTYPE_MOSTLY_IQ3_XXS = 17
 GGML_FTYPE_MOSTLY_IQ1_S = 18
 GGML_FTYPE_MOSTLY_IQ4_NL = 19
 GGML_FTYPE_MOSTLY_IQ3_S = 20
+GGML_FTYPE_MOSTLY_IQ2_S = 21
+GGML_FTYPE_MOSTLY_IQ4_XS = 22
 
 
 # // available tensor operations:
