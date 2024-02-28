@@ -2335,6 +2335,7 @@ def ggml_operator_log(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         a,
     )
     ctx.ggml_tensors_dict[output_name] = log_result
+    ctx.shapes[output_name] = ctx.shapes[node.input[0]]
 
 
 @register_ggml_operator("LogSoftmax")
@@ -2354,6 +2355,7 @@ def ggml_operator_log_soft_max(ctx: "GgmlOnnxExecutionContext", node: NodeProto)
         soft_max_result,
     )
     ctx.ggml_tensors_dict[output_name] = log_result
+    ctx.shapes[output_name] = ctx.shapes[node.input[0]]
 
 
 @register_ggml_operator("MatMul")
@@ -2621,6 +2623,7 @@ def ggml_operator_neg(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         x,
     )
     ctx.ggml_tensors_dict[output_name] = x_neg
+    ctx.shapes[output_name] = ctx.shapes[node.input[0]]
 
 
 @register_ggml_operator("Not")
@@ -2733,22 +2736,14 @@ def ggml_operator_pad(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         axes_list = list(range(input_rank))
     else:
         axes_eval = ctx.eval_tensor(axes)
-        axes_list = ggml.utils.to_numpy(axes_eval, shape=ctx.shapes[node.input[3]])
-        axes_list = [axis if axis >= 0 else axis + input_rank for axis in axes_list]
+        axes_array = ctx.to_numpy(axes_eval).reshape(ctx.shapes[node.input[3]])
+        axes_list = [axis if axis >= 0 else axis + input_rank for axis in axes_array]
     num_axes = len(axes_list)
     pad_width: List[Tuple[int, int]] = []
     for _ in range(input_rank):
         pad_width += [(0, 0)]  # init to zero
 
     assert pads is not None
-    pads_eval = ctx.eval_tensor(pads)
-    c_ = get_ggml_tensor_data_as_numpy(pads_eval).reshape(ctx.get_tensor_shape(pads_eval))
-    a_ = ctx.to_numpy(pads_eval).reshape(ctx.shapes[node.input[1]])
-    # c_ = get_ggml_tensor_data_as_numpy(pads_eval).reshape(ctx.get_tensor_shape(pads_eval))
-    b_ = ggml.utils.to_numpy(pads_eval, shape=ctx.shapes[node.input[1]])
-
-    if np.array_equal(a_, b_):
-        breakpoint()
 
     raw_pads = ctx.to_numpy(ctx.eval_tensor(pads)).reshape(ctx.shapes[node.input[1]])
 
@@ -2757,17 +2752,13 @@ def ggml_operator_pad(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         axis = axes_list[i]
         if axis < 0:
             axis = input_rank + axis
-        if axis > len(pad_width) - 1:
-            breakpoint()
         pad_width[axis] = (raw_pads[i], raw_pads[i + num_axes])
 
     expand_by = [sum(pad) for pad in pad_width]
-    # prev_shape = get_tensor_shape(x_in)
     prev_shape = ctx.shapes[node.input[0]]
-    if any([x > 100 or x < 0 for x in expand_by]):
-        breakpoint()
 
     output_shape = [sum(x) for x in zip(prev_shape, expand_by)]
+    ctx.shapes[node.output[0]] = tuple(output_shape)
     assert x_in is not None
     a_dtype = get_tensor_dtype(x_in)
     x = np.empty(output_shape, dtype=a_dtype)
@@ -2789,23 +2780,22 @@ def ggml_operator_pad(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         userdata: Optional[ctypes.c_void_p],
     ):
         a = ctx.to_numpy(tensor_in_2)
-        if mode == "constant":
-            x = np.pad(
-                a,
-                pad_width=pad_width,
-                mode=mode,
-                constant_values=constant_values,
-            )
+        # if mode == "constant":
+        #     x = np.pad(
+        #         a,
+        #         pad_width=pad_width,
+        #         mode=mode,
+        #         # constant_values=constant_values,
+        #     )
+        # else:
+        #     x = np.pad(
+        #         a,
+        #         pad_width=pad_width,
+        #         mode=mode,
+        #     )
+        ctx.set_tensor_data(tensor_out, a)
 
-        else:
-            x = np.pad(
-                a,
-                pad_width=pad_width,
-                mode=mode,
-            )
-        ctx.set_tensor_data(tensor_out, x)
-
-    new_tensor = ctx.ggml_tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
+    ctx.ggml_tensors_dict[node.output[0]] = ggml.ggml_map_custom2_inplace(
         ctx.ggml_eval_context,
         x_t,
         x_in,
@@ -4169,7 +4159,7 @@ def ggml_operator_shape(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
             f'Error for node "{node.name}": Operation "Shape" requires exactly one input. Actual number of inputs: {len(node_inputs)}'
         )
 
-    tensor_shape = np.array(get_tensor_shape(node_inputs[0]), dtype=np.int32)
+    tensor_shape = np.array(ctx.shapes[node.input[0]], dtype=np.int32)
     name = node.output[0]
     start = next((attr.i for attr in node.attribute if attr.name == "start"), None)
     end = next(
@@ -4177,9 +4167,9 @@ def ggml_operator_shape(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         None,
     )
     shape_slice = tensor_shape[start:end]
-    new_tensor = ctx.ggml_tensors_dict[name] = ctx.from_numpy(shape_slice)
-
+    ctx.ggml_tensors_dict[name] = ctx.from_numpy(shape_slice)
     ctx.set_tensor_dtype(name, np.dtype(np.int64))
+    ctx.shapes[node.output[0]] = (len(shape_slice),)
 
 
 @register_ggml_operator("Sigmoid")
@@ -4692,6 +4682,7 @@ def ggml_operator_squeeze(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
     )
     ctx.set_tensor_shape(new_tensor, dummy_data.shape)
     ctx.refs.append(custom_squeeze)
+    ctx.shapes[node.output[0]] = dummy_data.shape
 
 
 @register_ggml_operator("Sub")
@@ -4713,6 +4704,7 @@ def ggml_operator_sub(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         b,
     )
     ctx.ggml_tensors_dict[output_name] = sub_result
+    ctx.shapes[output_name] = ctx.shapes[node.input[0]] # TODO: Wrong
 
 
 @register_ggml_operator("Sum")
@@ -4740,6 +4732,7 @@ def ggml_operator_sum(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         )
 
     ctx.ggml_tensors_dict[output_name] = next_item
+    ctx.shapes[output_name] = ctx.shapes[node.input[0]]
 
 
 @register_ggml_operator("Tanh")
@@ -5043,6 +5036,7 @@ def ggml_operator_unsqueeze(ctx: "GgmlOnnxExecutionContext", node: NodeProto):
         None,
     )
     ctx.refs.append(custom_unsqueeze)
+    ctx.shapes[node.output[0]] = new_shape
 
 
 @register_ggml_operator("Where")
