@@ -1,6 +1,8 @@
 import io
 
 import numpy as np
+import numpy.typing as npt
+
 import onnx
 from onnx import helper
 from onnx.onnx_pb import TensorProto
@@ -11,6 +13,10 @@ from onnxruntime import InferenceSession  # type: ignore
 
 from ggml.contrib.onnx import GgmlRuntimeBackend
 
+import typing
+import onnx.onnx_pb as onnx_pb
+
+import pytest
 
 def test_ggml_onnx_runtime_basic():
     # The name of the input tensor
@@ -87,10 +93,113 @@ def test_ggml_onnx_runtime_basic():
     assert ggml_result == runtime_result
 
 
-def test_ggml_onnx_graph_optimization():
-    # Construct an onnx graph and optimize it
-    # The graph is of the form y = (A^T)^T * x + b
-    # the optimization should remove the transpose operations
+class OnnxModelBuilder:
+    """Helper class to build ONNX models."""
+
+    def __init__(self, name: str):
+        self.name = name
+        self.nodes: typing.List[onnx_pb.NodeProto] = []
+        self.inputs: typing.List[onnx_pb.ValueInfoProto] = []
+        self.outputs: typing.List[onnx_pb.ValueInfoProto] = []
+        self.initializers: typing.List[onnx_pb.TensorProto] = []
+        self.counter = 0  # Counter for unique names
+
+    def add_input(
+        self,
+        name: str,
+        elem_type: int,
+        shape: typing.Optional[typing.List[typing.Union[str, int, None]]],
+    ):
+        self.inputs.append(helper.make_tensor_value_info(name, elem_type, shape))
+        return self
+
+    def add_node(
+        self,
+        op_type: str,
+        inputs: typing.List[str],
+        outputs: typing.List[str],
+        name: typing.Optional[str] = None,
+    ):
+        if name is None:
+            name = f"node{self.counter}"
+            self.counter += 1
+        self.nodes.append(helper.make_node(op_type, inputs, outputs, name=name))
+        return self
+
+    def add_initializer(
+        self, name: str, data_type: int, dims: typing.Sequence[int], vals: typing.Any
+    ):
+        self.initializers.append(helper.make_tensor(name, data_type, dims, vals))
+        return self
+
+    def add_output(
+        self, name: str, elem_type: int, shape: typing.Optional[typing.List[typing.Union[str, int, None]]]
+    ):
+        self.outputs.append(helper.make_tensor_value_info(name, elem_type, shape))
+        return self
+
+    def build_graph(self):
+        return helper.make_graph(
+            self.nodes, self.name, self.inputs, self.outputs, self.initializers
+        )
+
+    def build_model(self, name: typing.Optional[str] = None):
+        return helper.make_model(self.build_graph(), producer_name=name or self.name)
+
+    @staticmethod
+    def model_bytes(model: onnx_pb.ModelProto) -> bytes:
+        f = io.BytesIO()
+        onnx.save(model, f)
+        return f.getvalue()
+
+
+def build_simple_graph():
+    builder = OnnxModelBuilder("simple_expression_model")
+    builder.add_input("X", TensorProto.FLOAT, [None, 1])
+    builder.add_initializer("A", TensorProto.FLOAT, [1], np.ones(1, dtype=float).astype(np.float32))
+    builder.add_initializer("B", TensorProto.FLOAT, [1], np.ones(1, dtype=float).astype(np.float32))
+    builder.add_node("Mul", ["X", "X"], ["X_squared"])
+    builder.add_node("Mul", ["X_squared", "A"], ["X_squared_times_a"])
+    builder.add_node("Add", ["X_squared_times_a", "B"], ["Y"])
+    builder.add_output("Y", TensorProto.FLOAT, [None, 1])
+    return builder.build_model()
+
+
+def build_2d_graph():
+    builder = OnnxModelBuilder("simple_expression_model")
+    builder.add_input("X", TensorProto.FLOAT, [None, 2])
+    builder.add_initializer("A", TensorProto.FLOAT, [2], np.ones(2, dtype=float).astype(np.float32))
+    builder.add_initializer("B", TensorProto.FLOAT, [2], np.ones(2, dtype=float).astype(np.float32))
+    builder.add_node("Mul", ["X", "X"], ["X_squared"])
+    builder.add_node("Mul", ["X_squared", "A"], ["X_squared_times_a"])
+    builder.add_node("Add", ["X_squared_times_a", "B"], ["Y"])
+    builder.add_output("Y", TensorProto.FLOAT, [None, 2])
+    return builder.build_model()
+
+def build_matmul_graph():
+    builder = OnnxModelBuilder("simple_expression_model")
+    builder.add_input("X", TensorProto.FLOAT, [None, 2])
+    builder.add_initializer("A", TensorProto.FLOAT, [2, 3], np.ones((2, 3), dtype=float).astype(np.float32))
+    builder.add_initializer("B", TensorProto.FLOAT, [3, 4], np.ones((3, 4), dtype=float).astype(np.float32))
+    builder.add_node("MatMul", ["X", "A"], ["X_times_A"])
+    builder.add_node("MatMul", ["X_times_A", "B"], ["Y"])
+    builder.add_output("Y", TensorProto.FLOAT, [None, 4])
+    return builder.build_model()
+
+
+@pytest.mark.parametrize(
+    "model, input_data", [
+        # (build_simple_graph(), {"X": np.array([[6.0]], dtype=np.float32)}),
+        # (build_2d_graph(), {"X": np.array([[6.0, 7.0]], dtype=np.float32)}),
+        (build_matmul_graph(), {"X": np.array([[6.0, 7.0]], dtype=np.float32)}),
+    ]
+)
+def test_compare_runtimes(model: onnx_pb.ModelProto, input_data: typing.Dict[str, npt.NDArray[typing.Any]]):
+    runtime_result = InferenceSession(OnnxModelBuilder.model_bytes(model)).run(None, input_data) # type: ignore
+    ggml_dummy_model = GgmlRuntimeBackend.prepare(model)
+    ggml_result = ggml_dummy_model.run(input_data)
+    assert np.array_equal(ggml_result, runtime_result)
+
 
     # The name of the input tensor
     input_name = "x"
