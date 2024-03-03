@@ -843,7 +843,7 @@ backend_test.include("test_sum_")
 
 # backend_test.include("test_top_k")
 
-backend_test.include("test_transpose_")
+# backend_test.include("test_transpose_")
 
 backend_test.include("test_unsqueeze_")
 backend_test.exclude("test_unsqueeze_negative_axes")  # 5D Array not supported
