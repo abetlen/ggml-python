@@ -482,6 +482,8 @@ GGML_FTYPE_MOSTLY_IQ4_XS = 22
 #     GGML_OP_POOL_2D,
 #     GGML_OP_UPSCALE, // nearest interpolate
 #     GGML_OP_PAD,
+#     GGML_OP_ARANGE,
+#     GGML_OP_TIMESTEP_EMBEDDING,
 #     GGML_OP_ARGSORT,
 #     GGML_OP_LEAKY_RELU,
 
@@ -563,27 +565,30 @@ GGML_OP_POOL_1D = 48
 GGML_OP_POOL_2D = 49
 GGML_OP_UPSCALE = 50
 GGML_OP_PAD = 51
-GGML_OP_ARGSORT = 52
-GGML_OP_LEAKY_RELU = 53
-GGML_OP_FLASH_ATTN = 54
-GGML_OP_FLASH_FF = 55
-GGML_OP_FLASH_ATTN_BACK = 56
-GGML_OP_WIN_PART = 57
-GGML_OP_WIN_UNPART = 58
-GGML_OP_GET_REL_POS = 59
-GGML_OP_ADD_REL_POS = 60
-GGML_OP_UNARY = 61
-GGML_OP_MAP_UNARY = 62
-GGML_OP_MAP_BINARY = 63
-GGML_OP_MAP_CUSTOM1_F32 = 64
-GGML_OP_MAP_CUSTOM2_F32 = 65
-GGML_OP_MAP_CUSTOM3_F32 = 66
-GGML_OP_MAP_CUSTOM1 = 67
-GGML_OP_MAP_CUSTOM2 = 68
-GGML_OP_MAP_CUSTOM3 = 69
-GGML_OP_CROSS_ENTROPY_LOSS = 70
-GGML_OP_CROSS_ENTROPY_LOSS_BACK = 71
-GGML_OP_COUNT = 72
+GGML_OP_ARANGE = 52
+GGML_OP_TIMESTEP_EMBEDDING = 53
+GGML_OP_ARGSORT = 54
+GGML_OP_LEAKY_RELU = 55
+GGML_OP_FLASH_ATTN = 56
+GGML_OP_FLASH_FF = 57
+GGML_OP_FLASH_ATTN_BACK = 58
+GGML_OP_WIN_PART = 59
+GGML_OP_WIN_UNPART = 60
+GGML_OP_GET_REL_POS = 61
+GGML_OP_ADD_REL_POS = 62
+GGML_OP_UNARY = 63
+GGML_OP_MAP_UNARY = 64
+GGML_OP_MAP_BINARY = 65
+GGML_OP_MAP_CUSTOM1_F32 = 66
+GGML_OP_MAP_CUSTOM2_F32 = 67
+GGML_OP_MAP_CUSTOM3_F32 = 68
+GGML_OP_MAP_CUSTOM1 = 69
+GGML_OP_MAP_CUSTOM2 = 70
+GGML_OP_MAP_CUSTOM3 = 71
+GGML_OP_CROSS_ENTROPY_LOSS = 72
+GGML_OP_CROSS_ENTROPY_LOSS_BACK = 73
+GGML_OP_COUNT = 74
+
 
 # enum ggml_unary_op {
 #     GGML_UNARY_OP_ABS,
@@ -5767,6 +5772,40 @@ def ggml_pad(
     ...
 
 
+# // Ref: https://github.com/CompVis/stable-diffusion/blob/main/ldm/modules/diffusionmodules/util.py#L151
+# // timesteps: [N,]
+# // return: [N, dim]
+# GGML_API struct ggml_tensor * ggml_timestep_embedding(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * timesteps,
+#         int                   dim,
+#         int                   max_period);
+@ctypes_function(
+    "ggml_timestep_embedding",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_int,
+        ctypes.c_int,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_timestep_embedding(
+    ctx: ggml_context_p,
+    timesteps: ggml_tensor_p,
+    dim: Union[ctypes.c_int, int],
+    max_period: Union[ctypes.c_int, int],
+    /,
+) -> ggml_tensor_p:
+    """Timestep embedding
+
+    Parameters:
+        timesteps: input tensor
+        dim: embedding dimension
+        max_period: maximum period"""
+    ...
+
+
 # // sort rows
 # enum ggml_sort_order {
 #     GGML_SORT_ORDER_ASC,
@@ -5802,6 +5841,36 @@ def ggml_argsort(
         output tensor"""
     ...
 
+
+# GGML_API struct ggml_tensor * ggml_arange(
+#         struct ggml_context * ctx,
+#         float                 start,
+#         float                 stop,
+#         float                 step);
+@ctypes_function(
+    "ggml_arange",
+    [
+        ggml_context_p_ctypes,
+        ctypes.c_float,
+        ctypes.c_float,
+        ctypes.c_float,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_arange(
+    ctx: ggml_context_p,
+    start: Union[ctypes.c_float, float],
+    stop: Union[ctypes.c_float, float],
+    step: Union[ctypes.c_float, float],
+    /,
+) -> ggml_tensor_p:
+    """Arange
+
+    Parameters:
+        start: start
+        stop: stop
+        step: step"""
+    ...
 
 # // top k elements per row
 # GGML_API struct ggml_tensor * ggml_top_k(
