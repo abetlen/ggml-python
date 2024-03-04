@@ -28,6 +28,8 @@ jobs:
         env:
           # disable repair
           CIBW_REPAIR_WHEEL_COMMAND: ""
+          # skip building wheels for these platforms
+          CIBW_SKIP: pp* cp36-* cp37-* *-musllinux*
         with:
           package-dir: .
           output-dir: wheelhouse
