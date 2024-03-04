@@ -5092,7 +5092,7 @@ class GgmlOnnxExecutionContext:
         if not ggml.ggml_gallocr_alloc_graph(gallocr, self.ggml_graph):
             raise RuntimeError("Failed to allocate GGML graph")
 
-        if not ggml.ggml_backend_graph_compute(self.backend.ggml_backend, self.ggml_graph):
+        if ggml.ggml_backend_graph_compute(self.backend.ggml_backend, self.ggml_graph) != ggml.GGML_STATUS_SUCCESS:
             raise RuntimeError("Failed to compute GGML graph")
 
         tensor_copy = ggml.ggml_dup_tensor(self.ggml_eval_context, tensor)
