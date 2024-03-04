@@ -12,16 +12,31 @@ build: ${submodules} update-pip ## Build ggml-python with cpu support
 	python3 -m pip install --verbose --editable .
 
 build.debug: ${submodules} update-pip ## Build ggml-python with cpu support, debug symbols, and lines
-	CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS=-g3 -DCMAKE_C_FLAGS=-g3" python3 -m pip install --verbose --config-settings=cmake.verbose=true --config-settings=logging.level=INFO --config-settings=install.strip=false  --editable .
+	python3 -m pip install \
+		--verbose \
+		--config-settings cmake.args='-DCMAKE_BUILD_TYPE=Debug;-DCMAKE_CXX_FLAGS=-g3;-DCMAKE_C_FLAGS=-g3' \
+		--config-settings cmake.verbose=true \
+		--config-settings logging.level=INFO \
+		--config-settings install.strip=false \
+		--editable .
 
 build.openblas: ${submodules} update-pip ## Build ggml-python with openblas support
-	CMAKE_ARGS="-DGGML_OPENBLAS=On" python3 -m pip install --verbose --editable .
+	python3 -m pip install \
+		--verbose \
+		--config-settings cmake.args='-DGGML_OPENBLAS=On' \
+		--editable .
 
 build.cublas: ${submodules} update-pip ## Build ggml-python with cublas / cuda support
-	CMAKE_ARGS="-DGGML_CUBLAS=On" python3 -m pip install --verbose --editable .
+	python3 -m pip install \
+		--verbose \
+		--config-settings cmake.args='-DGGML_CUBLAS=On' \
+		--editable .
 
 build.clblast: ${submodules} update-pip ## Build ggml-python with clblast / opencl support
-	CMAKE_ARGS="-DGGML_CLBLAST=On" python3 -m pip install --verbose --editable .
+	python3 -m pip install \
+		--verbose \
+		--config-settings cmake.args='-DGGML_CLBLAST=On' \
+		--editable .
 
 sdist: ## Build source distribution
 	python3 -m build --sdist
