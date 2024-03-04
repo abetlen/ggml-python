@@ -244,6 +244,25 @@ GGUF_VERSION = 3
 # #define GGUF_DEFAULT_ALIGNMENT 32
 GGUF_DEFAULT_ALIGNMENT = 32
 
+# enum ggml_status {
+#     GGML_STATUS_ALLOC_FAILED = -2,
+#     GGML_STATUS_FAILED = -1,
+#     GGML_STATUS_SUCCESS = 0,
+#     GGML_STATUS_ABORTED = 1,
+# };
+GGML_STATUS_ALLOC_FAILED = -2
+GGML_STATUS_FAILED = -1
+GGML_STATUS_SUCCESS = 0
+GGML_STATUS_ABORTED = 1
+
+
+# // get ggml_status name string
+# GGML_API GGML_CALL const char * ggml_status_to_string(enum ggml_status status);
+@ctypes_function("ggml_status_to_string", [ctypes.c_int], ctypes.c_char_p)
+def ggml_status_to_string(status: int, /) -> bytes:
+    ...
+
+
 # TODO: Check if this is correct
 # typedef uint16_t ggml_fp16_t;
 ggml_fp16_t = ctypes.c_uint16
@@ -6950,7 +6969,7 @@ def ggml_graph_overhead_custom(
 
 # // ggml_graph_plan() has to be called before ggml_graph_compute()
 # // when plan.work_size > 0, caller must allocate memory for plan.work_data
-# GGML_API struct ggml_cplan ggml_graph_plan   (const struct ggml_cgraph * cgraph, int n_threads /*= GGML_DEFAULT_N_THREADS*/);
+# GGML_API struct ggml_cplan ggml_graph_plan            (const struct ggml_cgraph * cgraph, int n_threads /*= GGML_DEFAULT_N_THREADS*/);
 @ctypes_function(
     "ggml_graph_plan",
     [
@@ -6974,7 +6993,7 @@ def ggml_graph_plan(
     ...
 
 
-# GGML_API int               ggml_graph_compute(      struct ggml_cgraph * cgraph, struct ggml_cplan * cplan);
+# GGML_API enum ggml_status  ggml_graph_compute         (      struct ggml_cgraph * cgraph, struct ggml_cplan * cplan);
 @ctypes_function(
     "ggml_graph_compute",
     [
@@ -6992,7 +7011,7 @@ def ggml_graph_compute(
 
 # // same as ggml_graph_compute() but the work data is allocated as a part of the context
 # // note: the drawback of this API is that you must have ensured that the context has enough memory for the work data
-# GGML_API void ggml_graph_compute_with_ctx(struct ggml_context * ctx, struct ggml_cgraph * cgraph, int n_threads);
+# GGML_API enum ggml_status  ggml_graph_compute_with_ctx(struct ggml_context * ctx, struct ggml_cgraph * cgraph, int n_threads);
 @ctypes_function(
     "ggml_graph_compute_with_ctx",
     [
@@ -9598,7 +9617,7 @@ def ggml_backend_synchronize(backend: Union[ggml_backend_t, int], /):
     ...
 
 
-# GGML_API ggml_backend_graph_plan_t ggml_backend_graph_plan_create (ggml_backend_t backend, struct ggml_cgraph * cgraph);
+# GGML_API ggml_backend_graph_plan_t ggml_backend_graph_plan_create(ggml_backend_t backend, struct ggml_cgraph * cgraph);
 @ctypes_function(
     "ggml_backend_graph_plan_create",
     [
@@ -9614,7 +9633,7 @@ def ggml_backend_graph_plan_create(
     ...
 
 
-# GGML_API void ggml_backend_graph_plan_free   (ggml_backend_t backend, ggml_backend_graph_plan_t plan);
+# GGML_API void                      ggml_backend_graph_plan_free  (ggml_backend_t backend, ggml_backend_graph_plan_t plan);
 @ctypes_function(
     "ggml_backend_graph_plan_free",
     [
@@ -9629,38 +9648,38 @@ def ggml_backend_graph_plan_free(
     ...
 
 
-# GGML_API void ggml_backend_graph_plan_compute(ggml_backend_t backend, ggml_backend_graph_plan_t plan);
+# GGML_API enum ggml_status ggml_backend_graph_plan_compute(ggml_backend_t backend, ggml_backend_graph_plan_t plan);
 @ctypes_function(
     "ggml_backend_graph_plan_compute",
     [
         ggml_backend_t_ctypes,
         ggml_backend_graph_plan_t_ctypes,
     ],
-    None,
+    ctypes.c_int,
 )
 def ggml_backend_graph_plan_compute(
     backend: Union[ggml_backend_t, int], plan: ggml_backend_graph_plan_t, /
-):
+) -> int:
     ...
 
 
-# GGML_API bool ggml_backend_graph_compute     (ggml_backend_t backend, struct ggml_cgraph * cgraph);
+# GGML_API enum ggml_status ggml_backend_graph_compute     (ggml_backend_t backend, struct ggml_cgraph * cgraph);
 @ctypes_function(
     "ggml_backend_graph_compute",
     [
         ggml_backend_t_ctypes,
         ctypes.POINTER(ggml_cgraph),
     ],
-    ctypes.c_bool,
+    ctypes.c_int,
 )
 def ggml_backend_graph_compute(
     backend: Union[ggml_backend_t, int],
     cgraph: ggml_cgraph_p,
-) -> bool:
+) -> int:
     ...
 
 
-# GGML_API bool ggml_backend_supports_op       (ggml_backend_t backend, const struct ggml_tensor * op);
+# GGML_API bool ggml_backend_supports_op(ggml_backend_t backend, const struct ggml_tensor * op);
 @ctypes_function(
     "ggml_backend_supports_op",
     [ggml_backend_t_ctypes, ctypes.POINTER(ggml_tensor)],
@@ -9910,7 +9929,7 @@ ggml_backend_sched_eval_callback = ctypes.CFUNCTYPE(
 
 
 # // Initialize a backend scheduler
-# GGML_API ggml_backend_sched_t  ggml_backend_sched_new(ggml_backend_t * backends, ggml_backend_buffer_type_t * bufts, int n_backends, size_t graph_size);
+# GGML_API ggml_backend_sched_t ggml_backend_sched_new(ggml_backend_t * backends, ggml_backend_buffer_type_t * bufts, int n_backends, size_t graph_size);
 @ctypes_function(
     "ggml_backend_sched_new",
     [
@@ -9930,14 +9949,14 @@ def ggml_backend_sched_new(
     ...
 
 
-# GGML_API void                  ggml_backend_sched_free(ggml_backend_sched_t sched);
+# GGML_API void                 ggml_backend_sched_free(ggml_backend_sched_t sched);
 @ctypes_function("ggml_backend_sched_free", [ggml_backend_sched_t_ctypes], None)
 def ggml_backend_sched_free(sched: ggml_backend_sched_t, /):
     ...
 
 
 # // Initialize backend buffers from a measure graph
-# GGML_API bool                  ggml_backend_sched_reserve(ggml_backend_sched_t sched, struct ggml_cgraph * measure_graph);
+# GGML_API bool                 ggml_backend_sched_reserve(ggml_backend_sched_t sched, struct ggml_cgraph * measure_graph);
 @ctypes_function(
     "ggml_backend_sched_reserve",
     [
@@ -9955,7 +9974,7 @@ def ggml_backend_sched_reserve(
 
 
 # // Get the number of splits of the last graph
-# GGML_API int                   ggml_backend_sched_get_n_splits(ggml_backend_sched_t sched);
+# GGML_API int                  ggml_backend_sched_get_n_splits(ggml_backend_sched_t sched);
 @ctypes_function(
     "ggml_backend_sched_get_n_splits", [ggml_backend_sched_t_ctypes], ctypes.c_int
 )
@@ -9966,7 +9985,7 @@ def ggml_backend_sched_get_n_splits(
     ...
 
 
-# GGML_API size_t                ggml_backend_sched_get_buffer_size(ggml_backend_sched_t sched, ggml_backend_t backend);
+# GGML_API size_t               ggml_backend_sched_get_buffer_size(ggml_backend_sched_t sched, ggml_backend_t backend);
 @ctypes_function(
     "ggml_backend_sched_get_buffer_size",
     [
@@ -9982,7 +10001,7 @@ def ggml_backend_sched_get_buffer_size(
     ...
 
 
-# GGML_API void                  ggml_backend_sched_set_node_backend(ggml_backend_sched_t sched, struct ggml_tensor * node, ggml_backend_t backend);
+# GGML_API void                 ggml_backend_sched_set_node_backend(ggml_backend_sched_t sched, struct ggml_tensor * node, ggml_backend_t backend);
 @ctypes_function(
     "ggml_backend_sched_set_node_backend",
     [
@@ -10001,7 +10020,7 @@ def ggml_backend_sched_set_node_backend(
     ...
 
 
-# GGML_API ggml_backend_t        ggml_backend_sched_get_node_backend(ggml_backend_sched_t sched, struct ggml_tensor * node);
+# GGML_API ggml_backend_t       ggml_backend_sched_get_node_backend(ggml_backend_sched_t sched, struct ggml_tensor * node);
 @ctypes_function(
     "ggml_backend_sched_get_node_backend",
     [
@@ -10018,26 +10037,25 @@ def ggml_backend_sched_get_node_backend(
 
 
 # // Allocate and compute graph on the backend scheduler
-# GGML_API void                  ggml_backend_sched_graph_compute(ggml_backend_sched_t sched, struct ggml_cgraph * graph);
-# GGML_API bool                  ggml_backend_sched_graph_compute(ggml_backend_sched_t sched, struct ggml_cgraph * graph);
+# GGML_API enum ggml_status     ggml_backend_sched_graph_compute(ggml_backend_sched_t sched, struct ggml_cgraph * graph);
 @ctypes_function(
     "ggml_backend_sched_graph_compute",
     [
         ggml_backend_sched_t_ctypes,
         ctypes.POINTER(ggml_cgraph),
     ],
-    ctypes.c_bool,
+    ctypes.c_int,
 )
 def ggml_backend_sched_graph_compute(
     sched: ggml_backend_sched_t,
     graph: ggml_cgraph_p,
-) -> bool:
+) -> int:
     """Allocate and compute graph on the backend scheduler."""
     ...
 
 
 # // Reset all assignments and allocators - must be called before changing the node backends
-# GGML_API void                  ggml_backend_sched_reset(ggml_backend_sched_t sched);
+# GGML_API void                 ggml_backend_sched_reset(ggml_backend_sched_t sched);
 @ctypes_function("ggml_backend_sched_reset", [ggml_backend_sched_t_ctypes], None)
 def ggml_backend_sched_reset(sched: ggml_backend_sched_t, /):
     """Reset all assignments and allocators - must be called before changing the node backends."""
@@ -10045,7 +10063,7 @@ def ggml_backend_sched_reset(sched: ggml_backend_sched_t, /):
 
 
 # // Set a callback to be called for each resulting node during graph compute
-# GGML_API void                  ggml_backend_sched_set_eval_callback(ggml_backend_sched_t sched, ggml_backend_sched_eval_callback callback, void * user_data);
+# GGML_API void                 ggml_backend_sched_set_eval_callback(ggml_backend_sched_t sched, ggml_backend_sched_eval_callback callback, void * user_data);
 @ctypes_function(
     "ggml_backend_sched_set_eval_callback",
     [
