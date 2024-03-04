@@ -119,7 +119,7 @@ jobs:
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip pytest cmake scikit-build setuptools
-          CMAKE_ARGS="-DGGML_METAL=On" python3 -m pip install --verbose --editable .
+          python3 -m pip install --verbose --editable . --config-settings=cmake.args='-DGGML_METAL=On'
       - name: Test with pytest
         run: |
           python3 -m pytest
