@@ -53,6 +53,10 @@ def to_numpy(
     Returns:
         Numpy array with a view of data from tensor
     """
+    data = ggml.ggml_get_data(tensor)
+    if data is None:
+        return np.array([])
+
     ggml_type = GGML_TYPE(tensor.contents.type)
     if ggml_type == GGML_TYPE.F16:
         ctypes_type = ctypes.c_uint16
@@ -84,6 +88,12 @@ def from_numpy(x: npt.NDArray[Any], ctx: ggml.ggml_context_p) -> ggml.ggml_tenso
     Returns:
         New ggml tensor with data copied from x
     """
+    if x.dtype.type == np.bool_:
+        x = x.astype(np.int32)
+
+    if x.shape == ():
+        x = x.reshape((1,))
+
     ggml_type = NUMPY_DTYPE_TO_GGML_TYPE[x.dtype.type]
     shape = tuple(reversed(x.shape))
     tensor = ggml.ggml_new_tensor(
@@ -96,7 +106,10 @@ def from_numpy(x: npt.NDArray[Any], ctx: ggml.ggml_context_p) -> ggml.ggml_tenso
         *tuple(reversed(x.strides))
     )
     if ggml.ggml_get_data(tensor) is not None:
-        to_numpy(tensor)[:] = x
+        if shape == ():
+            to_numpy(tensor)[()] = x
+        else:
+            to_numpy(tensor)[:] = x
     return tensor
 
 
