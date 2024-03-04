@@ -32,10 +32,11 @@ pip install ggml-python
 ```
 
 This will compile ggml using cmake which requires a c compiler installed on your system.
-To build ggml with specific features (ie. OpenBLAS, GPU Support, etc) you can pass specific flags through the `CMAKE_ARGS` environment variable. For example to install ggml-python with cuBLAS support you can run:
+To build ggml with specific features (ie. OpenBLAS, GPU Support, etc) you can pass specific cmake options through the `cmake.args` pip install configuration setting. For example to install ggml-python with cuBLAS support you can run:
 
 ```bash
-CMAKE_ARGS="-DGGML_CUBLAS=ON" pip install ggml-python
+pip install --upgrade pip
+pip install ggml-python --config-settings=cmake.args='-DGGML_CUBLAS=ON'
 ```
 
 ## Options
@@ -90,7 +91,7 @@ ggml.ggml_free(ctx)
 If you are having trouble installing `ggml-python` or activating specific features please try to install it with the `--verbose` and `--no-cache-dir` flags to get more information about any issues:
 
 ```bash
-[options] pip install ggml-python --verbose --no-cache-dir --force-reinstall --upgrade
+pip install ggml-python --verbose --no-cache-dir --force-reinstall --upgrade
 ```
 
 # Debugging
