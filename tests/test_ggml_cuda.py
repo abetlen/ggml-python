@@ -4,7 +4,7 @@ import ctypes
 import pytest
 import numpy as np
 
-ggml_cuda_available = ggml.GGML_USE_CUBLAS
+ggml_cuda_available = ggml.GGML_USE_CUDA
 
 run_if_ggml_cuda_available = pytest.mark.skipif(
     not ggml_cuda_available,
