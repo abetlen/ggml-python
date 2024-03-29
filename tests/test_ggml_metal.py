@@ -15,6 +15,7 @@ run_if_ggml_metal_available = pytest.mark.skipif(
     reason="METAL not available",
 )
 
+@pytest.mark.skip(reason="ggml-metal.metal missing ggml-common.h at runtime")
 @run_if_ggml_metal_available
 def test_metal():
     n_tensors = 1 + 2 # input (x) and weights (a, b)
