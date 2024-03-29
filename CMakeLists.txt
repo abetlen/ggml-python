@@ -25,3 +25,11 @@ install(
     FRAMEWORK DESTINATION ${GGML_PYTHON_INSTALL_DIR}
     RESOURCE DESTINATION ${GGML_PYTHON_INSTALL_DIR}
 )
+if(GGML_METAL)
+    # WORKAROUND: install ggml-common.h to output directory for 
+    # ggml-metal.metal to load during runtime.
+    install(
+        FILES ${CMAKE_CURRENT_SOURCE_DIR}/vendor/ggml/ggml-common.h
+        DESTINATION ${GGML_PYTHON_INSTALL_DIR}
+    )
+endif()
