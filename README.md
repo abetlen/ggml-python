@@ -36,14 +36,14 @@ To build ggml with specific features (ie. OpenBLAS, GPU Support, etc) you can pa
 
 ```bash
 pip install --upgrade pip
-pip install ggml-python --config-settings=cmake.args='-DGGML_CUBLAS=ON'
+pip install ggml-python --config-settings=cmake.args='-DGGML_CUDA=ON'
 ```
 
 ## Options
 
 | Option | Description | Default |
 | --- | --- | --- |
-| `GGML_CUBLAS` | Enable cuBLAS support | `OFF` |
+| `GGML_CUDA` | Enable cuBLAS support | `OFF` |
 | `GGML_CLBLAST` | Enable CLBlast support | `OFF` |
 | `GGML_OPENBLAS` | Enable OpenBLAS support | `OFF` |
 | `GGML_METAL` | Enable Metal support | `OFF` |
