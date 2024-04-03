@@ -10604,9 +10604,9 @@ GGML_CUDA_MAX_DEVICES = 16
 # // backend API
 # GGML_API GGML_CALL ggml_backend_t ggml_backend_cuda_init(int device);
 @ctypes_function(
-    "ggml_backend_cuda_init", [], ggml_backend_t_ctypes, enabled=GGML_USE_CUDA
+    "ggml_backend_cuda_init", [ctypes.c_int], ggml_backend_t, enabled=GGML_USE_CUDA
 )
-def ggml_backend_cuda_init() -> Optional[ggml_backend_t]:
+def ggml_backend_cuda_init(device: int) -> Optional[ggml_backend_t]:
     ...
 
 

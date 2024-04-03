@@ -21,7 +21,7 @@ def test_cuda():
     ctx = ggml.ggml_init(params)
     assert ctx is not None
 
-    backend = ggml.ggml_backend_cuda_init()
+    backend = ggml.ggml_backend_cuda_init(0)
 
     assert backend is not None
 
