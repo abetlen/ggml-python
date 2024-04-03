@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Get output directory
-output_dir=$1
+# Get output directory or default to index/whl/cpu
+output_dir=${1:-"index/whl/cpu"}
 
 # Create output directory
 mkdir -p $output_dir
@@ -34,6 +34,12 @@ echo "    <h1>Links for ggml-python</h1>" >> index.html
 
 # Get all releases
 releases=$(curl -s https://api.github.com/repos/abetlen/ggml-python/releases | jq -r .[].tag_name)
+
+# Get pattern from second arg or default to valid python package version pattern
+pattern=${2:-"^[v]?[0-9]+\.[0-9]+\.[0-9]+$"}
+
+# Filter releases by pattern
+releases=$(echo $releases | tr ' ' '\n' | grep -E $pattern)
 
 # For each release, get all assets
 for release in $releases; do
