@@ -16,7 +16,7 @@ endif()
 
 set(BUILD_SHARED_LIBS "On")
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
-if (APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
+if (APPLE)
     set(GGML_METAL_EMBED_LIBRARY "On" CACHE BOOL "ggml: embed metal library" FORCE)
 endif()
 add_subdirectory(vendor/ggml)
