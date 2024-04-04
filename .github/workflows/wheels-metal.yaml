@@ -1,4 +1,4 @@
-name: Build Wheels (Metal)
+name: Wheels Metal
 
 on: workflow_dispatch
 
