@@ -694,7 +694,21 @@ GGML_TENSOR_FLAG_PARAM = 4
 #     char padding[4];
 # };
 class ggml_object(ctypes.Structure):
-    pass
+    """ggml object
+    
+    Attributes:
+        offs (int): offset
+        size (int): size
+        next (ctypes.pointer[ggml_object]): pointer to next object
+        type (int): ggml object type
+        padding (bytes): padding"""
+
+    if TYPE_CHECKING:
+        offs: int
+        size: int
+        next: CtypesPointer[ggml_object]
+        type: int
+        padding: bytes
 
 
 ggml_object._fields_ = [
@@ -775,7 +789,25 @@ class ggml_tensor(ctypes.Structure):
         extra (ctypes.c_void_p): extra data (e.g. for CUDA)
     """
 
-    pass
+    if TYPE_CHECKING:
+        type: int
+        backend: int
+        buffer: CtypesPointer[ggml_backend_buffer]
+        ne: Sequence[int]
+        nb: Sequence[int]
+        op: int
+        op_params: Sequence[int]
+        flags: int
+        grad: CtypesPointer[ggml_tensor]
+        src: CtypesArray[ggml_tensor_p]
+        perf_runs: int
+        perf_cycles: int
+        perf_time_us: int
+        view_src: CtypesPointer[ggml_tensor]
+        view_offs: int
+        data: Optional[ctypes.c_void_p]
+        name: bytes
+        extra: Optional[ctypes.c_void_p]
 
 
 ggml_tensor._fields_ = [
@@ -843,6 +875,13 @@ class ggml_cplan(ctypes.Structure):
         abort_callback_data (ctypes.c_void_p): abort callback data
     """
 
+    if TYPE_CHECKING:
+        work_size: int
+        work_data: CtypesPointer[ctypes.c_uint8]
+        n_threads: int
+        abort_callback: Callable[[ctypes.c_void_p], bool]
+        abort_callback_data: Optional[ctypes.c_void_p]
+
     _fields_ = [
         ("work_size", ctypes.c_size_t),
         ("work_data", ctypes.POINTER(ctypes.c_uint8)),
@@ -878,6 +917,16 @@ GGML_CGRAPH_EVAL_ORDER_COUNT = 2
 #     struct ggml_tensor ** keys;
 # };
 class ggml_hash_set(ctypes.Structure):
+    """ggml hash set
+    
+    Attributes:
+        size (int): size
+        keys (ctypes.Array[ctypes.POINTER(ggml_tensor)]): array of tensor keys"""
+
+    if TYPE_CHECKING:
+        size: int
+        keys: CtypesArray[CtypesPointer[ggml_tensor]]
+
     _fields_ = [
         ("size", ctypes.c_size_t),
         ("keys", ctypes.POINTER(ctypes.POINTER(ggml_tensor))),
@@ -908,6 +957,7 @@ class ggml_cgraph(ctypes.Structure):
     """ggml computation graph
 
     Attributes:
+        size (int): size
         n_nodes (int): number of nodes
         n_leafs (int): number of leafs
         nodes (ctypes.Array[ggml_tensor_p]): `n_nodes`-length array of compute tensors
@@ -918,6 +968,19 @@ class ggml_cgraph(ctypes.Structure):
         perf_runs (int): number of runs
         perf_cycles (int): number of cycles
         perf_time_us (int): computation time in microseconds"""
+    
+    if TYPE_CHECKING:
+        size: int
+        n_nodes: int
+        n_leafs: int
+        nodes: CtypesArray[CtypesPointer[ggml_tensor]]
+        grads: CtypesArray[CtypesPointer[ggml_tensor]]
+        leafs: CtypesArray[CtypesPointer[ggml_tensor]]
+        visited_hash_table: ggml_hash_set
+        order: int
+        perf_runs: int
+        perf_cycles: int
+        perf_time_us: int
 
     _fields_ = [
         ("size", ctypes.c_int),
@@ -947,6 +1010,18 @@ the `.contents` attribute."""
 #     void * data;
 # };
 class ggml_scratch(ctypes.Structure):
+    """Scratch memory for ggml
+    
+    Attributes:
+        offs (int): offset
+        size (int): size
+        data (ctypes.c_void_p): data pointer"""
+    
+    if TYPE_CHECKING:
+        offs: int
+        size: int
+        data: Optional[ctypes.c_void_p]
+
     _fields_ = [
         ("offs", ctypes.c_size_t),
         ("size", ctypes.c_size_t),
@@ -972,6 +1047,11 @@ class ggml_init_params(ctypes.Structure):
         mem_buffer (ctypes.c_void_p): pointer to memory pool, if None, memory will be allocated internally
         no_alloc (bool): don't allocate memory for tensor data
     """
+
+    if TYPE_CHECKING:
+        mem_size: int
+        mem_buffer: Optional[ctypes.c_void_p]
+        no_alloc: bool
 
     _fields_ = [
         ("mem_size", ctypes.c_size_t),
@@ -1005,6 +1085,22 @@ GGML_TASK_TYPE_FINALIZE = 2
 #     void * wdata;
 # };
 class ggml_compute_params(ctypes.Structure):
+    """Compute parameters for ggml
+    
+    Attributes:
+        type (int): task type
+        ith (int): thread index
+        nth (int): number of threads
+        wsize (int): work buffer size
+        wdata (ctypes.c_void_p): work buffer data"""
+
+    if TYPE_CHECKING:
+        type: int
+        ith: int
+        nth: int
+        wsize: int
+        wdata: Optional[ctypes.c_void_p]
+
     _fields_ = [
         ("type", ctypes.c_int),
         ("ith", ctypes.c_int),
@@ -7756,6 +7852,16 @@ gguf_context_p_ctypes = ctypes.c_void_p
 #     struct ggml_context ** ctx;
 # };
 class gguf_init_params(ctypes.Structure):
+    """Initialization parameters for gguf.
+    
+    Parameters:
+        no_alloc(bool): No allocation.
+        ctx(ggml_context_p): The context."""
+
+    if TYPE_CHECKING:
+        no_alloc: bool
+        ctx: ggml_context_p
+
     _fields_ = [
         ("no_alloc", ctypes.c_bool),
         ("ctx", ctypes.POINTER(ggml_context_p_ctypes)),
@@ -8869,6 +8975,44 @@ ggml_vec_dot_t = ctypes.CFUNCTYPE(
 #     int64_t           nrows; // number of rows to process simultaneously;
 # } ggml_type_traits_t;
 class ggml_type_traits_t(ctypes.Structure):
+    """Internal types and functions exposed for tests and benchmarks.
+    
+    Attributes:
+        type_name(bytes): Name of the type
+        blck_size(int): Block size
+        type_size(int): Size of the type
+        is_quantized(bool): Is quantized
+        to_float(ggml_to_float_t): Convert to float
+        from_float(ggml_from_float_t): Convert from float
+        from_float_reference(ggml_from_float_t): Convert from float reference
+        vec_dot(ggml_vec_dot_t): Vector dot
+        vec_dot_type(int): Vector dot type
+        nrows(int): Number of rows to process simultaneously"""
+
+    if TYPE_CHECKING:
+        type_name: bytes
+        blck_size: int
+        type_size: int
+        is_quantized: bool
+        to_float: Callable[[ctypes.c_void_p, CtypesPointer[ctypes.c_float], int], None]
+        from_float: Callable[[CtypesPointer[ctypes.c_float], ctypes.c_void_p, int], None]
+        from_float_reference: Callable[[CtypesPointer[ctypes.c_float], ctypes.c_void_p, int], None]
+        vec_dot: Callable[
+            [
+                int,
+                CtypesPointer[ctypes.c_float],
+                int,
+                ctypes.c_void_p,
+                int,
+                ctypes.c_void_p,
+                int,
+                int,
+            ],
+            None,
+        ]
+        vec_dot_type: int
+        nrows: int
+
     _fields_ = [
         ("type_name", ctypes.c_char_p),
         ("blck_size", ctypes.c_int),
@@ -8919,6 +9063,20 @@ ggml_backend_t_ctypes: TypeAlias = ctypes.c_void_p
 #     size_t offset;
 # };
 class ggml_tallocr(ctypes.Structure):
+    """Tensor allocator
+
+    Attributes:
+        buffer: ggml_backend_buffer_t
+        base: ctypes.c_void_p
+        alignment: ctypes.c_size_t
+        offset: ctypes.c_size_t"""
+
+    if TYPE_CHECKING:
+        buffer: ggml_backend_buffer_t
+        base: ctypes.c_void_p
+        alignment: int
+        offset: int
+
     _fields_ = [
         ("buffer", ggml_backend_buffer_t_ctypes),
         ("base", ctypes.c_void_p),
@@ -9547,7 +9705,7 @@ def ggml_backend_graph_plan_free(
 )
 def ggml_backend_graph_plan_compute(
     backend: Union[ggml_backend_t, int], plan: ggml_backend_graph_plan_t, /
-) -> ctypes.c_int:
+) -> int:
     ...
 
 # GGML_API enum ggml_status ggml_backend_graph_compute      (ggml_backend_t backend, struct ggml_cgraph * cgraph);
@@ -9558,7 +9716,7 @@ def ggml_backend_graph_plan_compute(
 )
 def ggml_backend_graph_compute(
     backend: Union[ggml_backend_t, int], cgraph: ggml_cgraph_p, /
-) -> ctypes.c_int:
+) -> int:
     ...
 
 # GGML_API enum ggml_status ggml_backend_graph_compute_async(ggml_backend_t backend, struct ggml_cgraph * cgraph);
@@ -9569,7 +9727,7 @@ def ggml_backend_graph_compute(
 )
 def ggml_backend_graph_compute_async(
     backend: Union[ggml_backend_t, int], cgraph: ggml_cgraph_p, /
-) -> ctypes.c_int:
+) -> int:
     ...
 
 
@@ -9582,7 +9740,7 @@ def ggml_backend_graph_compute_async(
 def ggml_backend_supports_op(
     backend: Union[ggml_backend_t, int],
     op: ggml_tensor_p,
-) -> Union[ctypes.c_bool, bool]:
+) -> bool:
     ...
 
 
@@ -9595,7 +9753,7 @@ def ggml_backend_supports_op(
 def ggml_backend_offload_op(
     backend: Union[ggml_backend_t, int],
     op: ggml_tensor_p,
-) -> Union[ctypes.c_bool, bool]:
+) -> bool:
     ...
 
 
@@ -10105,6 +10263,20 @@ def ggml_backend_sched_set_eval_callback(
 #     struct ggml_cgraph * graph;
 # };
 class ggml_backend_graph_copy(ctypes.Structure):
+    """Structure for ggml_backend_graph_copy.
+    
+    Attributes:
+        buffer: ggml_backend_buffer_t
+        ctx_allocated: ggml_context_p
+        ctx_unallocated: ggml_context_p
+        graph: ctypes.POINTER(ggml_cgraph)"""
+
+    if TYPE_CHECKING:
+        buffer: ggml_backend_buffer_t
+        ctx_allocated: ggml_context_p
+        ctx_unallocated: ggml_context_p
+        graph: CtypesPointer[ggml_cgraph]
+
     _fields_ = [
         ("buffer", ggml_backend_buffer_t_ctypes),
         ("ctx_allocated", ggml_context_p_ctypes),
