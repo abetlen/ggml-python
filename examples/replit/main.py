@@ -332,7 +332,7 @@ class ReplitModel:
         self.memory_k = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F16, n_elements)
         self.memory_v = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F16, n_elements)
 
-        if ggml.GGML_USE_CUBLAS:
+        if ggml.GGML_USE_CUDA:
             self.memory_k.contents.backend = ggml.GGML_BACKEND_GPU
             ggml.ggml_cuda_transform_tensor(self.memory_k.contents.data, self.memory_k)
             self.memory_v.contents.backend = ggml.GGML_BACKEND_GPU
@@ -344,7 +344,7 @@ class ReplitModel:
         self.tensors["transformer.norm_f.weight"] = self.norm_f_weight
 
         self.mem_per_token = 0
-        if ggml.GGML_USE_CUBLAS:
+        if ggml.GGML_USE_CUDA:
             self.eval_buffer = CudaContextBuffer()
         else:
             self.eval_buffer = CpuContextBuffer()
@@ -383,7 +383,7 @@ class ReplitModel:
     def __del__(self):
         ggml.ggml_free(self.ctx)
 
-        if ggml.GGML_USE_CUBLAS:
+        if ggml.GGML_USE_CUDA:
             for tensor in self.tensors.values():
                 if tensor.contents.backend == ggml.GGML_BACKEND_GPU:
                     ggml.ggml_cuda_free_data(tensor)
@@ -470,7 +470,7 @@ class ReplitModel:
 
         inpL = ggml.ggml_get_rows(ctx0, self.wte_weight, embd)
 
-        if ggml.GGML_USE_CUBLAS:
+        if ggml.GGML_USE_CUDA:
             offload_func_nr = ggml.ggml_cuda_assign_buffers_no_scratch
             offload_func_kq = ggml.ggml_cuda_assign_buffers_no_scratch
             offload_func_v = ggml.ggml_cuda_assign_buffers_no_scratch
@@ -480,7 +480,7 @@ class ReplitModel:
         for il in range(n_layer):
             offload_func = offload_nop
 
-            if ggml.GGML_USE_CUBLAS:
+            if ggml.GGML_USE_CUDA:
                 offload_func = ggml.ggml_cuda_assign_buffers_no_scratch
 
             # // lctx.use_buf(ctx0, 0)
@@ -997,7 +997,7 @@ class ReplitModel:
                 print("ctx size     =", ctx_size // (1024 * 1024), "MB")
 
             # create context
-            if ggml.GGML_USE_CUBLAS:
+            if ggml.GGML_USE_CUDA:
                 weights_buffer = CudaContextBuffer(ctx_size)
                 # ggml.ggml_cuda_set_main_device(0)
             else:
@@ -1067,7 +1067,7 @@ class ReplitModel:
                         ggml.ggml_get_data(tensor)
                     )
                 )
-                if ggml.GGML_USE_CUBLAS and name.startswith("transformer.block"):
+                if ggml.GGML_USE_CUDA and name.startswith("transformer.block"):
                     should_offload_suffix = [
                         # "norm_1.weight",
                         "attn.Wqkv.weight",
@@ -1079,7 +1079,7 @@ class ReplitModel:
                     if any(name.endswith(s) for s in should_offload_suffix):
                         tensor.contents.backend = ggml.GGML_BACKEND_GPU
                         ggml.ggml_cuda_transform_tensor(tensor.contents.data, tensor)
-                if ggml.GGML_USE_CUBLAS and name.startswith("transformer.block"):
+                if ggml.GGML_USE_CUDA and name.startswith("transformer.block"):
                     if (
                         name == "transformer.wte.weight"
                         or name == "transformer.norm_f.weight"

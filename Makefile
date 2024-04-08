@@ -26,10 +26,10 @@ build.openblas: ${submodules} update-pip ## Build ggml-python with openblas supp
 		--config-settings cmake.args='-DGGML_OPENBLAS=On' \
 		--editable .
 
-build.cublas: ${submodules} update-pip ## Build ggml-python with cublas / cuda support
+build.cuda: ${submodules} update-pip ## Build ggml-python with cublas / cuda support
 	python3 -m pip install \
 		--verbose \
-		--config-settings cmake.args='-DGGML_CUBLAS=On' \
+		--config-settings cmake.args='-DGGML_CUDA=On' \
 		--editable .
 
 build.clblast: ${submodules} update-pip ## Build ggml-python with clblast / opencl support
@@ -72,7 +72,7 @@ help: ## Prints help menu
 	build \
 	build.debug \
 	build.openblas \
-	build.cublas \
+	build.cuda \
 	build.clblast \
 	sdist \
 	deploy \
