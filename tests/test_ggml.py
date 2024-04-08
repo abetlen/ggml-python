@@ -308,9 +308,9 @@ def test_graph_chaining():
 
     f_copy = ggml.ggml_dup_tensor(ctx_eval, f)
     f_buffer = ggml.ggml_backend_alloc_buffer(backend, ggml.ggml_nbytes(f_copy))
+    assert f_buffer is not None
     tallocr = ggml.ggml_tallocr_new(f_buffer)
-    ggml.ggml_tallocr_alloc(tallocr, f_copy)
-    ggml.ggml_tallocr_free(tallocr)
+    ggml.ggml_tallocr_alloc(ctypes.pointer(tallocr), f_copy)
 
     ggml.ggml_backend_tensor_copy(f, f_copy)
 
