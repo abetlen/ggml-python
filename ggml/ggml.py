@@ -9532,7 +9532,7 @@ def ggml_backend_graph_plan_free(
 )
 def ggml_backend_graph_plan_compute(
     backend: Union[ggml_backend_t, int], plan: ggml_backend_graph_plan_t, /
-) -> ctypes.c_int:
+) -> int:
     ...
 
 # GGML_API enum ggml_status ggml_backend_graph_compute      (ggml_backend_t backend, struct ggml_cgraph * cgraph);
@@ -9543,7 +9543,7 @@ def ggml_backend_graph_plan_compute(
 )
 def ggml_backend_graph_compute(
     backend: Union[ggml_backend_t, int], cgraph: ggml_cgraph_p, /
-) -> ctypes.c_int:
+) -> int:
     ...
 
 # GGML_API enum ggml_status ggml_backend_graph_compute_async(ggml_backend_t backend, struct ggml_cgraph * cgraph);
@@ -9554,7 +9554,7 @@ def ggml_backend_graph_compute(
 )
 def ggml_backend_graph_compute_async(
     backend: Union[ggml_backend_t, int], cgraph: ggml_cgraph_p, /
-) -> ctypes.c_int:
+) -> int:
     ...
 
 
@@ -9567,7 +9567,7 @@ def ggml_backend_graph_compute_async(
 def ggml_backend_supports_op(
     backend: Union[ggml_backend_t, int],
     op: ggml_tensor_p,
-) -> Union[ctypes.c_bool, bool]:
+) -> bool:
     ...
 
 
@@ -9580,7 +9580,7 @@ def ggml_backend_supports_op(
 def ggml_backend_offload_op(
     backend: Union[ggml_backend_t, int],
     op: ggml_tensor_p,
-) -> Union[ctypes.c_bool, bool]:
+) -> bool:
     ...
 
 
