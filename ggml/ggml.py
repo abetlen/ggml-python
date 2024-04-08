@@ -8960,7 +8960,19 @@ ggml_vec_dot_t = ctypes.CFUNCTYPE(
 #     int64_t           nrows; // number of rows to process simultaneously;
 # } ggml_type_traits_t;
 class ggml_type_traits_t(ctypes.Structure):
-    """Internal types and functions exposed for tests and benchmarks."""
+    """Internal types and functions exposed for tests and benchmarks.
+    
+    Attributes:
+        type_name(bytes): Name of the type
+        blck_size(int): Block size
+        type_size(int): Size of the type
+        is_quantized(bool): Is quantized
+        to_float(ggml_to_float_t): Convert to float
+        from_float(ggml_from_float_t): Convert from float
+        from_float_reference(ggml_from_float_t): Convert from float reference
+        vec_dot(ggml_vec_dot_t): Vector dot
+        vec_dot_type(int): Vector dot type
+        nrows(int): Number of rows to process simultaneously"""
 
     if TYPE_CHECKING:
         type_name: bytes
