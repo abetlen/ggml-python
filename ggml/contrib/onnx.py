@@ -5064,9 +5064,7 @@ class GgmlOnnxExecutionContext:
         assert tensor_buffer is not None
         weakref.finalize(tensor, ggml.ggml_backend_buffer_free, tensor_buffer)
         tallocr = ggml.ggml_tallocr_new(tensor_buffer)
-        assert tallocr is not None
-        ggml.ggml_tallocr_alloc(tallocr, tensor)
-        ggml.ggml_tallocr_free(tallocr)
+        ggml.ggml_tallocr_alloc(ctypes.pointer(tallocr), tensor)
         ggml.ggml_set_input(tensor)
         ggml.ggml_set_output(tensor)
 
@@ -5100,13 +5098,11 @@ class GgmlOnnxExecutionContext:
         assert tensor_copy_buffer is not None
         weakref.finalize(tensor_copy, ggml.ggml_backend_buffer_free, tensor_copy_buffer)
         tallocr = ggml.ggml_tallocr_new(tensor_copy_buffer)
-        assert tallocr is not None
-        ggml.ggml_tallocr_alloc(tallocr, tensor_copy)
+        ggml.ggml_tallocr_alloc(ctypes.pointer(tallocr), tensor_copy)
 
         ggml.ggml_backend_tensor_copy(tensor, tensor_copy)
         self.refs.append(tensor_copy_buffer)
 
-        ggml.ggml_tallocr_free(tallocr)
         ggml.ggml_gallocr_free(gallocr)
 
         return tensor_copy
