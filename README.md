@@ -94,6 +94,30 @@ If you are having trouble installing `ggml-python` or activating specific featur
 pip install ggml-python --verbose --no-cache-dir --force-reinstall --upgrade
 ```
 
+# Debugging
+
+## Error: `SIGSEGV` or `Aborted (core dumped)`
+
+Godspeed! You are about to enter the world of debugging native code.
+If you are seeing a `SIGSEGV` or `Aborted (core dumped)` error something has gone horribly wrong.
+A good first step is to try to reproduce the error with a debug build of `ggml-python` and `ggml` and then use a debugger like `gdb` to step through the code and find the issue.
+
+
+```bash
+$ git clone https://github.com/abetlen/ggml-python.git
+$ cd ggml-python
+$ make build.debug # this preserves debug symbols
+$ gdb --args python3 your_script.py
+```
+
+From there you can use `run` to start the script and `bt` to get a backtrace of native code and `py-bt` to get a backtrace of python code.
+
+Additionally, you should use python's built in `breakpoint()` function to set breakpoints in your python code and step through the code.
+
+# API Stability
+
+This project is currently in alpha and the API is subject to change.
+
 # License
 
 This project is licensed under the terms of the MIT license.

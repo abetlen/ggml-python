@@ -57,7 +57,9 @@ from __future__ import annotations
 import os
 import sys
 import ctypes
+import signal
 import pathlib
+import traceback
 import functools
 import importlib.resources
 from typing import (
@@ -73,6 +75,19 @@ from typing import (
     Generic,
 )
 from typing_extensions import TypeAlias
+
+
+if sys.platform != "win32":
+    c_globals = ctypes.CDLL(None)  # POSIX
+
+
+    @ctypes.CFUNCTYPE(None, ctypes.c_int)
+    def sigabrt_handler(sig):
+        traceback.print_stack()
+        raise Exception("GGML SIGABRT")
+
+
+    c_globals.signal(signal.SIGABRT, sigabrt_handler)
 
 
 # Load the library

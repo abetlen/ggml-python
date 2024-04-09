@@ -10,11 +10,10 @@ on:
 
 jobs:
   build-linux:
-
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.8", "3.9", "3.10", "3.11"]
 
     steps:
       - uses: actions/checkout@v3
@@ -24,25 +23,27 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+
       - name: Install dependencies
         run: |
-          python3 -m pip install --upgrade pip pytest cmake scikit-build setuptools
-          python3 -m pip install --verbose --editable .
+          python3 -m pip install --upgrade pip cmake scikit-build setuptools
+          python3 -m pip install --verbose --editable .[test,onnx,onnx-tests,convert]
+
       - name: Test with pytest
         run: |
           python3 -m pytest
 
   build-windows:
-
     runs-on: windows-latest
     strategy:
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.8", "3.9", "3.10", "3.11"]
 
     steps:
       - uses: actions/checkout@v3
         with:
           submodules: "true"
+
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
@@ -50,18 +51,18 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python3 -m pip install --upgrade pip pytest cmake scikit-build setuptools
-          python3 -m pip install --verbose --editable .
+          python3 -m pip install --upgrade pip cmake scikit-build setuptools
+          python3 -m pip install --verbose --editable .[test,onnx,onnx-tests,convert]
+
       - name: Test with pytest
         run: |
           python3 -m pytest
 
   build-macos:
-
     runs-on: macos-latest
     strategy:
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.8", "3.9", "3.10", "3.11"]
 
     steps:
       - uses: actions/checkout@v3
@@ -71,10 +72,12 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+
       - name: Install dependencies
         run: |
-          python3 -m pip install --upgrade pip pytest cmake scikit-build setuptools
-          python3 -m pip install --verbose --editable .
+          python3 -m pip install --upgrade pip cmake scikit-build setuptools
+          python3 -m pip install --verbose --editable .[test,onnx,onnx-tests,convert]
+
       - name: Test with pytest
         run: |
           python3 -m pytest
@@ -119,7 +122,7 @@ jobs:
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip pytest cmake scikit-build setuptools
-          python3 -m pip install --verbose --editable . --config-settings=cmake.args='-DGGML_METAL=On'
+          python3 -m pip install --verbose --editable .[test,onnx,onnx-tests,convert] --config-settings=cmake.args='-DGGML_METAL=On'
       - name: Test with pytest
         run: |
           python3 -m pytest
