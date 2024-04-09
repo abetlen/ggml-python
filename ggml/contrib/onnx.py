@@ -5226,6 +5226,9 @@ class GgmlBackendRep(BackendRep):
 
         ggml_input_buffer = ggml.ggml_backend_alloc_ctx_tensors(ggml_input_context, self.ggml_backend)
 
+        if ggml_input_buffer is None:
+            raise RuntimeError("Failed to allocate GGML input buffer")
+
         # Set user inputs
         for key, value in inputs.items():
             tensor = ggml_tensors[key]
@@ -5271,7 +5274,7 @@ class GgmlBackendRep(BackendRep):
         for output in self.outputs:
             exit_node = outputs[output.name]
             # NOTE: 0 dimension in ggml may cause bugs
-            max_tensors = np.prod(ctx.shapes[output.name])
+            max_tensors = np.prod(ctx.shapes[output.name]) # type: ignore
             graph_output: npt.NDArray[Any] = (
                 ctx.to_numpy(exit_node) if max_tensors > 0 else np.empty((0))
             )  # TODO: Add checks to convert values back to bool or etc types
