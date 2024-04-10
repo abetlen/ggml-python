@@ -55,13 +55,7 @@ jobs:
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip pytest cmake scikit-build setuptools
-          python3 -m pip install \
-            --verbose \
-            --config-settings cmake.args='-DCMAKE_BUILD_TYPE=Debug;-DCMAKE_CXX_FLAGS=-g3;-DCMAKE_C_FLAGS=-g3' \
-            --config-settings cmake.verbose=true \
-            --config-settings logging.level=INFO \
-            --config-settings install.strip=false \
-            --editable .
+          python3 -m pip install --verbose --config-settings cmake.args='-DCMAKE_BUILD_TYPE=Debug;-DCMAKE_CXX_FLAGS=-g3;-DCMAKE_C_FLAGS=-g3' --config-settings cmake.verbose=true --config-settings logging.level=INFO --config-settings install.strip=false --editable .
       - name: Test with pytest
         run: |
           python -m pytest -s -vvvv
