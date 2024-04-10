@@ -10,7 +10,6 @@ on:
 
 jobs:
   build-linux:
-
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -36,10 +35,9 @@ jobs:
             --editable .
       - name: Test with pytest
         run: |
-          gdb -ex "set pagination off" -ex r -ex bt -ex q -return-child-result --args python -m pytest -s -vvvv
+          python -m pytest -s -vvvv
 
   build-windows:
-
     runs-on: windows-latest
     strategy:
       matrix:
@@ -66,10 +64,9 @@ jobs:
             --editable .
       - name: Test with pytest
         run: |
-          gdb -ex "set pagination off" -ex r -ex bt -ex q -return-child-result --args python -m pytest -s -vvvv
+          python -m pytest -s -vvvv
 
   build-macos:
-
     runs-on: macos-latest
     strategy:
       matrix:
@@ -95,10 +92,9 @@ jobs:
             --editable .
       - name: Test with pytest
         run: |
-          gdb -ex "set pagination off" -ex r -ex bt -ex q -return-child-result --args python -m pytest -s -vvvv
+          python -m pytest -s -vvvv
 
   build-macos-metal:
-
     runs-on: macos-latest
 
     steps:
@@ -121,4 +117,4 @@ jobs:
             --editable .
       - name: Test with pytest
         run: |
-          gdb -ex "set pagination off" -ex r -ex bt -ex q -return-child-result --args python -m pytest -s -vvvv
+          python -m pytest -s -vvvv
