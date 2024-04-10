@@ -265,33 +265,24 @@ def ggml_fp32_to_fp16(x: ctypes.c_float, /) -> int:
     ...
 
 
-# GGML_API void ggml_fp16_to_fp32_row(const ggml_fp16_t * x, float * y, size_t n);
+# GGML_API void ggml_fp16_to_fp32_row(const ggml_fp16_t * x, float * y, int64_t n);
 @ctypes_function(
     "ggml_fp16_to_fp32_row",
-    [ctypes.POINTER(ggml_fp16_t), ctypes.POINTER(ctypes.c_float), ctypes.c_int],
+    [ctypes.POINTER(ggml_fp16_t), ctypes.POINTER(ctypes.c_float), ctypes.c_int64],
     None,
-)
-def ggml_fp16_to_fp32_row(
-    x: CtypesArray[ggml_fp16_t],
-    y: CtypesArray[ctypes.c_float],
-    n: Union[ctypes.c_int, int],
-    /,
-) -> None:
+)   
+def ggml_fp16_to_fp32_row(x: CtypesPointer[ggml_fp16_t], y: CtypesPointer[ctypes.c_float], n: int, /) -> None:
     ...
 
 
-# GGML_API void ggml_fp32_to_fp16_row(const float * x, ggml_fp16_t * y, size_t n);
+
+# GGML_API void ggml_fp32_to_fp16_row(const float * x, ggml_fp16_t * y, int64_t n);
 @ctypes_function(
     "ggml_fp32_to_fp16_row",
-    [ctypes.POINTER(ctypes.c_float), ctypes.POINTER(ggml_fp16_t), ctypes.c_int],
+    [ctypes.POINTER(ctypes.c_float), ctypes.POINTER(ggml_fp16_t), ctypes.c_int64],
     None,
 )
-def ggml_fp32_to_fp16_row(
-    x: CtypesArray[ctypes.c_float],
-    y: CtypesArray[ggml_fp16_t],
-    n: Union[ctypes.c_int, int],
-    /,
-) -> None:
+def ggml_fp32_to_fp16_row(x: CtypesPointer[ctypes.c_float], y: CtypesPointer[ggml_fp16_t], n: int, /) -> None:
     ...
 
 
@@ -7764,9 +7755,9 @@ def ggml_quantize_requires_imatrix(
 #         enum ggml_type   type,
 #            const float * src,
 #                   void * dst,
-#                    int   start,
-#                    int   nrows,
-#                    int   n_per_row,
+#                int64_t   start,
+#                int64_t   nrows,
+#                int64_t   n_per_row,
 #            const float * imatrix);
 @ctypes_function(
     "ggml_quantize_chunk",
@@ -7774,9 +7765,9 @@ def ggml_quantize_requires_imatrix(
         ctypes.c_int,
         ctypes.POINTER(ctypes.c_float),
         ctypes.c_void_p,
-        ctypes.c_int,
-        ctypes.c_int,
-        ctypes.c_int,
+        ctypes.c_int64,
+        ctypes.c_int64,
+        ctypes.c_int64,
         ctypes.POINTER(ctypes.c_float),
     ],
     ctypes.c_size_t,
@@ -7785,9 +7776,9 @@ def ggml_quantize_chunk(
     type: Union[ctypes.c_int, int],
     src: CtypesArray[ctypes.c_float],
     dst: Union[ctypes.c_void_p, int, None],
-    start: Union[ctypes.c_int, int],
-    nrows: Union[ctypes.c_int, int],
-    n_per_row: Union[ctypes.c_int, int],
+    start: Union[ctypes.c_int64, int],
+    nrows: Union[ctypes.c_int64, int],
+    n_per_row: Union[ctypes.c_int64, int],
     imatrix: CtypesArray[ctypes.c_float],
 ) -> int:
     ...
