@@ -242,3 +242,40 @@ def test_ggml_cpu_backend():
     ggml.ggml_backend_buffer_free(buffer)
     ggml.ggml_backend_free(backend)
     ggml.ggml_free(ctx)
+
+
+def test_grad():
+    nthreads = 1
+    params = ggml.ggml_init_params(
+        mem_size=128 * 1024 * 1024, mem_buffer=None, no_alloc=False
+    )
+    ctx0 = ggml.ggml_init(params)
+    assert ctx0 is not None
+
+    x = ggml.ggml_new_tensor_1d(ctx0, ggml.GGML_TYPE_F32, 1)
+
+    ggml.ggml_set_param(ctx0, x)
+
+    a = ggml.ggml_new_tensor_1d(ctx0, ggml.GGML_TYPE_F32, 1)
+    b = ggml.ggml_mul(ctx0, x, x)
+    f = ggml.ggml_mul(ctx0, a, b)
+
+    gf = ggml.ggml_new_graph_custom(ctx0, ggml.GGML_DEFAULT_GRAPH_SIZE, True)
+    ggml.ggml_build_forward_expand(gf, f)
+
+    gb = ggml.ggml_graph_dup(ctx0, gf)
+
+    ggml.ggml_build_backward_expand(ctx0, gf, gb, False)
+
+    ggml.ggml_set_f32(x, 2.0)
+    ggml.ggml_set_f32(a, 3.0)
+
+    ggml.ggml_graph_reset(gf)
+    ggml.ggml_set_f32(f.contents.grad, 1.0)
+
+    ggml.ggml_graph_compute_with_ctx(ctx0, gb, nthreads)
+
+    assert ggml.ggml_get_f32_1d(f, 0) == 12.0
+    assert ggml.ggml_get_f32_1d(x.contents.grad, 0) == 12.0
+
+    ggml.ggml_free(ctx0)
