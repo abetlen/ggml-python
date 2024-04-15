@@ -7493,7 +7493,7 @@ def ggml_quantize_chunk(
     start: Union[ctypes.c_int64, int],
     nrows: Union[ctypes.c_int64, int],
     n_per_row: Union[ctypes.c_int64, int],
-    imatrix: CtypesArray[ctypes.c_float],
+    imatrix: Optional[CtypesArray[ctypes.c_float]],
 ) -> int:
     ...
 

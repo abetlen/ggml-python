@@ -103,7 +103,6 @@ def test_ggml_custom_op():
     ggml.ggml_free(ctx)
 
 
-@pytest.mark.skip(reason="ggml_quantize_q8_0 has been deprecated")
 def test_quantize():
     ne0 = 32
     ne1 = 1
@@ -111,14 +110,16 @@ def test_quantize():
     data = [float(i) for i in range(nelements)]
     data_f32 = (ctypes.c_float * len(data))(*data)
     work = (ctypes.c_float * nelements)(0)
-    hist = (ctypes.c_int64 * (1 << 4))(0)
     # TODO: convert to ggml.ggml_quantize_chunk
-    cur_size = ggml.ggml_quantize_q8_0(
+    # cur_size = ggml.ggml_quantize_q8_0(
+    cur_size = ggml.ggml_quantize_chunk(
+        ggml.GGML_TYPE_Q8_0,
         data_f32,
         ctypes.cast(work, ctypes.c_void_p),
-        nelements,
+        0,
+        nelements // ne0,
         ne0,
-        hist,
+        None,
     )
     assert cur_size == 34
 
