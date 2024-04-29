@@ -50,7 +50,7 @@ convert = [
     "sentencepiece==0.1.98",
     "torch==2.0.1",
     "torchaudio==2.0.2",
-    "torchvision==0.15.2",
+    "torchvision==0.18.0",
     "transformers==4.40.1"
 ]
 
