@@ -8,7 +8,7 @@ ggml-python @ git+https://github.com/abetlen/ggml-python@main
 idna==3.4
 Jinja2==3.1.2
 MarkupSafe==2.1.2
-mpmath==1.2.1
+mpmath==1.3.0
 networkx==3.0
 numpy==1.24.1
 Pillow==10.3.0
