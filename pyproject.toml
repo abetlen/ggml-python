@@ -49,7 +49,7 @@ convert = [
     "numpy==1.24.3",
     "sentencepiece==0.1.98",
     "torch==2.3.0",
-    "torchaudio==2.0.2",
+    "torchaudio==2.3.0",
     "torchvision==0.18.0",
     "transformers==4.40.1"
 ]
