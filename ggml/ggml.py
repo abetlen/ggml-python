@@ -769,10 +769,10 @@ class ggml_tensor(ctypes.Structure):
         type: int
         backend: int
         buffer: CtypesPointer[ggml_backend_buffer]
-        ne: Sequence[int]
-        nb: Sequence[int]
+        ne: CtypesArray[ctypes.c_int64]
+        nb: CtypesArray[ctypes.c_size_t]
         op: int
-        op_params: Sequence[int]
+        op_params: CtypesArray[ctypes.c_int32]
         flags: int
         grad: CtypesPointer[ggml_tensor]
         src: CtypesArray[ggml_tensor_p]
