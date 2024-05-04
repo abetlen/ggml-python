@@ -604,6 +604,7 @@ GGML_OP_COUNT = 76
 #     GGML_UNARY_OP_TANH,
 #     GGML_UNARY_OP_ELU,
 #     GGML_UNARY_OP_RELU,
+#     GGML_UNARY_OP_SIGMOID,
 #     GGML_UNARY_OP_GELU,
 #     GGML_UNARY_OP_GELU_QUICK,
 #     GGML_UNARY_OP_SILU,
@@ -619,12 +620,13 @@ GGML_UNARY_OP_STEP = 3
 GGML_UNARY_OP_TANH = 4
 GGML_UNARY_OP_ELU = 5
 GGML_UNARY_OP_RELU = 6
-GGML_UNARY_OP_GELU = 7
-GGML_UNARY_OP_GELU_QUICK = 8
-GGML_UNARY_OP_SILU = 9
-GGML_UNARY_OP_HARDSWISH = 10
-GGML_UNARY_OP_HARDSIGMOID = 11
-GGML_UNARY_OP_COUNT = 12
+GGML_UNARY_OP_SIGMOID = 7
+GGML_UNARY_OP_GELU = 8
+GGML_UNARY_OP_GELU_QUICK = 9
+GGML_UNARY_OP_SILU = 10
+GGML_UNARY_OP_HARDSWISH = 11
+GGML_UNARY_OP_HARDSIGMOID = 12
+GGML_UNARY_OP_COUNT = 13
 
 # enum ggml_object_type {
 #     GGML_OBJECT_TYPE_TENSOR,
@@ -3138,6 +3140,26 @@ def ggml_relu(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
     ...
 
 
+# GGML_API struct ggml_tensor * ggml_sigmoid(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ctypes_function(
+    "ggml_sigmoid",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_sigmoid(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    """Apply the Sigmoid activation function to all elements in a tensor and return the result.
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+        
+    Returns:
+        Pointer to ggml_tensor"""
+    ...
+
+
 # GGML_API struct ggml_tensor * ggml_leaky_relu(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a, float negative_slope, bool inplace);
@@ -3182,6 +3204,26 @@ def ggml_relu_inplace(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p
         ctx: ggml context
         a: tensor
 
+    Returns:
+        Pointer to ggml_tensor"""
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_sigmoid_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ctypes_function(
+    "ggml_sigmoid_inplace",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_sigmoid_inplace(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    """Apply the Sigmoid activation function to all elements in a tensor and store the result in the first tensor.
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+    
     Returns:
         Pointer to ggml_tensor"""
     ...
