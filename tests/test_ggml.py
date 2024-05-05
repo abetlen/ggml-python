@@ -1,5 +1,3 @@
-import pytest
-
 import ctypes
 
 from typing import Optional
