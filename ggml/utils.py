@@ -121,8 +121,8 @@ def quantize_0(
     nelements: int,
     ne0: int,
     ttype: GGML_TYPE,
-    hist: Optional[ggml.CtypesArray[ctypes.c_int64]] = None,
     work: Optional[ggml.CtypesArray[ctypes.c_float]] = None,
+    imatrix: Optional[ggml.CtypesArray[ctypes.c_float]] = None,
 ):
     """Quantize a float32 array.
 
@@ -131,29 +131,23 @@ def quantize_0(
         nelements: number of elements in data_f32
         ne0: number of elements in data_f32 that are zero
         ttype: ggml type to quantize to
-        hist: histogram of quantized values
         work: work buffer
+        imatrix: quantization matrix
 
     Returns:
-        (work, hist, cur_size): outpuut buffer, histogram, number of bytes in work buffer
+        (work, cur_size): outpuut buffer, histogram, number of bytes in work buffer
     """
     work = work or (ctypes.c_float * nelements)()
-    hist = hist or (ctypes.c_int64 * (1 << 4))()
-    quantize_func = {
-        GGML_TYPE.Q4_0: ggml.ggml_quantize_q4_0,
-        GGML_TYPE.Q4_1: ggml.ggml_quantize_q4_1,
-        GGML_TYPE.Q5_0: ggml.ggml_quantize_q5_0,
-        GGML_TYPE.Q5_1: ggml.ggml_quantize_q5_1,
-        GGML_TYPE.Q8_0: ggml.ggml_quantize_q8_0,
-    }[ttype]
-    cur_size = quantize_func(
+    cur_size = ggml.ggml_quantize_chunk(
+        ttype,
         data_f32,
         ctypes.cast(work, ctypes.c_void_p),
+        0,
         nelements,
         ne0,
-        hist,
+        imatrix,
     )
-    return ctypes.cast(work, ctypes.c_void_p), hist, cur_size
+    return ctypes.cast(work, ctypes.c_void_p), cur_size
 
 
 def quantize_row(
