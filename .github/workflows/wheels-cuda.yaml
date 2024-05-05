@@ -122,7 +122,7 @@ jobs:
           python -m build --wheel
           Write-Output "CUDA_VERSION=$cudaVersion" >> $env:GITHUB_ENV
 
-      - uses: softprops/action-gh-release@v1
+      - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
           tag_name: ${{ github.ref_name }}-cu${{ env.CUDA_VERSION }}
