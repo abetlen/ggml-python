@@ -51,7 +51,7 @@ convert = [
     "torch==2.3.0",
     "torchaudio==2.3.0",
     "torchvision==0.18.0",
-    "transformers==4.40.1"
+    "transformers==4.40.2"
 ]
 
 [project.urls]
