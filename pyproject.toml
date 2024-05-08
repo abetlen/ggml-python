@@ -45,7 +45,7 @@ test = ["pytest"]
 docs = ["mkdocs", "mkdocstrings[python]", "mkdocs-material", "pillow", "cairosvg"]
 publish = ["build"]
 convert = [
-    "accelerate==0.29.3",
+    "accelerate==0.30.0",
     "numpy==1.26.4",
     "sentencepiece==0.2.0",
     "torch==2.3.0",
