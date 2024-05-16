@@ -5574,6 +5574,7 @@ def ggml_pool_2d(
 
 
 # // nearest interpolate
+# // multiplies ne0 and ne1 by scale factor
 # // used in stable-diffusion
 # GGML_API struct ggml_tensor * ggml_upscale(
 #         struct ggml_context * ctx,
@@ -5593,9 +5594,56 @@ def ggml_upscale(
 ) -> ggml_tensor_p:
     """Upscale
 
+    Multiply ne0 and ne1 by scale factor
+
     Parameters:
         a: input tensor
         scale_factor: scale factor
+
+    Returns:
+        output tensor"""
+    ...
+
+
+# // nearest interpolate
+# // nearest interpolate to specified dimensions
+# // used in tortoise.cpp
+# GGML_API struct ggml_tensor * ggml_upscale_ext(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         int                   ne0,
+#         int                   ne1,
+#         int                   ne2,
+#         int                   ne3);
+@ctypes_function(
+    "ggml_upscale_ext",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_upscale_ext(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    ne0: Union[ctypes.c_int, int],
+    ne1: Union[ctypes.c_int, int],
+    ne2: Union[ctypes.c_int, int],
+    ne3: Union[ctypes.c_int, int],
+    /,
+) -> ggml_tensor_p:
+    """Upscale to specified dimensions
+
+    Parameters:
+        a: input tensor
+        ne0: dimension 0
+        ne1: dimension 1
+        ne2: dimension 2
+        ne3: dimension 3
 
     Returns:
         output tensor"""
