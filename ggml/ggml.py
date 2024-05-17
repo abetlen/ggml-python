@@ -61,6 +61,7 @@ import pathlib
 import functools
 import importlib.resources
 from typing import (
+    cast,
     Any,
     Callable,
     List,
@@ -163,7 +164,11 @@ def ctypes_function_for_shared_library(lib: ctypes.CDLL):
                 functools.wraps(f)(func)
                 return func
             else:
-                return f
+                def f_(*args: Any, **kwargs: Any):
+                    raise RuntimeError(
+                        f"Function '{name}' is not available in the shared library (enabled=False)"
+                    )
+                return cast(F, f_)
 
         return decorator
 
