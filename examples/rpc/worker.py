@@ -7,7 +7,8 @@ def main():
     parser.add_argument("--port", type=int, default=9091)
     parser.add_argument("--free_mem", type=int, default=1 << 30)
     parser.add_argument("--total_mem", type=int, default=1 << 30)
-    parser.add_argument("--backend", type=str, default="cpu")
+    parser.add_argument("--backend", type=str, default="cpu", choices=["cpu", "cuda", "metal"])
+    parser.add_argument("--backend-cuda-device", type=int, default=0)
     args = parser.parse_args()
 
     print(f"Starting worker on {args.host}:{args.port}")
@@ -17,6 +18,10 @@ def main():
 
     if args.backend == "cpu":
         backend = ggml.ggml_backend_cpu_init()
+    elif args.backend == "cuda":
+        backend = ggml.ggml_backend_cuda_init(args.backend_cuda_device)
+    elif args.backend == "metal":
+        backend = ggml.ggml_backend_metal_init()
     else:
         raise ValueError(f"Unknown backend: {args.backend}")
 
