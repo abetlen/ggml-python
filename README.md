@@ -47,6 +47,7 @@ pip install ggml-python --config-settings=cmake.args='-DGGML_CUDA=ON'
 | `GGML_CLBLAST` | Enable CLBlast support | `OFF` |
 | `GGML_OPENBLAS` | Enable OpenBLAS support | `OFF` |
 | `GGML_METAL` | Enable Metal support | `OFF` |
+| `GGML_RPC` | Enable RPC support | `OFF` |
 
 # Usage
 
