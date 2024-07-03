@@ -5057,35 +5057,6 @@ def ggml_rope_custom_inplace(
     """Custom rotary position embedding inplace"""
     ...
 
-# struct ggml_tensor * ggml_rope_xpos_inplace(
-#     struct ggml_context * ctx,
-#     struct ggml_tensor  * a,
-#     struct ggml_tensor  * b,
-#     int                   n_dims,
-#     float                 base,
-#     bool                  down);
-@ggml_function(
-    "ggml_rope_xpos_inplace",
-    [
-        ggml_context_p_ctypes,
-        ctypes.POINTER(ggml_tensor),
-        ctypes.POINTER(ggml_tensor),
-        ctypes.c_int,
-        ctypes.c_float,
-        ctypes.c_bool,
-    ],
-    ctypes.POINTER(ggml_tensor),
-)
-def ggml_rope_xpos_inplace(
-    ctx: ggml_context_p,
-    a: ggml_tensor_p,
-    b: ggml_tensor_p,
-    n_dims: Union[ctypes.c_int, int],
-    base: Union[ctypes.c_float, float],
-    down: Union[ctypes.c_bool, bool],
-    /,
-) -> ggml_tensor_p:
-    ...
 
 # // compute correction dims for YaRN RoPE scaling
 # GGML_CALL void ggml_rope_yarn_corr_dims(
@@ -8806,12 +8777,6 @@ def ggml_cpu_has_cuda() -> int:
     ...
 
 
-# GGML_API int ggml_cpu_has_clblast    (void);
-@ggml_function("ggml_cpu_has_clblast", [], ctypes.c_int)
-def ggml_cpu_has_clblast() -> int:
-    ...
-
-
 # GGML_API int ggml_cpu_has_vulkan     (void);
 @ggml_function("ggml_cpu_has_vulkan", [], ctypes.c_int)
 def ggml_cpu_has_vulkan() -> int:
@@ -9274,21 +9239,6 @@ def ggml_backend_buft_get_max_size(
 def ggml_backend_buft_get_alloc_size(
     buft: Union[ggml_backend_buffer_type_t, int], tensor: ggml_tensor_p, /
 ) -> int:
-    ...
-
-
-# GGML_API           bool                  ggml_backend_buft_supports_backend(ggml_backend_buffer_type_t buft, ggml_backend_t backend);
-@ggml_function(
-    "ggml_backend_buft_supports_backend",
-    [
-        ggml_backend_buffer_type_t_ctypes,
-        ggml_backend_t_ctypes,
-    ],
-    ctypes.c_bool,
-)
-def ggml_backend_buft_supports_backend(
-    buft: Union[ggml_backend_buffer_type_t, int], backend: Union[ggml_backend_t, int], /
-) -> bool:
     ...
 
 
