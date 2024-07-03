@@ -59,7 +59,11 @@ import sys
 import ctypes
 import pathlib
 import functools
-import importlib.resources
+try:
+    # Python < 3.9
+    import importlib_resources
+except ImportError:
+    import importlib.resources as importlib_resources
 from typing import (
     cast,
     Any,
@@ -79,7 +83,7 @@ from typing_extensions import TypeAlias
 # Load the library
 def load_shared_library(module_name: str, lib_base_name: str):
     # Construct the paths to the possible shared library names
-    base_path = pathlib.Path(__file__).parent.resolve()
+    base_path = pathlib.Path(__file__).parent.resolve() / "lib"
     # Searching for the library in the current directory under the name "libggml" (default name
     # for ggml) and "ggml" (default name for this repo)
     lib_names: List[str] = [
@@ -92,7 +96,8 @@ def load_shared_library(module_name: str, lib_base_name: str):
 
     for lib_name in lib_names:
         try:
-            with importlib.resources.path(module_name, lib_name) as p:
+            with importlib_resources.as_file(importlib_resources.files(module_name).joinpath("lib", lib_name)) as p: # type: ignore
+                p = cast(pathlib.Path, p)
                 if os.path.exists(p):
                     path = p
                     break
@@ -107,6 +112,7 @@ def load_shared_library(module_name: str, lib_base_name: str):
     cdll_args = dict()  # type: ignore
     # Add the library directory to the DLL search path on Windows (if needed)
     if sys.platform == "win32" and sys.version_info >= (3, 8):
+        os.environ["PATH"] = str(base_path) + os.pathsep + os.environ["PATH"]
         os.add_dll_directory(str(base_path))
         cdll_args["winmode"] = 0
 
@@ -7752,7 +7758,7 @@ class gguf_init_params(ctypes.Structure):
 
     if TYPE_CHECKING:
         no_alloc: bool
-        ctx: ggml_context_p
+        ctx: CtypesPointer[ggml_context_p]
 
     _fields_ = [
         ("no_alloc", ctypes.c_bool),

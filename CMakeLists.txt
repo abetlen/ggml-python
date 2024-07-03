@@ -9,9 +9,9 @@ message(SKBUILD_STATE="${SKBUILD_STATE}")
 
 if(SKBUILD_STATE STREQUAL "editable")
     # Temporary fix for https://github.com/scikit-build/scikit-build-core/issues/374
-    set(GGML_PYTHON_INSTALL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ggml)
+    set(GGML_PYTHON_INSTALL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ggml/lib)
 else()
-    set(GGML_PYTHON_INSTALL_DIR ${SKBUILD_PLATLIB_DIR}/ggml)
+    set(GGML_PYTHON_INSTALL_DIR ${SKBUILD_PLATLIB_DIR}/ggml/lib)
 endif()
 
 set(BUILD_SHARED_LIBS "On")
