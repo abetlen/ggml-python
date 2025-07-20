@@ -11,7 +11,7 @@ license = { text = "MIT" }
 authors = [
     { name = "Andrei Betlen", email = "abetlen@gmail.com" },
 ]
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 dependencies = [
     "numpy>=1.20.0",
     "typing_extensions>=4.6.3",
