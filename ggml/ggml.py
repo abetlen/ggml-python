@@ -1663,6 +1663,45 @@ def ggml_is_contiguous(tensor: ggml_tensor_p, /) -> bool:
     ...
 
 
+# GGML_API GGML_CALL bool ggml_is_contiguous_0(const struct ggml_tensor * tensor);
+@ggml_function("ggml_is_contiguous_0", [ctypes.POINTER(ggml_tensor)], ctypes.c_bool)
+def ggml_is_contiguous_0(tensor: ggml_tensor_p, /) -> bool:
+    """Check if a tensor is contiguous (same as ggml_is_contiguous)
+
+    Parameters:
+        tensor: tensor
+
+    Returns:
+        True if tensor is contiguous else False"""
+    ...
+
+
+# GGML_API GGML_CALL bool ggml_is_contiguous_1(const struct ggml_tensor * tensor);
+@ggml_function("ggml_is_contiguous_1", [ctypes.POINTER(ggml_tensor)], ctypes.c_bool)
+def ggml_is_contiguous_1(tensor: ggml_tensor_p, /) -> bool:
+    """Check if a tensor is contiguous for dimensions >= 1
+
+    Parameters:
+        tensor: tensor
+
+    Returns:
+        True if tensor is contiguous for dims >= 1 else False"""
+    ...
+
+
+# GGML_API GGML_CALL bool ggml_is_contiguous_2(const struct ggml_tensor * tensor);
+@ggml_function("ggml_is_contiguous_2", [ctypes.POINTER(ggml_tensor)], ctypes.c_bool)
+def ggml_is_contiguous_2(tensor: ggml_tensor_p, /) -> bool:
+    """Check if a tensor is contiguous for dimensions >= 2
+
+    Parameters:
+        tensor: tensor
+
+    Returns:
+        True if tensor is contiguous for dims >= 2 else False"""
+    ...
+
+
 # GGML_API GGML_CALL bool ggml_is_permuted  (const struct ggml_tensor * tensor);
 @ggml_function("ggml_is_permuted", [ctypes.POINTER(ggml_tensor)], ctypes.c_bool)
 def ggml_is_permuted(tensor: ggml_tensor_p, /) -> bool:
