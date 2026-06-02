@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- ci: add Vulkan wheel builds by @abetlen in #108
 - feat: add tensor layout helper bindings by @abetlen in #106
 - feat: add ggml_is_contiguous_{0,1,2} by @aisk in #95
 
