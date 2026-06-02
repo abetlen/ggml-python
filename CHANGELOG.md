@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- feat: expose ggml_is_contiguous_{0,1,2}
+
 ## [0.0.38] - 2026-06-02
 
 - ci: update pre-built wheels to py3-none and add CUDA 11.8-13.2 support
