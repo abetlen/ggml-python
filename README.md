@@ -72,6 +72,13 @@ pip install ggml-python \
   --extra-index-url https://abetlen.github.io/ggml-python/whl/metal
 ```
 
+Pre-built Vulkan wheels are available for Linux and Windows:
+
+```bash
+pip install ggml-python \
+  --extra-index-url https://abetlen.github.io/ggml-python/whl/vulkan
+```
+
 When installing from source, pip compiles ggml with CMake and requires a C compiler installed on your system.
 To build ggml with specific features (ie. OpenBLAS, GPU Support, etc) you can pass specific cmake options through the `cmake.args` pip install configuration setting. For example to install ggml-python with cuBLAS support you can run:
 
@@ -89,6 +96,7 @@ pip install ggml-python --config-settings=cmake.args='-DGGML_CUDA=ON'
 | `GGML_BLAS` | Enable BLAS support | `OFF` |
 | `GGML_BLAS_VENDOR` | Select BLAS vendor, for example `OpenBLAS` | unset |
 | `GGML_METAL` | Enable Metal support | `OFF` |
+| `GGML_VULKAN` | Enable Vulkan support | `OFF` |
 | `GGML_RPC` | Enable RPC support | `OFF` |
 
 # Usage
