@@ -134,9 +134,9 @@ jobs:
             -OutFile "${env:RUNNER_TEMP}\rocm-install.exe"
           Write-Host "Installing AMD HIP SDK"
           $proc = Start-Process "${env:RUNNER_TEMP}\rocm-install.exe" -ArgumentList '-install' -NoNewWindow -PassThru
-          $completed = $proc.WaitForExit(600000)
+          $completed = $proc.WaitForExit(1800000)
           if (-not $completed) {
-            Write-Error "ROCm installation timed out after 10 minutes"
+            Write-Error "ROCm installation timed out after 30 minutes"
             $proc.Kill()
             exit 1
           }

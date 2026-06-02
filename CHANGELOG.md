@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- ci: increase Windows HIP SDK installer timeout by @abetlen in #112
+
 ## [0.0.39]
 
 - ci: add Vulkan wheel builds by @abetlen in #108
