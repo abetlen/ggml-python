@@ -9,6 +9,10 @@ on:
 permissions:
   contents: write
 
+env:
+  VULKAN_SDK_VERSION: "1.4.341.0"
+  VULKAN_SDK_LINUX_SHA256: "ed66477d587a5587dc3601b1c2cdcc1fab5529c505f53a00171876cecd9b4fbe"
+
 jobs:
   build_wheels:
     name: Build Vulkan wheel on ${{ matrix.os }}
@@ -43,28 +47,32 @@ jobs:
       - name: Install Vulkan SDK
         if: runner.os == 'Linux'
         run: |
-          sudo install -d -m 0755 /etc/apt/keyrings
-          curl -fsSL https://packages.lunarg.com/lunarg-signing-key-pub.asc \
-            | gpg --dearmor \
-            | sudo tee /etc/apt/keyrings/lunarg.gpg > /dev/null
-          echo "deb [signed-by=/etc/apt/keyrings/lunarg.gpg] https://packages.lunarg.com/vulkan jammy main" \
-            | sudo tee /etc/apt/sources.list.d/lunarg-vulkan-jammy.list
-          sudo apt-get update
-          sudo apt-get install -y vulkan-sdk
-          glslc --version
+          curl -fL \
+            "https://sdk.lunarg.com/sdk/download/${VULKAN_SDK_VERSION}/linux/vulkansdk-linux-x86_64-${VULKAN_SDK_VERSION}.tar.xz" \
+            -o vulkan-sdk.tar.xz
+          echo "${VULKAN_SDK_LINUX_SHA256}  vulkan-sdk.tar.xz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/vulkan-sdk"
+          tar -xf vulkan-sdk.tar.xz -C "$RUNNER_TEMP/vulkan-sdk"
+          source "$RUNNER_TEMP/vulkan-sdk/${VULKAN_SDK_VERSION}/setup-env.sh"
+          {
+            echo "VULKAN_SDK=$VULKAN_SDK"
+            echo "LD_LIBRARY_PATH=$VULKAN_SDK/lib:${LD_LIBRARY_PATH:-}"
+          } >> "$GITHUB_ENV"
+          echo "$VULKAN_SDK/bin" >> "$GITHUB_PATH"
+          "$VULKAN_SDK/bin/glslc" --version
 
       - name: Install Vulkan SDK
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          choco install vulkan-sdk --no-progress -y
-          $vulkanSdk = Get-ChildItem 'C:\VulkanSDK' -Directory | Sort-Object Name -Descending | Select-Object -First 1
-          if (-not $vulkanSdk) {
-            throw 'Failed to find Vulkan SDK under C:\VulkanSDK'
+          choco install vulkan-sdk --version="$env:VULKAN_SDK_VERSION" --no-progress -y
+          $vulkanSdk = Join-Path 'C:\VulkanSDK' $env:VULKAN_SDK_VERSION
+          if (-not (Test-Path $vulkanSdk)) {
+            throw "Failed to find Vulkan SDK at $vulkanSdk"
           }
-          "VULKAN_SDK=$($vulkanSdk.FullName)" >> $env:GITHUB_ENV
-          "$($vulkanSdk.FullName)\Bin" >> $env:GITHUB_PATH
-          & "$($vulkanSdk.FullName)\Bin\glslc.exe" --version
+          "VULKAN_SDK=$vulkanSdk" >> $env:GITHUB_ENV
+          "$vulkanSdk\Bin" >> $env:GITHUB_PATH
+          & "$vulkanSdk\Bin\glslc.exe" --version
 
       - name: Install build dependencies
         run: |
