@@ -7,5 +7,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- ci: Add Python 3.13 and 3.14 support metadata and update wheel workflows for `py3-none` builds
+- ci: update pre-built wheels to py3-none and add CUDA 11.8-13.2 support
 - feat: Update ggml to ggml-org/ggml@1e33fed3 and sync Python bindings by @abetlen in #100
