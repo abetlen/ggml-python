@@ -11645,22 +11645,6 @@ GGML_METAL_MAX_BUFFERS = 64
 # //
 
 
-# GGML_API void ggml_backend_metal_log_set_callback(ggml_log_callback log_callback, void * user_data);
-@ggml_function(
-    "ggml_backend_metal_log_set_callback",
-    [
-        ggml_log_callback,
-        ctypes.c_void_p,
-    ],
-    None,
-    enabled=GGML_USE_METAL,
-)
-def ggml_backend_metal_log_set_callback(
-    log_callback, user_data: Union[ctypes.c_void_p, int, None], /  # type: ignore
-):
-    ...
-
-
 # GGML_API ggml_backend_t ggml_backend_metal_init(void);
 @ggml_function(
     "ggml_backend_metal_init", [], ggml_backend_t_ctypes, enabled=GGML_USE_METAL
@@ -11682,46 +11666,23 @@ def ggml_backend_is_metal(
     ...
 
 
-# GML_API GGML_CALL ggml_backend_buffer_t ggml_backend_metal_buffer_from_ptr(void * data, size_t size, size_t max_size);
+# GGML_API void ggml_backend_metal_set_abort_callback(ggml_backend_t backend, ggml_abort_callback abort_callback, void * user_data);
 @ggml_function(
-    "ggml_backend_metal_buffer_from_ptr",
+    "ggml_backend_metal_set_abort_callback",
     [
+        ggml_backend_t_ctypes,
+        ggml_abort_callback,
         ctypes.c_void_p,
-        ctypes.c_size_t,
-        ctypes.c_size_t,
     ],
-    ggml_backend_buffer_t_ctypes,
-    enabled=GGML_USE_METAL,
-)
-def ggml_backend_metal_buffer_from_ptr(
-    data: Union[ctypes.c_void_p, int, None],
-    size: Union[ctypes.c_size_t, int],
-    max_size: Union[ctypes.c_size_t, int],
-) -> Optional[ggml_backend_buffer_t]:
-    ...
-
-
-# GGML_API void ggml_backend_metal_set_n_cb(ggml_backend_t backend, int n_cb);
-@ggml_function(
-    "ggml_backend_metal_set_n_cb",
-    [ggml_backend_t_ctypes, ctypes.c_int],
     None,
     enabled=GGML_USE_METAL,
 )
-def ggml_backend_metal_set_n_cb(
-    backend: Union[ggml_backend_t, int], n_cb: Union[ctypes.c_int, int], /
+def ggml_backend_metal_set_abort_callback(
+    backend: Union[ggml_backend_t, int],
+    abort_callback,  # type: ignore
+    user_data: Union[ctypes.c_void_p, int, None],
+    /,
 ):
-    ...
-
-
-# GGML_API GGML_CALL ggml_backend_buffer_type_t ggml_backend_metal_buffer_type(void);
-@ggml_function(
-    "ggml_backend_metal_buffer_type",
-    [],
-    ggml_backend_buffer_type_t_ctypes,
-    enabled=GGML_USE_METAL,
-)
-def ggml_backend_metal_buffer_type() -> Optional[ggml_backend_buffer_type_t]:
     ...
 
 
@@ -11754,6 +11715,17 @@ def ggml_backend_metal_supports_family(
     enabled=GGML_USE_METAL,
 )
 def ggml_backend_metal_capture_next_compute(backend: Union[ggml_backend_t, int], /):
+    ...
+
+
+# GGML_API ggml_backend_reg_t ggml_backend_metal_reg(void);
+@ggml_function(
+    "ggml_backend_metal_reg",
+    [],
+    ggml_backend_reg_t_ctypes,
+    enabled=GGML_USE_METAL,
+)
+def ggml_backend_metal_reg() -> Optional[ggml_backend_reg_t]:
     ...
 
 

@@ -18,11 +18,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: "true"
+          submodules: "recursive"
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: "pip"
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip pytest cmake scikit-build setuptools
@@ -46,11 +47,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: "true"
+          submodules: "recursive"
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: "pip"
 
       - name: Install dependencies
         run: |
@@ -61,25 +63,61 @@ jobs:
           python -m pytest -s -vvvv
 
   build-macos:
-    runs-on: macos-13
+    runs-on: macos-15
     strategy:
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
 
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: "true"
+          submodules: "recursive"
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: "pip"
+      - name: System Info
+        run: |
+          uname -a
+          sysctl -n machdep.cpu.brand_string
+          python3 -c "import platform; print(platform.machine(), platform.architecture())"
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip pytest cmake scikit-build setuptools
           python3 -m pip install \
             --verbose \
-            --config-settings cmake.args='-DCMAKE_BUILD_TYPE=Debug;-DCMAKE_CXX_FLAGS=-g3;-DCMAKE_C_FLAGS=-g3' \
+            --config-settings cmake.args='-DCMAKE_BUILD_TYPE=Debug;-DCMAKE_CXX_FLAGS=-g3;-DCMAKE_C_FLAGS=-g3;-DGGML_NATIVE=off' \
+            --config-settings cmake.verbose=true \
+            --config-settings logging.level=INFO \
+            --config-settings install.strip=false \
+            --editable .
+      - name: Test with pytest
+        run: |
+          python -m pytest -s -vvvv
+
+  build-macos-intel:
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+          cache: "pip"
+      - name: System Info
+        run: |
+          uname -a
+          sysctl -n machdep.cpu.brand_string
+          python3 -c "import platform; print(platform.machine(), platform.architecture())"
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip pytest cmake scikit-build setuptools
+          python3 -m pip install \
+            --verbose \
+            --config-settings cmake.args='-DCMAKE_BUILD_TYPE=Debug;-DCMAKE_CXX_FLAGS=-g3;-DCMAKE_C_FLAGS=-g3;-DGGML_NATIVE=off' \
             --config-settings cmake.verbose=true \
             --config-settings logging.level=INFO \
             --config-settings install.strip=false \
@@ -89,22 +127,28 @@ jobs:
           python -m pytest -s -vvvv
 
   build-macos-metal:
-    runs-on: macos-13
+    runs-on: macos-15
 
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: "true"
+          submodules: "recursive"
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.8"
+          python-version: "3.9"
+          cache: "pip"
+      - name: System Info
+        run: |
+          uname -a
+          sysctl -n machdep.cpu.brand_string
+          python3 -c "import platform; print(platform.machine(), platform.architecture())"
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip pytest cmake scikit-build setuptools
           python3 -m pip install \
             --verbose \
-            --config-settings cmake.args='-DCMAKE_BUILD_TYPE=Debug;-DCMAKE_CXX_FLAGS=-g3;-DCMAKE_C_FLAGS=-g3;-DGGML_METAL=On' \
+            --config-settings cmake.args='-DCMAKE_BUILD_TYPE=Debug;-DCMAKE_CXX_FLAGS=-g3;-DCMAKE_C_FLAGS=-g3;-DGGML_NATIVE=off;-DGGML_METAL=On' \
             --config-settings cmake.verbose=true \
             --config-settings logging.level=INFO \
             --config-settings install.strip=false \
