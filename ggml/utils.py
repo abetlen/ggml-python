@@ -25,9 +25,18 @@ class GGML_TYPE(enum.IntEnum):
     Q5_1 = ggml.GGML_TYPE_Q5_1
     Q8_0 = ggml.GGML_TYPE_Q8_0
     Q8_1 = ggml.GGML_TYPE_Q8_1
+    Q2_K = ggml.GGML_TYPE_Q2_K
+    Q3_K = ggml.GGML_TYPE_Q3_K
+    Q4_K = ggml.GGML_TYPE_Q4_K
+    Q5_K = ggml.GGML_TYPE_Q5_K
+    Q6_K = ggml.GGML_TYPE_Q6_K
+    Q8_K = ggml.GGML_TYPE_Q8_K
     I8 = ggml.GGML_TYPE_I8
     I16 = ggml.GGML_TYPE_I16
     I32 = ggml.GGML_TYPE_I32
+    I64 = ggml.GGML_TYPE_I64
+    F64 = ggml.GGML_TYPE_F64
+    BF16 = ggml.GGML_TYPE_BF16
 
 
 NUMPY_DTYPE_TO_GGML_TYPE = {
@@ -36,6 +45,8 @@ NUMPY_DTYPE_TO_GGML_TYPE = {
     np.int8: GGML_TYPE.I8,
     np.int16: GGML_TYPE.I16,
     np.int32: GGML_TYPE.I32,
+    np.int64: GGML_TYPE.I64,
+    np.float64: GGML_TYPE.F64,
 }
 
 GGML_TYPE_TO_NUMPY_DTYPE = {v: k for k, v in NUMPY_DTYPE_TO_GGML_TYPE.items()}
@@ -166,7 +177,7 @@ def quantize_row(
 
     Returns:
         output buffer"""
-    type_traits = ggml.ggml_internal_get_type_traits(ttype.value)
+    type_traits = ggml.ggml_get_type_traits_cpu(ttype.value).contents
     from_float = type_traits.from_float
     work = work or ctypes.cast((ctypes.c_float * nelements)(), ctypes.c_void_p)
     from_float(data_f32, work, nelements)
@@ -189,7 +200,7 @@ def dequantize_row(
 
     Returns:
         output buffer"""
-    type_traits = ggml.ggml_internal_get_type_traits(ttype.value)
+    type_traits = ggml.ggml_get_type_traits(ttype.value).contents
     to_float = type_traits.to_float
     work = work or ctypes.cast((ctypes.c_float * nelements)(), ctypes.c_void_p)
     to_float(data_q, work, nelements)

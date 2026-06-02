@@ -19,10 +19,10 @@ assert ctx0 is not None
 
 # define parameters
 a = ggml.ggml_new_tensor_1d(ctx0, ggml.GGML_TYPE_F32, 1)
-ggml.ggml_set_param(ctx0, a)
+ggml.ggml_set_param(a)
 
 b = ggml.ggml_new_tensor_1d(ctx0, ggml.GGML_TYPE_F32, 1)
-ggml.ggml_set_param(ctx0, b)
+ggml.ggml_set_param(b)
 
 # define input and output
 x = ggml.ggml_new_tensor_1d(ctx0, ggml.GGML_TYPE_F32, 1)
@@ -37,12 +37,13 @@ ggml.ggml_set_input(f_true)
 
 tmp = ggml.ggml_sub(ctx0, f, f_true)
 loss = ggml.ggml_mul(ctx0, tmp, tmp)
+ggml.ggml_set_loss(loss)
 
 # build forward and backward graph
 gf = ggml.ggml_new_graph_custom(ctx0, ggml.GGML_DEFAULT_GRAPH_SIZE, True)
 ggml.ggml_build_forward_expand(gf, loss)
-gb = ggml.ggml_graph_dup(ctx0, gf)
-ggml.ggml_build_backward_expand(ctx0, gf, gb, False)
+gb = ggml.ggml_graph_dup(ctx0, gf, True)
+ggml.ggml_build_backward_expand(ctx0, gb, None)
 
 # initialize parameters
 ggml.ggml_set_f32(a, 1.0)
@@ -63,8 +64,7 @@ for i in range(nsteps):
     ggml.ggml_set_f32(f_true, f_sample)
 
     # reset graph
-    ggml.ggml_graph_reset(gf)
-    ggml.ggml_set_f32(loss.contents.grad, 1.0)
+    ggml.ggml_graph_reset(gb)
 
     # compute forward and backward
     ggml.ggml_graph_compute_with_ctx(ctx0, gb, 1)
@@ -77,8 +77,10 @@ for i in range(nsteps):
     lr *= (1.0 - decay)
 
     # update parameters
-    ggml.ggml_set_f32(a, ggml.ggml_get_f32_1d(a, 0) - lr * ggml.ggml_get_f32_1d(a.contents.grad, 0))
-    ggml.ggml_set_f32(b, ggml.ggml_get_f32_1d(b, 0) - lr * ggml.ggml_get_f32_1d(b.contents.grad, 0))
+    a_grad = ggml.ggml_graph_get_grad(gb, a)
+    b_grad = ggml.ggml_graph_get_grad(gb, b)
+    ggml.ggml_set_f32(a, ggml.ggml_get_f32_1d(a, 0) - lr * ggml.ggml_get_f32_1d(a_grad, 0))
+    ggml.ggml_set_f32(b, ggml.ggml_get_f32_1d(b, 0) - lr * ggml.ggml_get_f32_1d(b_grad, 0))
 
     # print parameters
     print(f"a = {ggml.ggml_get_f32_1d(a, 0):.2f}, b = {ggml.ggml_get_f32_1d(b, 0):.2f}")

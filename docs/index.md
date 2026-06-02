@@ -4,7 +4,7 @@ title: Getting Started
 
 ## Introduction
 
-ggml-python is a python library for working with [ggml](https://github.com/ggerganov/ggml).
+ggml-python is a python library for working with [ggml](https://github.com/ggml-org/ggml).
 
 ggml is a tensor library for machine learning developed by Georgi Gerganov, the library has been used to run models like Whisper and LLaMa on a wide range of devices.
 ggml is written in C/C++ and is designed to be fast, portable and easily embeddable; making use of various hardware acceleration systems like BLAS, CUDA, OpenCL, and Metal.
@@ -35,13 +35,13 @@ Below are the available options for building ggml-python with additional options
 === "**BLAS**"
 
     ```bash
-    CMAKE_ARGS="-DGGML_OPENBLAS=ON" pip install ggml-python
+    CMAKE_ARGS="-DGGML_BLAS=ON -DGGML_BLAS_VENDOR=OpenBLAS" pip install ggml-python
     ```
 
 === "**CUDA**"
 
     ```bash
-    CMAKE_ARGS="-DGGML_CUBLAS=ON" pip install ggml-python
+    CMAKE_ARGS="-DGGML_CUDA=ON" pip install ggml-python
     ```
 
 === "**Metal**"
@@ -53,7 +53,7 @@ Below are the available options for building ggml-python with additional options
 === "**OpenCL**"
 
     ```bash
-    CMAKE_ARGS="-DGGML_CLBLAST=ON" pip install ggml-python
+    CMAKE_ARGS="-DGGML_OPENCL=ON" pip install ggml-python
     ```
 
 ## Basic Example

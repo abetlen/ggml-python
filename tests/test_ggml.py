@@ -8,7 +8,7 @@ import numpy as np
 
 
 def test_ggml():
-    assert ggml.GGML_FILE_VERSION == 1
+    assert ggml.GGML_FILE_VERSION == 2
 
     params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
     ctx = ggml.ggml_init(params)
@@ -121,7 +121,7 @@ def test_quantize():
     )
     assert cur_size == 34
 
-    type_traits = ggml.ggml_internal_get_type_traits(ggml.GGML_TYPE_Q8_0)
+    type_traits = ggml.ggml_get_type_traits(ggml.GGML_TYPE_Q8_0).contents
     work2 = (ctypes.c_float * nelements)(0)
     type_traits.to_float(
         ctypes.cast(work, ctypes.c_void_p),
@@ -253,7 +253,7 @@ def test_grad():
 
     x = ggml.ggml_new_tensor_1d(ctx0, ggml.GGML_TYPE_F32, 1)
 
-    ggml.ggml_set_param(ctx0, x)
+    ggml.ggml_set_param(x)
 
     a = ggml.ggml_new_tensor_1d(ctx0, ggml.GGML_TYPE_F32, 1)
     b = ggml.ggml_mul(ctx0, x, x)
@@ -262,19 +262,25 @@ def test_grad():
     gf = ggml.ggml_new_graph_custom(ctx0, ggml.GGML_DEFAULT_GRAPH_SIZE, True)
     ggml.ggml_build_forward_expand(gf, f)
 
-    gb = ggml.ggml_graph_dup(ctx0, gf)
+    ggml.ggml_set_loss(f)
+    gb = ggml.ggml_graph_dup(ctx0, gf, True)
 
-    ggml.ggml_build_backward_expand(ctx0, gf, gb, False)
+    ggml.ggml_build_backward_expand(ctx0, gb, None)
 
     ggml.ggml_set_f32(x, 2.0)
     ggml.ggml_set_f32(a, 3.0)
 
-    ggml.ggml_graph_reset(gf)
-    ggml.ggml_set_f32(f.contents.grad, 1.0)
+    ggml.ggml_graph_reset(gb)
 
     ggml.ggml_graph_compute_with_ctx(ctx0, gb, nthreads)
 
+    f_grad = ggml.ggml_graph_get_grad(gb, f)
+    x_grad = ggml.ggml_graph_get_grad(gb, x)
+    assert f_grad is not None
+    assert x_grad is not None
+
     assert ggml.ggml_get_f32_1d(f, 0) == 12.0
-    assert ggml.ggml_get_f32_1d(x.contents.grad, 0) == 12.0
+    assert ggml.ggml_get_f32_1d(f_grad, 0) == 1.0
+    assert ggml.ggml_get_f32_1d(x_grad, 0) == 12.0
 
     ggml.ggml_free(ctx0)

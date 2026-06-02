@@ -4,7 +4,7 @@ Model is available at:
 https://huggingface.co/replit/replit-code-v1-3b
 
 This implementation is based on the example model code and ggml model file format from:
-https://github.com/ggerganov/ggml/tree/master/examples/replit
+https://github.com/ggml-org/ggml/tree/master/examples/replit
 """
 from __future__ import annotations
 import abc
