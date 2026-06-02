@@ -41,6 +41,12 @@ input = "ggml/__init__.py"
 addopts = "--ignore=vendor"
 testpaths = "tests"
 
+[tool.ruff]
+target-version = "py38"
+
+[tool.ruff.lint.per-file-ignores]
+"ggml/__init__.py" = ["F403"]
+
 [project.optional-dependencies]
 test = ["pytest"]
 docs = ["mkdocs", "mkdocstrings[python]", "mkdocs-material", "pillow", "cairosvg"]

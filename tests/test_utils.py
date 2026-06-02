@@ -104,21 +104,21 @@ def test_slice_tensor():
     assert ctx is not None
     x = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int32)
     t = ggml.utils.from_numpy(x, ctx)
-    t_slice = ggml.utils.slice_tensor(ctx, t, [
-        slice(0, 1),
-        slice(0, 2)
-    ])
+    t_slice = ggml.utils.slice_tensor(ctx, t, [slice(0, 1), slice(0, 2)])
     x_slice = x[:2, :1]
     t_slice_array = ggml.utils.to_numpy(t_slice)
     assert np.array_equal(t_slice_array, x_slice)
     ggml.ggml_free(ctx)
 
 
-@pytest.mark.parametrize("a, b", [
-    [np.array([1], dtype=np.float32), np.array([1], dtype=np.float32)],
-    [np.array([1, 1], dtype=np.float32), np.array([1], dtype=np.float32)],
-    [np.array([1, 1], dtype=np.float32), np.array([[1, 2]], dtype=np.float32)],
-])
+@pytest.mark.parametrize(
+    "a, b",
+    [
+        [np.array([1], dtype=np.float32), np.array([1], dtype=np.float32)],
+        [np.array([1, 1], dtype=np.float32), np.array([1], dtype=np.float32)],
+        [np.array([1, 1], dtype=np.float32), np.array([[1, 2]], dtype=np.float32)],
+    ],
+)
 def test_broadcast_tensor(a: npt.NDArray[np.float32], b: npt.NDArray[np.float32]):
     params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024)
     ctx = ggml.ggml_init(params)
