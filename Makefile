@@ -23,7 +23,7 @@ build.debug: ${submodules} update-pip ## Build ggml-python with cpu support, deb
 build.openblas: ${submodules} update-pip ## Build ggml-python with openblas support
 	python3 -m pip install \
 		--verbose \
-		--config-settings cmake.args='-DGGML_OPENBLAS=On' \
+		--config-settings cmake.args='-DGGML_BLAS=On;-DGGML_BLAS_VENDOR=OpenBLAS' \
 		--editable .
 
 build.cuda: ${submodules} update-pip ## Build ggml-python with cublas / cuda support
@@ -35,7 +35,7 @@ build.cuda: ${submodules} update-pip ## Build ggml-python with cublas / cuda sup
 build.clblast: ${submodules} update-pip ## Build ggml-python with clblast / opencl support
 	python3 -m pip install \
 		--verbose \
-		--config-settings cmake.args='-DGGML_CLBLAST=On' \
+		--config-settings cmake.args='-DGGML_OPENCL=On' \
 		--editable .
 
 sdist: ## Build source distribution

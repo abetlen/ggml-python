@@ -56,3 +56,8 @@ markdown_extensions:
 
 watch:
   - ggml
+
+nav:
+  - "Getting Started": "index.md"
+  - "API Reference": "api-reference.md"
+  - "Changelog": "changelog.md"
