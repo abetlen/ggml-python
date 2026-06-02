@@ -1702,6 +1702,27 @@ def ggml_is_contiguous_2(tensor: ggml_tensor_p, /) -> bool:
     ...
 
 
+# GGML_API bool ggml_is_contiguously_allocated(const struct ggml_tensor * tensor);
+@ggml_function("ggml_is_contiguously_allocated", [ctypes.POINTER(ggml_tensor)], ctypes.c_bool)
+def ggml_is_contiguously_allocated(tensor: ggml_tensor_p, /) -> bool:
+    """Check if a tensor is allocated as one contiguous block"""
+    ...
+
+
+# GGML_API bool ggml_is_contiguous_channels(const struct ggml_tensor * tensor);
+@ggml_function("ggml_is_contiguous_channels", [ctypes.POINTER(ggml_tensor)], ctypes.c_bool)
+def ggml_is_contiguous_channels(tensor: ggml_tensor_p, /) -> bool:
+    """Check if a tensor is stored as contiguous channels"""
+    ...
+
+
+# GGML_API bool ggml_is_contiguous_rows(const struct ggml_tensor * tensor);
+@ggml_function("ggml_is_contiguous_rows", [ctypes.POINTER(ggml_tensor)], ctypes.c_bool)
+def ggml_is_contiguous_rows(tensor: ggml_tensor_p, /) -> bool:
+    """Check if a tensor has contiguous rows"""
+    ...
+
+
 # GGML_API GGML_CALL bool ggml_is_permuted  (const struct ggml_tensor * tensor);
 @ggml_function("ggml_is_permuted", [ctypes.POINTER(ggml_tensor)], ctypes.c_bool)
 def ggml_is_permuted(tensor: ggml_tensor_p, /) -> bool:
@@ -1718,6 +1739,13 @@ def ggml_is_permuted(tensor: ggml_tensor_p, /) -> bool:
 # GGML_API GGML_CALL bool ggml_is_empty     (const struct ggml_tensor * tensor);
 @ggml_function("ggml_is_empty", [ctypes.POINTER(ggml_tensor)], ctypes.c_bool)
 def ggml_is_empty(tensor: ggml_tensor_p, /) -> bool:
+    ...
+
+
+# GGML_API bool ggml_is_view      (const struct ggml_tensor * tensor);
+@ggml_function("ggml_is_view", [ctypes.POINTER(ggml_tensor)], ctypes.c_bool)
+def ggml_is_view(tensor: ggml_tensor_p, /) -> bool:
+    """Check if a tensor is a view"""
     ...
 
 
