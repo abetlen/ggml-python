@@ -79,6 +79,13 @@ pip install ggml-python \
   --extra-index-url https://abetlen.github.io/ggml-python/whl/vulkan
 ```
 
+Pre-built ROCm wheels are available for Linux x86_64 with ROCm 7.2:
+
+```bash
+pip install ggml-python \
+  --extra-index-url https://abetlen.github.io/ggml-python/whl/rocm72
+```
+
 When installing from source, pip compiles ggml with CMake and requires a C compiler installed on your system.
 To build ggml with specific features (ie. OpenBLAS, GPU Support, etc) you can pass specific cmake options through the `cmake.args` pip install configuration setting. For example to install ggml-python with cuBLAS support you can run:
 
@@ -92,6 +99,7 @@ pip install ggml-python --config-settings=cmake.args='-DGGML_CUDA=ON'
 | Option | Description | Default |
 | --- | --- | --- |
 | `GGML_CUDA` | Enable cuBLAS support | `OFF` |
+| `GGML_HIP` | Enable HIP / ROCm support | `OFF` |
 | `GGML_OPENCL` | Enable OpenCL support | `OFF` |
 | `GGML_BLAS` | Enable BLAS support | `OFF` |
 | `GGML_BLAS_VENDOR` | Select BLAS vendor, for example `OpenBLAS` | unset |
