@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.39]
+
 - ci: add Vulkan wheel builds by @abetlen in #108
 - ci: add ROCm and Windows HIP wheel builds by @abetlen in #109
 - feat: add tensor layout helper bindings by @abetlen in #106
