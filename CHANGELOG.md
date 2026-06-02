@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - ci: increase Windows HIP SDK installer timeout by @abetlen in #112
+- ci: add tag triggers for release publishing workflows by @abetlen in #113
 
 ## [0.0.39]
 
