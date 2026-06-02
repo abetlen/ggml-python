@@ -7,7 +7,7 @@ title: Getting Started
 ggml-python is a python library for working with [ggml](https://github.com/ggml-org/ggml).
 
 ggml is a tensor library for machine learning developed by Georgi Gerganov, the library has been used to run models like Whisper and LLaMa on a wide range of devices.
-ggml is written in C/C++ and is designed to be fast, portable and easily embeddable; making use of various hardware acceleration systems like BLAS, CUDA, OpenCL, and Metal.
+ggml is written in C/C++ and is designed to be fast, portable and easily embeddable; making use of various hardware acceleration systems like BLAS, CUDA, HIP / ROCm, OpenCL, and Metal.
 ggml supports quantized inference for reduced memory footprint and faster inference.
 
 You can use ggml-python to:
@@ -69,6 +69,20 @@ pip install ggml-python \
   --extra-index-url https://abetlen.github.io/ggml-python/whl/metal
 ```
 
+Pre-built ROCm wheels are available for Linux x86_64 with ROCm 7.2:
+
+```bash
+pip install ggml-python \
+  --extra-index-url https://abetlen.github.io/ggml-python/whl/rocm72
+```
+
+Pre-built HIP Radeon wheels are available for Windows x86_64:
+
+```bash
+pip install ggml-python \
+  --extra-index-url https://abetlen.github.io/ggml-python/whl/hip-radeon
+```
+
 When installing from source, pip compiles ggml with CMake and requires a C compiler installed on your system.
 
 Below are the available options for building ggml-python with additional options for optimized inference.
@@ -83,6 +97,12 @@ Below are the available options for building ggml-python with additional options
 
     ```bash
     CMAKE_ARGS="-DGGML_CUDA=ON" pip install ggml-python
+    ```
+
+=== "**HIP / ROCm**"
+
+    ```bash
+    CMAKE_ARGS="-DGGML_HIP=ON" pip install ggml-python
     ```
 
 === "**Metal**"
