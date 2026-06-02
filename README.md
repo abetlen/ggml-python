@@ -86,6 +86,13 @@ pip install ggml-python \
   --extra-index-url https://abetlen.github.io/ggml-python/whl/rocm72
 ```
 
+Pre-built HIP Radeon wheels are available for Windows x86_64:
+
+```bash
+pip install ggml-python \
+  --extra-index-url https://abetlen.github.io/ggml-python/whl/hip-radeon
+```
+
 When installing from source, pip compiles ggml with CMake and requires a C compiler installed on your system.
 To build ggml with specific features (ie. OpenBLAS, GPU Support, etc) you can pass specific cmake options through the `cmake.args` pip install configuration setting. For example to install ggml-python with cuBLAS support you can run:
 

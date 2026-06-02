@@ -76,6 +76,13 @@ pip install ggml-python \
   --extra-index-url https://abetlen.github.io/ggml-python/whl/rocm72
 ```
 
+Pre-built HIP Radeon wheels are available for Windows x86_64:
+
+```bash
+pip install ggml-python \
+  --extra-index-url https://abetlen.github.io/ggml-python/whl/hip-radeon
+```
+
 When installing from source, pip compiles ggml with CMake and requires a C compiler installed on your system.
 
 Below are the available options for building ggml-python with additional options for optimized inference.
