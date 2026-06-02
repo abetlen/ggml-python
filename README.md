@@ -1,4 +1,4 @@
-# Python bindings for [`ggml`](https://github.com/ggerganov/ggml)
+# Python bindings for [`ggml`](https://github.com/ggml-org/ggml)
 
 [![Documentation Status](https://readthedocs.org/projects/ggml-python/badge/?version=latest)](https://ggml-python.readthedocs.io/en/latest/?badge=latest)
 [![Tests](https://github.com/abetlen/ggml-python/actions/workflows/test.yaml/badge.svg)](https://github.com/abetlen/ggml-python/actions/workflows/test.yaml)
@@ -8,7 +8,7 @@
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/ggml-python)](https://pypi.org/project/ggml-python/)
 
 
-Python bindings for the [`ggml`](https://github.com/ggerganov/ggml) tensor library for machine learning.
+Python bindings for the [`ggml`](https://github.com/ggml-org/ggml) tensor library for machine learning.
 
 > ⚠️ Neither this project nor `ggml` currently guarantee backwards-compatibility, if you are using this library in other applications I strongly recommend pinning to specific releases in your `requirements.txt` file.
 
@@ -44,8 +44,9 @@ pip install ggml-python --config-settings=cmake.args='-DGGML_CUDA=ON'
 | Option | Description | Default |
 | --- | --- | --- |
 | `GGML_CUDA` | Enable cuBLAS support | `OFF` |
-| `GGML_CLBLAST` | Enable CLBlast support | `OFF` |
-| `GGML_OPENBLAS` | Enable OpenBLAS support | `OFF` |
+| `GGML_OPENCL` | Enable OpenCL support | `OFF` |
+| `GGML_BLAS` | Enable BLAS support | `OFF` |
+| `GGML_BLAS_VENDOR` | Select BLAS vendor, for example `OpenBLAS` | unset |
 | `GGML_METAL` | Enable Metal support | `OFF` |
 | `GGML_RPC` | Enable RPC support | `OFF` |
 
