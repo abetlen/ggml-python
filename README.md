@@ -31,7 +31,10 @@ You can install `ggml-python` using `pip`:
 pip install ggml-python
 ```
 
-This will compile ggml using cmake which requires a c compiler installed on your system.
+Release wheels are tagged `py3-none` and support Python 3.8 through 3.14 when a matching platform wheel is available.
+CUDA release wheel builds track CUDA 11.8, 12.1, 12.2, 12.3, 12.4, 12.5, 13.0, and 13.2.
+
+When installing from source, this will compile ggml using cmake which requires a c compiler installed on your system.
 To build ggml with specific features (ie. OpenBLAS, GPU Support, etc) you can pass specific cmake options through the `cmake.args` pip install configuration setting. For example to install ggml-python with cuBLAS support you can run:
 
 ```bash

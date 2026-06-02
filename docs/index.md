@@ -19,7 +19,7 @@ You can use ggml-python to:
 
 Requirements
 
-- Python 3.7+
+- Python 3.8+
 - C compiler (gcc, clang, msvc, etc)
 
 You can install `ggml-python` using `pip`:
@@ -28,7 +28,10 @@ You can install `ggml-python` using `pip`:
 pip install ggml-python
 ```
 
-This will compile ggml using cmake which requires a c compiler installed on your system.
+Release wheels are tagged `py3-none` and support Python 3.8 through 3.14 when a matching platform wheel is available.
+CUDA release wheel builds track CUDA 11.8, 12.1, 12.2, 12.3, 12.4, 12.5, 13.0, and 13.2.
+
+When installing from source, this will compile ggml using cmake which requires a c compiler installed on your system.
 
 Below are the available options for building ggml-python with additional options for optimized inference.
 
