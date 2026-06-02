@@ -7,10 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- feat: expose additional tensor layout predicate helpers
-- feat: expose ggml_is_contiguous_{0,1,2}
+- feat: add tensor layout helper bindings by @abetlen in #106
 
-## [0.0.38] - 2026-06-02
+## [0.0.38]
 
-- ci: update pre-built wheels to py3-none and add CUDA 11.8-13.2 support
+- feat: add ggml_is_contiguous_{0,1,2} by @aisk in #95
+- ci: update pre-built wheels to py3-none and add CUDA 11.8-13.2 support by @abetlen in #104
 - feat: Update ggml to ggml-org/ggml@1e33fed3 and sync Python bindings by @abetlen in #100
