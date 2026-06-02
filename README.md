@@ -31,7 +31,48 @@ You can install `ggml-python` using `pip`:
 pip install ggml-python
 ```
 
-This will compile ggml using cmake which requires a c compiler installed on your system.
+## Pre-built Wheels
+
+It is also possible to install a pre-built wheel with basic CPU support:
+
+```bash
+pip install ggml-python \
+  --extra-index-url https://abetlen.github.io/ggml-python/whl/cpu
+```
+
+Pre-built CUDA wheels are available for CUDA 11.8, 12.1, 12.2, 12.3, 12.4, 12.5, 13.0, and 13.2:
+
+```bash
+pip install ggml-python \
+  --extra-index-url https://abetlen.github.io/ggml-python/whl/<cuda-version>
+```
+
+Where `<cuda-version>` is one of the following:
+
+- `cu118`: CUDA 11.8
+- `cu121`: CUDA 12.1
+- `cu122`: CUDA 12.2
+- `cu123`: CUDA 12.3
+- `cu124`: CUDA 12.4
+- `cu125`: CUDA 12.5
+- `cu130`: CUDA 13.0
+- `cu132`: CUDA 13.2
+
+For example, to install the CUDA 12.1 wheel:
+
+```bash
+pip install ggml-python \
+  --extra-index-url https://abetlen.github.io/ggml-python/whl/cu121
+```
+
+Pre-built Metal wheels are available for Apple Silicon macOS:
+
+```bash
+pip install ggml-python \
+  --extra-index-url https://abetlen.github.io/ggml-python/whl/metal
+```
+
+When installing from source, pip compiles ggml with CMake and requires a C compiler installed on your system.
 To build ggml with specific features (ie. OpenBLAS, GPU Support, etc) you can pass specific cmake options through the `cmake.args` pip install configuration setting. For example to install ggml-python with cuBLAS support you can run:
 
 ```bash
