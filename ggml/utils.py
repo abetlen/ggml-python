@@ -1,5 +1,5 @@
-"""Utility functions for ggml-python.
-"""
+"""Utility functions for ggml-python."""
+
 from __future__ import annotations
 
 import enum

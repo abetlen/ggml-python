@@ -14,7 +14,7 @@ run_if_ggml_cuda_available = pytest.mark.skipif(
 
 @run_if_ggml_cuda_available
 def test_cuda():
-    n_tensors = 1 + 2 # input (x) and weights (a, b)
+    n_tensors = 1 + 2  # input (x) and weights (a, b)
     params = ggml.ggml_init_params(
         mem_size=ggml.ggml_tensor_overhead() * n_tensors, mem_buffer=None, no_alloc=True
     )
