@@ -166,7 +166,7 @@ def quantize_row(
     nelements: int,
     ttype: GGML_TYPE,
     work: Optional[ctypes.c_void_p] = None,
-):
+) -> ctypes.c_void_p:
     """Quantize a row of a ggml tensor.
 
     Parameters:
@@ -189,7 +189,7 @@ def dequantize_row(
     nelements: int,
     ttype: GGML_TYPE,
     work: Optional[ctypes.c_void_p] = None,
-):
+) -> ctypes.c_void_p:
     """Dequantize a row of a ggml tensor.
 
     Parameters:
@@ -245,7 +245,7 @@ def get_strides(tensor: ggml.ggml_tensor_p) -> Tuple[int, ...]:
 
 def slice_tensor(
     ctx: ggml.ggml_context_p, tensor: ggml.ggml_tensor_p, indices: Sequence[slice]
-):
+) -> ggml.ggml_tensor_p:
     """Slice a ggml tensor along multiple dimensions.
 
     The slice is a view of the original tensor with the same number of dimensions.

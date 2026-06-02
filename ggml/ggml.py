@@ -10,8 +10,8 @@ With that in mind here are some useful things to keep in mind
 - While runtime checks are avoided for performance reasons, this module attempts to provide a type-safe interface by using Python's type annotations. Please report any issues you find.
 - Functions accept both ctypes types (c_int, c_bool, c_float, etc.) and Python types (int, bool, float, etc.) as parameters.
 - Functions return Python types for simple values (int, bool, float, etc.) and ctypes types for complex values ([ggml_context_p][ggml.ggml_context_p], [ggml_tensor_p][ggml.ggml_tensor_p], etc.).
-- Memory management is the responsibility of the user. The user must call [ggml.ggml_free][] on the context after calling [ggml.ggml_init][].
-- Opaque pointers that are returned by ggml functions (e.g. [ggml.ggml_init][ggml.ggml_init]) are returned as int's or None in Python. For some additional static type safety these pointers are wrapped in [NewType](https://docs.python.org/3/library/typing.html#typing.NewType) definitions (e.g. [ggml.ggml_context_p][ggml.ggml_context_p]).
+- Memory management is the responsibility of the user. The user must call `ggml.ggml_free` on the context after calling `ggml.ggml_init`.
+- Opaque pointers that are returned by ggml functions (e.g. `ggml.ggml_init`) are returned as int's or None in Python. For some additional static type safety these pointers are wrapped in [NewType](https://docs.python.org/3/library/typing.html#typing.NewType) definitions (e.g. [ggml.ggml_context_p][ggml.ggml_context_p]).
 
 Example
 
@@ -403,7 +403,8 @@ def ggml_fp32_to_bf16_row(fp32: CtypesPointer[ctypes.c_float], bf16: CtypesPoint
 ggml_context_p = NewType("ggml_context_p", int)
 """Opaque pointer to a ggml_context.
 
-ggml_context structs are not accessed directly instead they must be created using [ggml_init](ggml.ggml_init) and freed using [ggml_free](ggml.ggml_free)."""
+ggml_context structs are not accessed directly instead they must be created using
+`ggml_init` and freed using `ggml_free`."""
 
 ggml_context_p_ctypes = ctypes.c_void_p  # type: ignore
 
@@ -2223,10 +2224,10 @@ def ggml_set_f32(
 def ggml_unravel_index(
     tensor: ggml_tensor_p,
     i: Union[ctypes.c_int64, int],
-    i0,  # type: "ctypes._Pointer(ctypes.c_int64)" # type: ignore
-    i1,  # type: "ctypes._Pointer(ctypes.c_int64)" # type: ignore
-    i2,  # type: "ctypes._Pointer(ctypes.c_int64)" # type: ignore
-    i3,  # type: "ctypes._Pointer(ctypes.c_int64)" # type: ignore
+    i0: CtypesPointer[ctypes.c_int64],
+    i1: CtypesPointer[ctypes.c_int64],
+    i2: CtypesPointer[ctypes.c_int64],
+    i3: CtypesPointer[ctypes.c_int64],
     /,
 ):
     """Convert a flat index into coordinates.
@@ -7179,9 +7180,8 @@ def ggml_build_backward_expand(*args: Any):
     """Add backward pass nodes to a graph.
 
     Parameters:
-        ctx: The context.
-        cgraph: The graph to expand.
-        grad_accs: Optional gradient accumulators."""
+        args: Either `(ctx, cgraph, grad_accs)` or the legacy
+            `(ctx, gf, gb, keep)` call shape."""
     if len(args) == 3:
         ctx, cgraph, grad_accs = args
     elif len(args) == 4:
@@ -8087,10 +8087,10 @@ gguf_context_p_ctypes = ctypes.c_void_p
 # };
 class gguf_init_params(ctypes.Structure):
     """Initialization parameters for gguf.
-    
-    Parameters:
-        no_alloc(bool): No allocation.
-        ctx(ggml_context_p): The context."""
+
+    Attributes:
+        no_alloc: No allocation.
+        ctx: The context."""
 
     if TYPE_CHECKING:
         no_alloc: bool
