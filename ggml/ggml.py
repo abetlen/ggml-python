@@ -1855,6 +1855,16 @@ def ggml_init(params: ggml_init_params, /) -> Optional[ggml_context_p]:
     ...
 
 
+# GGML_API void ggml_reset(struct ggml_context * ctx);
+@ggml_function("ggml_reset", [ggml_context_p_ctypes], None)
+def ggml_reset(ctx: ggml_context_p, /):
+    """Reset the ggml context.
+
+    Parameters:
+        ctx: ggml context"""
+    ...
+
+
 # GGML_API void                  ggml_free(struct ggml_context * ctx);
 @ggml_function("ggml_free", [ggml_context_p_ctypes], None)
 def ggml_free(ctx: ggml_context_p, /):
@@ -3149,6 +3159,170 @@ def ggml_log_inplace(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
     ...
 
 
+# GGML_API struct ggml_tensor * ggml_expm1(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_expm1",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+    enabled=hasattr(lib, "ggml_expm1"),
+)
+def ggml_expm1(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    """Compute exp(a) - 1 for all elements in a tensor and return the result.
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_expm1_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_expm1_inplace",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+    enabled=hasattr(lib, "ggml_expm1_inplace"),
+)
+def ggml_expm1_inplace(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    """Compute exp(a) - 1 for all elements in a tensor and store the result in the first tensor.
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_softplus(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_softplus",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+    enabled=hasattr(lib, "ggml_softplus"),
+)
+def ggml_softplus(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    """Apply the softplus activation function to all elements in a tensor and return the result.
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_softplus_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_softplus_inplace",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+    enabled=hasattr(lib, "ggml_softplus_inplace"),
+)
+def ggml_softplus_inplace(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    """Apply the softplus activation function to all elements in a tensor and store the result in the first tensor.
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_sin(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_sin",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_sin(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    """Compute the sine of all elements in a tensor and return the result.
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_sin_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_sin_inplace",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_sin_inplace(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    """Compute the sine of all elements in a tensor and store the result in the first tensor.
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_cos(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_cos",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_cos(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    """Compute the cosine of all elements in a tensor and return the result.
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_cos_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_cos_inplace",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_cos_inplace(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    """Compute the cosine of all elements in a tensor and store the result in the first tensor.
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
+    ...
+
+
 # // return scalar
 # GGML_API struct ggml_tensor * ggml_sum(
 #         struct ggml_context * ctx,
@@ -3454,6 +3628,26 @@ def ggml_step(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
     ...
 
 
+# GGML_API struct ggml_tensor * ggml_step_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_step_inplace",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_step_inplace(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    """Apply the step function to all elements in a tensor and store the result in the first tensor.
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
+    ...
+
+
 # GGML_API struct ggml_tensor * ggml_tanh(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
@@ -3683,6 +3877,46 @@ def ggml_gelu_inplace(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p
     ...
 
 
+# GGML_API struct ggml_tensor * ggml_gelu_erf(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_gelu_erf",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_gelu_erf(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    """Apply the exact GELU activation function to all elements in a tensor and return the result.
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_gelu_erf_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_gelu_erf_inplace",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_gelu_erf_inplace(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    """Apply the exact GELU activation function to all elements in a tensor and store the result in the first tensor.
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
+    ...
+
+
 # GGML_API struct ggml_tensor * ggml_gelu_quick(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a);
@@ -3824,6 +4058,214 @@ def ggml_hardsigmoid(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
     Returns:
         Pointer to ggml_tensor"""
 
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_exp(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_exp",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_exp(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    """Compute the exponential of all elements in a tensor and return the result.
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_exp_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_exp_inplace",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_exp_inplace(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    """Compute the exponential of all elements in a tensor and store the result in the first tensor.
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_floor(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_floor",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+    enabled=hasattr(lib, "ggml_floor"),
+)
+def ggml_floor(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    """Compute the floor of all elements in a tensor and return the result.
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_floor_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_floor_inplace",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+    enabled=hasattr(lib, "ggml_floor_inplace"),
+)
+def ggml_floor_inplace(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    """Compute the floor of all elements in a tensor and store the result in the first tensor.
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_ceil(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_ceil",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+    enabled=hasattr(lib, "ggml_ceil"),
+)
+def ggml_ceil(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    """Compute the ceiling of all elements in a tensor and return the result.
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_ceil_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_ceil_inplace",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+    enabled=hasattr(lib, "ggml_ceil_inplace"),
+)
+def ggml_ceil_inplace(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    """Compute the ceiling of all elements in a tensor and store the result in the first tensor.
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_round(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_round",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+    enabled=hasattr(lib, "ggml_round"),
+)
+def ggml_round(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    """Round all elements in a tensor and return the result.
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_round_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_round_inplace",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+    enabled=hasattr(lib, "ggml_round_inplace"),
+)
+def ggml_round_inplace(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    """Round all elements in a tensor and store the result in the first tensor.
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_trunc(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_trunc",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+    enabled=hasattr(lib, "ggml_trunc"),
+)
+def ggml_trunc(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    """Truncate all elements in a tensor toward zero and return the result.
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_trunc_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_trunc_inplace",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+    enabled=hasattr(lib, "ggml_trunc_inplace"),
+)
+def ggml_trunc_inplace(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    """Truncate all elements in a tensor toward zero and store the result in the first tensor.
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+
+    Returns:
+        Pointer to ggml_tensor"""
     ...
 
 
@@ -3988,6 +4430,62 @@ def ggml_group_norm_inplace(
         ctx: ggml context
         a: tensor
         n_groups: int
+
+    Returns:
+        Pointer to ggml_tensor"""
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_l2_norm(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         float                 eps);
+@ggml_function(
+    "ggml_l2_norm",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_float,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_l2_norm(
+    ctx: ggml_context_p, a: ggml_tensor_p, eps: Union[ctypes.c_float, float], /
+) -> ggml_tensor_p:
+    """L2 normalize a tensor along rows and return the result.
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+        eps: minimum value to avoid division by zero
+
+    Returns:
+        Pointer to ggml_tensor"""
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_l2_norm_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         float                 eps);
+@ggml_function(
+    "ggml_l2_norm_inplace",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_float,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_l2_norm_inplace(
+    ctx: ggml_context_p, a: ggml_tensor_p, eps: Union[ctypes.c_float, float], /
+) -> ggml_tensor_p:
+    """L2 normalize a tensor along rows and store the result in the first tensor.
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+        eps: minimum value to avoid division by zero
 
     Returns:
         Pointer to ggml_tensor"""
@@ -6140,6 +6638,65 @@ def ggml_pad(
 
     Returns:
         output tensor"""
+    ...
+
+
+# // Fill tensor a with constant c
+# GGML_API struct ggml_tensor * ggml_fill(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         float                 c);
+@ggml_function(
+    "ggml_fill",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_float,
+    ],
+    ctypes.POINTER(ggml_tensor),
+    enabled=hasattr(lib, "ggml_fill"),
+)
+def ggml_fill(
+    ctx: ggml_context_p, a: ggml_tensor_p, c: Union[ctypes.c_float, float], /
+) -> ggml_tensor_p:
+    """Fill a tensor with a constant and return the result.
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+        c: fill value
+
+    Returns:
+        Pointer to ggml_tensor"""
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_fill_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         float                 c);
+@ggml_function(
+    "ggml_fill_inplace",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_float,
+    ],
+    ctypes.POINTER(ggml_tensor),
+    enabled=hasattr(lib, "ggml_fill_inplace"),
+)
+def ggml_fill_inplace(
+    ctx: ggml_context_p, a: ggml_tensor_p, c: Union[ctypes.c_float, float], /
+) -> ggml_tensor_p:
+    """Fill a tensor with a constant and store the result in the first tensor.
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+        c: fill value
+
+    Returns:
+        Pointer to ggml_tensor"""
     ...
 
 
