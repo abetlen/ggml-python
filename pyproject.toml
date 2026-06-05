@@ -57,7 +57,7 @@ publish = ["build"]
 convert = [
     "accelerate==0.30.1",
     "numpy==2.1.0",
-    "sentencepiece==0.2.0",
+    "sentencepiece==0.2.1",
     "torch==2.3.0",
     "torchaudio==2.4.0",
     "torchvision==0.18.0",
