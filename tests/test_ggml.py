@@ -72,6 +72,18 @@ def test_ggml_pythonic():
         assert output == 16.0
 
 
+def test_ggml_backend_feature_flags_match_exported_symbols():
+    assert ggml.GGML_USE_CUDA == hasattr(ggml.lib, "ggml_backend_cuda_init")
+    assert ggml.GGML_USE_METAL == hasattr(ggml.lib, "ggml_backend_metal_init")
+    assert ggml.GGML_USE_OPENCL == hasattr(ggml.lib, "ggml_backend_opencl_init")
+    assert ggml.GGML_USE_CLBLAST == hasattr(ggml.lib, "ggml_cl_init")
+    assert ggml.GGML_USE_VULKAN == hasattr(ggml.lib, "ggml_backend_vk_init")
+    assert ggml.GGML_USE_VULKAN_CPU_ASSIST == hasattr(
+        ggml.lib, "ggml_vk_init_cpu_assist"
+    )
+    assert ggml.GGML_USE_RPC == hasattr(ggml.lib, "ggml_backend_rpc_init")
+
+
 def test_ggml_custom_op():
     params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
     ctx = ggml.ggml_init(params)
