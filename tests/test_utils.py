@@ -33,6 +33,44 @@ def test_numpy_arrays():
     ggml.ggml_free(ctx)
 
 
+def test_from_numpy_bool_array():
+    params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024)
+    ctx = ggml.ggml_init(params)
+    assert ctx is not None
+    x = np.array([True, False, True], dtype=np.bool_)
+    t = ggml.utils.from_numpy(x, ctx)
+    assert t.contents.type == ggml.GGML_TYPE_I32
+    assert np.array_equal(ggml.utils.to_numpy(t), x.astype(np.int32))
+    ggml.ggml_free(ctx)
+
+
+def test_from_numpy_scalar_array():
+    params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024)
+    ctx = ggml.ggml_init(params)
+    assert ctx is not None
+    x = np.array(3.5, dtype=np.float32)
+    t = ggml.utils.from_numpy(x, ctx)
+    y = ggml.utils.to_numpy(t)
+    assert y.shape == (1,)
+    assert np.array_equal(y, np.array([3.5], dtype=np.float32))
+    ggml.ggml_free(ctx)
+
+
+def test_to_numpy_no_alloc_tensor():
+    params = ggml.ggml_init_params(
+        mem_size=16 * 1024 * 1024,
+        mem_buffer=None,
+        no_alloc=True,
+    )
+    ctx = ggml.ggml_init(params)
+    assert ctx is not None
+    t = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 3)
+    assert ggml.ggml_get_data(t) is None
+    y = ggml.utils.to_numpy(t)
+    assert y.shape == (0,)
+    ggml.ggml_free(ctx)
+
+
 def test_numpy_arrays_transposed():
     params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024)
     ctx = ggml.ggml_init(params)
