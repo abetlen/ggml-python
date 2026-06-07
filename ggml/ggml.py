@@ -14791,6 +14791,7 @@ def ggml_backend_vk_host_buffer_type() -> Optional[ggml_backend_buffer_type_t]:
 
 
 GGML_USE_RPC = hasattr(lib, "ggml_backend_rpc_init")
+GGML_USE_RPC_LEGACY_SERVER = hasattr(lib, "start_rpc_server")
 
 
 #define GGML_RPC_MAX_SERVERS       16
@@ -14798,14 +14799,18 @@ GGML_RPC_MAX_SERVERS = 16
 
 
 # // backend API
-# GGML_API GGML_CALL ggml_backend_t ggml_backend_rpc_init(const char * endpoint);
+# GGML_API GGML_CALL ggml_backend_t ggml_backend_rpc_init(const char * endpoint, uint32_t device);
 @ggml_function(
     "ggml_backend_rpc_init",
-    [ctypes.c_char_p],
+    [ctypes.c_char_p, ctypes.c_uint32],
     ggml_backend_t_ctypes,
     enabled=GGML_USE_RPC,
 )
-def ggml_backend_rpc_init(endpoint: bytes) -> Optional[ggml_backend_t]:
+def ggml_backend_rpc_init(
+    endpoint: bytes,
+    device: Union[ctypes.c_uint32, int],
+    /,
+) -> Optional[ggml_backend_t]:
     ...
 
 
@@ -14820,22 +14825,27 @@ def ggml_backend_is_rpc(backend: Union[ggml_backend_t, int], /) -> bool:
     ...
 
 
-# GGML_API GGML_CALL ggml_backend_buffer_type_t ggml_backend_rpc_buffer_type(const char * endpoint);
+# GGML_API GGML_CALL ggml_backend_buffer_type_t ggml_backend_rpc_buffer_type(const char * endpoint, uint32_t device);
 @ggml_function(
     "ggml_backend_rpc_buffer_type",
-    [ctypes.c_char_p],
+    [ctypes.c_char_p, ctypes.c_uint32],
     ggml_backend_buffer_type_t_ctypes,
     enabled=GGML_USE_RPC,
 )
-def ggml_backend_rpc_buffer_type(endpoint: bytes) -> Optional[ggml_backend_buffer_type_t]:
+def ggml_backend_rpc_buffer_type(
+    endpoint: bytes,
+    device: Union[ctypes.c_uint32, int],
+    /,
+) -> Optional[ggml_backend_buffer_type_t]:
     ...
 
 
-# GGML_API GGML_CALL void ggml_backend_rpc_get_device_memory(const char * endpoint, size_t * free, size_t * total);
+# GGML_API GGML_CALL void ggml_backend_rpc_get_device_memory(const char * endpoint, uint32_t device, size_t * free, size_t * total);
 @ggml_function(
     "ggml_backend_rpc_get_device_memory",
     [
         ctypes.c_char_p,
+        ctypes.c_uint32,
         ctypes.POINTER(ctypes.c_size_t),
         ctypes.POINTER(ctypes.c_size_t),
     ],
@@ -14844,11 +14854,64 @@ def ggml_backend_rpc_buffer_type(endpoint: bytes) -> Optional[ggml_backend_buffe
 )
 def ggml_backend_rpc_get_device_memory(
     endpoint: bytes,
+    device: Union[ctypes.c_uint32, int],
     free: CtypesPointer[ctypes.c_size_t],
     total: CtypesPointer[ctypes.c_size_t],
     /,
 ):
     ...
+
+
+# GGML_API GGML_CALL void ggml_backend_rpc_start_server(
+#         const char * endpoint,
+#         const char * cache_dir,
+#         size_t n_threads,
+#         size_t n_devices,
+#         ggml_backend_dev_t * devices);
+@ggml_function(
+    "ggml_backend_rpc_start_server",
+    [
+        ctypes.c_char_p,
+        ctypes.c_char_p,
+        ctypes.c_size_t,
+        ctypes.c_size_t,
+        ctypes.POINTER(ggml_backend_dev_t_ctypes),
+    ],
+    None,
+    enabled=GGML_USE_RPC,
+)
+def ggml_backend_rpc_start_server(
+    endpoint: bytes,
+    cache_dir: Optional[bytes],
+    n_threads: Union[ctypes.c_size_t, int],
+    n_devices: Union[ctypes.c_size_t, int],
+    devices: CtypesPointer[ggml_backend_dev_t_ctypes],
+    /,
+):
+    ...
+
+
+# GGML_API GGML_CALL ggml_backend_reg_t ggml_backend_rpc_reg(void);
+@ggml_function(
+    "ggml_backend_rpc_reg",
+    [],
+    ggml_backend_reg_t_ctypes,
+    enabled=GGML_USE_RPC,
+)
+def ggml_backend_rpc_reg() -> Optional[ggml_backend_reg_t]:
+    ...
+
+
+# GGML_API GGML_CALL ggml_backend_reg_t ggml_backend_rpc_add_server(const char * endpoint);
+@ggml_function(
+    "ggml_backend_rpc_add_server",
+    [ctypes.c_char_p],
+    ggml_backend_reg_t_ctypes,
+    enabled=GGML_USE_RPC,
+)
+def ggml_backend_rpc_add_server(endpoint: bytes, /) -> Optional[ggml_backend_reg_t]:
+    ...
+
 
 # GGML_API GGML_CALL void start_rpc_server(ggml_backend_t backend, const char * endpoint, size_t free_mem, size_t total_mem);
 @ggml_function(
@@ -14860,7 +14923,7 @@ def ggml_backend_rpc_get_device_memory(
         ctypes.c_size_t,
     ],
     None,
-    enabled=GGML_USE_RPC,
+    enabled=GGML_USE_RPC_LEGACY_SERVER,
 )
 def start_rpc_server(
     backend: Union[ggml_backend_t, int],
