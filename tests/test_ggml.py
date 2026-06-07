@@ -84,6 +84,30 @@ def test_ggml_backend_feature_flags_match_exported_symbols():
     assert ggml.GGML_USE_RPC == hasattr(ggml.lib, "ggml_backend_rpc_init")
 
 
+def test_ggml_cpu_conversion_helpers():
+    values = (ctypes.c_float * 3)(1.5, -2.0, 3.25)
+
+    fp32 = (ctypes.c_float * 3)()
+    ggml.ggml_cpu_fp32_to_fp32(values, fp32, 3)
+    assert list(fp32) == [1.5, -2.0, 3.25]
+
+    i32 = (ctypes.c_int32 * 3)()
+    ggml.ggml_cpu_fp32_to_i32(values, i32, 3)
+    assert list(i32) == [1, -2, 3]
+
+    fp16 = (ggml.ggml_fp16_t * 3)()
+    fp16_roundtrip = (ctypes.c_float * 3)()
+    ggml.ggml_cpu_fp32_to_fp16(values, fp16, 3)
+    ggml.ggml_cpu_fp16_to_fp32(fp16, fp16_roundtrip, 3)
+    assert np.allclose(list(fp16_roundtrip), [1.5, -2.0, 3.25], atol=1e-3)
+
+    bf16 = (ggml.ggml_bf16_t * 3)()
+    bf16_roundtrip = (ctypes.c_float * 3)()
+    ggml.ggml_cpu_fp32_to_bf16(values, bf16, 3)
+    ggml.ggml_cpu_bf16_to_fp32(bf16, bf16_roundtrip, 3)
+    assert np.allclose(list(bf16_roundtrip), [1.5, -2.0, 3.25], atol=1e-2)
+
+
 def test_ggml_custom_op():
     params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None)
     ctx = ggml.ggml_init(params)

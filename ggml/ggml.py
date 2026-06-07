@@ -11883,6 +11883,120 @@ def ggml_cpu_init():
     ...
 
 
+# GGML_BACKEND_API void ggml_cpu_fp32_to_fp32(const float * x, float * y, int64_t k);
+@ggml_function(
+    "ggml_cpu_fp32_to_fp32",
+    [
+        ctypes.POINTER(ctypes.c_float),
+        ctypes.POINTER(ctypes.c_float),
+        ctypes.c_int64,
+    ],
+    None,
+)
+def ggml_cpu_fp32_to_fp32(
+    x: CtypesPointer[ctypes.c_float],
+    y: CtypesPointer[ctypes.c_float],
+    k: Union[ctypes.c_int64, int],
+    /,
+) -> None:
+    ...
+
+
+# GGML_BACKEND_API void ggml_cpu_fp32_to_i32(const float * x, int32_t * y, int64_t k);
+@ggml_function(
+    "ggml_cpu_fp32_to_i32",
+    [
+        ctypes.POINTER(ctypes.c_float),
+        ctypes.POINTER(ctypes.c_int32),
+        ctypes.c_int64,
+    ],
+    None,
+)
+def ggml_cpu_fp32_to_i32(
+    x: CtypesPointer[ctypes.c_float],
+    y: CtypesPointer[ctypes.c_int32],
+    k: Union[ctypes.c_int64, int],
+    /,
+) -> None:
+    ...
+
+
+# GGML_BACKEND_API void ggml_cpu_fp32_to_fp16(const float * x, ggml_fp16_t * y, int64_t k);
+@ggml_function(
+    "ggml_cpu_fp32_to_fp16",
+    [
+        ctypes.POINTER(ctypes.c_float),
+        ctypes.POINTER(ggml_fp16_t),
+        ctypes.c_int64,
+    ],
+    None,
+)
+def ggml_cpu_fp32_to_fp16(
+    x: CtypesPointer[ctypes.c_float],
+    y: CtypesPointer[ggml_fp16_t],
+    k: Union[ctypes.c_int64, int],
+    /,
+) -> None:
+    ...
+
+
+# GGML_BACKEND_API void ggml_cpu_fp16_to_fp32(const ggml_fp16_t * x, float * y, int64_t k);
+@ggml_function(
+    "ggml_cpu_fp16_to_fp32",
+    [
+        ctypes.POINTER(ggml_fp16_t),
+        ctypes.POINTER(ctypes.c_float),
+        ctypes.c_int64,
+    ],
+    None,
+)
+def ggml_cpu_fp16_to_fp32(
+    x: CtypesPointer[ggml_fp16_t],
+    y: CtypesPointer[ctypes.c_float],
+    k: Union[ctypes.c_int64, int],
+    /,
+) -> None:
+    ...
+
+
+# GGML_BACKEND_API void ggml_cpu_fp32_to_bf16(const float * x, ggml_bf16_t * y, int64_t k);
+@ggml_function(
+    "ggml_cpu_fp32_to_bf16",
+    [
+        ctypes.POINTER(ctypes.c_float),
+        ctypes.POINTER(ggml_bf16_t),
+        ctypes.c_int64,
+    ],
+    None,
+)
+def ggml_cpu_fp32_to_bf16(
+    x: CtypesPointer[ctypes.c_float],
+    y: CtypesPointer[ggml_bf16_t],
+    k: Union[ctypes.c_int64, int],
+    /,
+) -> None:
+    ...
+
+
+# GGML_BACKEND_API void ggml_cpu_bf16_to_fp32(const ggml_bf16_t * x, float * y, int64_t k);
+@ggml_function(
+    "ggml_cpu_bf16_to_fp32",
+    [
+        ctypes.POINTER(ggml_bf16_t),
+        ctypes.POINTER(ctypes.c_float),
+        ctypes.c_int64,
+    ],
+    None,
+)
+def ggml_cpu_bf16_to_fp32(
+    x: CtypesPointer[ggml_bf16_t],
+    y: CtypesPointer[ctypes.c_float],
+    k: Union[ctypes.c_int64, int],
+    /,
+) -> None:
+    ...
+
+
 # //
 # // Internal types and functions exposed for tests and benchmarks
 # //
