@@ -73,6 +73,7 @@ def test_ggml_pythonic():
 
 
 def test_ggml_backend_feature_flags_match_exported_symbols():
+    assert ggml.GGML_USE_BLAS == hasattr(ggml.lib, "ggml_backend_blas_init")
     assert ggml.GGML_USE_CUDA == hasattr(ggml.lib, "ggml_backend_cuda_init")
     assert ggml.GGML_USE_METAL == hasattr(ggml.lib, "ggml_backend_metal_init")
     assert ggml.GGML_USE_OPENCL == hasattr(ggml.lib, "ggml_backend_opencl_init")

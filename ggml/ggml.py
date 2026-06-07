@@ -14089,6 +14089,63 @@ def ggml_backend_register(
 
 
 #####################################################
+# GGML BLAS API
+# source: src/ggml-blas.h
+#####################################################
+
+
+GGML_USE_BLAS = hasattr(lib, "ggml_backend_blas_init")
+
+
+# GGML_API GGML_CALL ggml_backend_t ggml_backend_blas_init(void);
+@ggml_function(
+    "ggml_backend_blas_init",
+    [],
+    ggml_backend_t_ctypes,
+    enabled=GGML_USE_BLAS,
+)
+def ggml_backend_blas_init() -> Optional[ggml_backend_t]:
+    ...
+
+
+# GGML_API GGML_CALL bool ggml_backend_is_blas(ggml_backend_t backend);
+@ggml_function(
+    "ggml_backend_is_blas",
+    [ggml_backend_t_ctypes],
+    ctypes.c_bool,
+    enabled=GGML_USE_BLAS,
+)
+def ggml_backend_is_blas(backend: Union[ggml_backend_t, int], /) -> bool:
+    ...
+
+
+# GGML_API GGML_CALL void ggml_backend_blas_set_n_threads(ggml_backend_t backend_blas, int n_threads);
+@ggml_function(
+    "ggml_backend_blas_set_n_threads",
+    [ggml_backend_t_ctypes, ctypes.c_int],
+    None,
+    enabled=GGML_USE_BLAS,
+)
+def ggml_backend_blas_set_n_threads(
+    backend_blas: Union[ggml_backend_t, int],
+    n_threads: Union[ctypes.c_int, int],
+    /,
+) -> None:
+    ...
+
+
+# GGML_API GGML_CALL ggml_backend_reg_t ggml_backend_blas_reg(void);
+@ggml_function(
+    "ggml_backend_blas_reg",
+    [],
+    ggml_backend_reg_t_ctypes,
+    enabled=GGML_USE_BLAS,
+)
+def ggml_backend_blas_reg() -> Optional[ggml_backend_reg_t]:
+    ...
+
+
+#####################################################
 # GGML CUDA API
 # source: src/ggml-cuda.h
 #####################################################
