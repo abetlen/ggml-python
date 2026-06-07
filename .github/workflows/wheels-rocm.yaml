@@ -3,6 +3,10 @@ name: Wheels ROCm
 on:
   workflow_dispatch:
     inputs:
+      release_tag:
+        description: Release tag to upload wheel assets to
+        required: false
+        type: string
       amdgpu_targets:
         description: AMDGPU targets to compile into the Linux ROCm wheel
         required: false
@@ -81,7 +85,7 @@ jobs:
           export ROCM_PATH="${ROCM_PATH:-/opt/rocm}"
           export LD_LIBRARY_PATH="$ROCM_PATH/lib:$ROCM_PATH/lib64:${LD_LIBRARY_PATH:-}"
           mkdir -p wheelhouse
-          auditwheel repair \
+          python -m auditwheel repair \
             --exclude libamdhip64.so \
             --exclude libamdhip64.so.6 \
             --exclude libamdhip64.so.7 \
@@ -103,7 +107,7 @@ jobs:
             dist/*.whl
           rm dist/*.whl
           cp wheelhouse/*.whl dist/
-          auditwheel show dist/*.whl
+          python -m auditwheel show dist/*.whl
 
       - uses: actions/upload-artifact@v7
         with:
@@ -111,11 +115,11 @@ jobs:
           path: dist/*.whl
 
       - uses: softprops/action-gh-release@v3
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
         with:
           files: dist/*
           # Set tag_name to <tag>-rocm<rocm_version>.
-          tag_name: ${{ github.ref_name }}-rocm${{ env.ROCM_VERSION }}
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}-rocm${{ env.ROCM_VERSION }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -248,10 +252,10 @@ jobs:
           path: dist/*.whl
 
       - uses: softprops/action-gh-release@v3
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
         with:
           files: dist/*
           # Set tag_name to <tag>-hip-radeon.
-          tag_name: ${{ github.ref_name }}-hip-${{ matrix.name }}
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}-hip-${{ matrix.name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
