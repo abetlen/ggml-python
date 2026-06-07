@@ -14270,6 +14270,166 @@ def ggml_backend_cann_get_device_memory(
 
 
 #####################################################
+# GGML SYCL API
+# source: src/ggml-sycl.h
+#####################################################
+
+
+GGML_USE_SYCL_BACKEND = hasattr(lib, "ggml_backend_sycl_init")
+GGML_SYCL_NAME = "SYCL"
+GGML_SYCL_MAX_DEVICES = 48
+
+
+# GGML_API GGML_CALL ggml_backend_t ggml_backend_sycl_init(int device);
+@ggml_function(
+    "ggml_backend_sycl_init",
+    [ctypes.c_int],
+    ggml_backend_t_ctypes,
+    enabled=GGML_USE_SYCL_BACKEND,
+)
+def ggml_backend_sycl_init(device: Union[ctypes.c_int, int], /) -> Optional[ggml_backend_t]:
+    ...
+
+
+# GGML_API GGML_CALL bool ggml_backend_is_sycl(ggml_backend_t backend);
+@ggml_function(
+    "ggml_backend_is_sycl",
+    [ggml_backend_t_ctypes],
+    ctypes.c_bool,
+    enabled=GGML_USE_SYCL_BACKEND,
+)
+def ggml_backend_is_sycl(backend: Union[ggml_backend_t, int], /) -> bool:
+    ...
+
+
+# GGML_API GGML_CALL ggml_backend_buffer_type_t ggml_backend_sycl_buffer_type(int device);
+@ggml_function(
+    "ggml_backend_sycl_buffer_type",
+    [ctypes.c_int],
+    ggml_backend_buffer_type_t_ctypes,
+    enabled=GGML_USE_SYCL_BACKEND,
+)
+def ggml_backend_sycl_buffer_type(
+    device: Union[ctypes.c_int, int],
+    /,
+) -> Optional[ggml_backend_buffer_type_t]:
+    ...
+
+
+# GGML_API GGML_CALL ggml_backend_buffer_type_t ggml_backend_sycl_split_buffer_type(const float * tensor_split);
+@ggml_function(
+    "ggml_backend_sycl_split_buffer_type",
+    [ctypes.POINTER(ctypes.c_float)],
+    ggml_backend_buffer_type_t_ctypes,
+    enabled=GGML_USE_SYCL_BACKEND,
+)
+def ggml_backend_sycl_split_buffer_type(
+    tensor_split: CtypesArray[ctypes.c_float],
+    /,
+) -> Optional[ggml_backend_buffer_type_t]:
+    ...
+
+
+# GGML_API GGML_CALL ggml_backend_buffer_type_t ggml_backend_sycl_host_buffer_type(void);
+@ggml_function(
+    "ggml_backend_sycl_host_buffer_type",
+    [],
+    ggml_backend_buffer_type_t_ctypes,
+    enabled=GGML_USE_SYCL_BACKEND,
+)
+def ggml_backend_sycl_host_buffer_type() -> Optional[ggml_backend_buffer_type_t]:
+    ...
+
+
+# GGML_API GGML_CALL void ggml_backend_sycl_print_sycl_devices(void);
+@ggml_function(
+    "ggml_backend_sycl_print_sycl_devices",
+    [],
+    None,
+    enabled=GGML_USE_SYCL_BACKEND,
+)
+def ggml_backend_sycl_print_sycl_devices() -> None:
+    ...
+
+
+# GGML_API GGML_CALL void ggml_backend_sycl_get_gpu_list(int * id_list, int max_len);
+@ggml_function(
+    "ggml_backend_sycl_get_gpu_list",
+    [ctypes.POINTER(ctypes.c_int), ctypes.c_int],
+    None,
+    enabled=GGML_USE_SYCL_BACKEND,
+)
+def ggml_backend_sycl_get_gpu_list(
+    id_list: CtypesPointer[ctypes.c_int],
+    max_len: Union[ctypes.c_int, int],
+    /,
+) -> None:
+    ...
+
+
+# GGML_API GGML_CALL void ggml_backend_sycl_get_device_description(int device, char * description, size_t description_size);
+@ggml_function(
+    "ggml_backend_sycl_get_device_description",
+    [
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_size_t,
+    ],
+    None,
+    enabled=GGML_USE_SYCL_BACKEND,
+)
+def ggml_backend_sycl_get_device_description(
+    device: Union[ctypes.c_int, int],
+    description: ctypes.c_char_p,
+    description_size: Union[ctypes.c_size_t, int],
+    /,
+) -> None:
+    ...
+
+
+# GGML_API GGML_CALL int ggml_backend_sycl_get_device_count(void);
+@ggml_function(
+    "ggml_backend_sycl_get_device_count",
+    [],
+    ctypes.c_int,
+    enabled=GGML_USE_SYCL_BACKEND,
+)
+def ggml_backend_sycl_get_device_count() -> int:
+    ...
+
+
+# GGML_API GGML_CALL void ggml_backend_sycl_get_device_memory(int device, size_t * free, size_t * total);
+@ggml_function(
+    "ggml_backend_sycl_get_device_memory",
+    [
+        ctypes.c_int,
+        ctypes.POINTER(ctypes.c_size_t),
+        ctypes.POINTER(ctypes.c_size_t),
+    ],
+    None,
+    enabled=GGML_USE_SYCL_BACKEND,
+)
+def ggml_backend_sycl_get_device_memory(
+    device: Union[ctypes.c_int, int],
+    free: CtypesPointer[ctypes.c_size_t],
+    total: CtypesPointer[ctypes.c_size_t],
+    /,
+) -> None:
+    ...
+
+
+# GGML_API GGML_CALL ggml_backend_reg_t ggml_backend_sycl_reg(void);
+@ggml_function(
+    "ggml_backend_sycl_reg",
+    [],
+    ggml_backend_reg_t_ctypes,
+    enabled=GGML_USE_SYCL_BACKEND,
+)
+def ggml_backend_sycl_reg() -> Optional[ggml_backend_reg_t]:
+    ...
+
+
+#####################################################
 # GGML CUDA API
 # source: src/ggml-cuda.h
 #####################################################
