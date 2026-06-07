@@ -38,6 +38,32 @@ jobs:
         run: |
           python -m pytest -s -vvvv
 
+  build-linux-onnx:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip pytest cmake scikit-build setuptools
+          python3 -m pip install \
+            --verbose \
+            --config-settings cmake.args='-DCMAKE_BUILD_TYPE=Debug;-DCMAKE_CXX_FLAGS=-g3;-DCMAKE_C_FLAGS=-g3' \
+            --config-settings cmake.verbose=true \
+            --config-settings logging.level=INFO \
+            --config-settings install.strip=false \
+            --editable ".[test,onnx,onnx-tests]"
+      - name: Test ONNX backend
+        run: |
+          python -m pytest -s -vvvv tests/test_ggml_onnx.py
+
   build-windows:
     runs-on: windows-latest
     strategy:
