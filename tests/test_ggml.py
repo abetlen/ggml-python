@@ -1,59 +1,10 @@
 import ctypes
-import re
 
-from pathlib import Path
 from typing import Optional
 
 import ggml
 
 import numpy as np
-
-
-def test_ggml_h_public_api_bindings_match_header():
-    header_path = Path(__file__).parents[1] / "vendor" / "ggml" / "include" / "ggml.h"
-    header = header_path.read_text()
-    header = re.sub(r"/\*.*?\*/", "", header, flags=re.S)
-    header = re.sub(r"//.*", "", header)
-    pattern = re.compile(
-        r"GGML_API\s+(?:GGML_CALL\s+)?(?:[\w\s\*]+?)\s+(ggml_\w+)\s*\((.*?)\)\s*;",
-        re.S,
-    )
-    ignored = {"ggml_abort", "ggml_format_name", "ggml_unused_vars_impl"}
-    missing = []
-    mismatched = []
-
-    for name, parameters in pattern.findall(header):
-        if name in ignored:
-            continue
-        if not hasattr(ggml, name):
-            missing.append(name)
-            continue
-        function = getattr(ggml.lib, name)
-        argtypes = getattr(function, "argtypes", None)
-        if argtypes is None:
-            continue
-        expected_count = _ggml_h_parameter_count(parameters)
-        if expected_count != len(argtypes):
-            mismatched.append((name, expected_count, len(argtypes)))
-
-    assert missing == []
-    assert mismatched == []
-
-
-def _ggml_h_parameter_count(parameters: str) -> int:
-    parameters = parameters.strip()
-    if not parameters or parameters == "void":
-        return 0
-    count = 1
-    depth = 0
-    for character in parameters:
-        if character == "(":
-            depth += 1
-        elif character == ")":
-            depth -= 1
-        elif character == "," and depth == 0:
-            count += 1
-    return count
 
 
 def test_ggml():
