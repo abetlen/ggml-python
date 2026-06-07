@@ -160,6 +160,21 @@ If you are having trouble installing `ggml-python` or activating specific featur
 pip install ggml-python --verbose --no-cache-dir --force-reinstall --upgrade
 ```
 
+## Native Crashes
+
+If you are debugging a `SIGSEGV`, `SIGABRT`, or `Aborted (core dumped)` failure, reproduce it with a debug build so native symbols are available.
+
+```bash
+git clone https://github.com/abetlen/ggml-python.git
+cd ggml-python
+make build.debug
+gdb --args python3 your_script.py
+```
+
+Inside `gdb`, use `run` to start the script, `bt` to inspect the native backtrace, and `py-bt` to inspect the Python backtrace when Python debug symbols are available.
+
+You can also use Python's built-in `breakpoint()` to stop before the native call that crashes.
+
 # License
 
 This project is licensed under the terms of the MIT license.
