@@ -30,7 +30,13 @@ if (APPLE)
         set(GGML_F16C "Off" CACHE BOOL "ggml: enable F16C" FORCE)
     endif()
 
-    set(GGML_METAL_EMBED_LIBRARY "On" CACHE BOOL "ggml: embed metal library" FORCE)
+    if (NOT DEFINED GGML_METAL)
+        set(GGML_METAL "Off" CACHE BOOL "ggml: enable Metal" FORCE)
+    endif()
+
+    if (GGML_METAL)
+        set(GGML_METAL_EMBED_LIBRARY "On" CACHE BOOL "ggml: embed metal library" FORCE)
+    endif()
 endif()
 add_subdirectory(vendor/ggml)
 
