@@ -14698,6 +14698,37 @@ def ggml_backend_zendnn_reg() -> Optional[ggml_backend_reg_t]:
 
 
 #####################################################
+# GGML zDNN API
+# source: src/ggml-zdnn.h
+#####################################################
+
+
+GGML_USE_ZDNN = hasattr(lib, "ggml_backend_zdnn_buffer_type")
+
+
+# GGML_API GGML_CALL ggml_backend_buffer_type_t ggml_backend_zdnn_buffer_type(void);
+@ggml_function(
+    "ggml_backend_zdnn_buffer_type",
+    [],
+    ggml_backend_buffer_type_t_ctypes,
+    enabled=GGML_USE_ZDNN,
+)
+def ggml_backend_zdnn_buffer_type() -> Optional[ggml_backend_buffer_type_t]:
+    ...
+
+
+# GGML_API GGML_CALL ggml_backend_reg_t ggml_backend_zdnn_reg(void);
+@ggml_function(
+    "ggml_backend_zdnn_reg",
+    [],
+    ggml_backend_reg_t_ctypes,
+    enabled=GGML_USE_ZDNN,
+)
+def ggml_backend_zdnn_reg() -> Optional[ggml_backend_reg_t]:
+    ...
+
+
+#####################################################
 # GGML CUDA API
 # source: src/ggml-cuda.h
 #####################################################
