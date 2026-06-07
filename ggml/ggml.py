@@ -14146,6 +14146,130 @@ def ggml_backend_blas_reg() -> Optional[ggml_backend_reg_t]:
 
 
 #####################################################
+# GGML CANN API
+# source: src/ggml-cann.h
+#####################################################
+
+
+GGML_USE_CANN = hasattr(lib, "ggml_backend_cann_init")
+
+
+GGML_CANN_MAX_DEVICES = 16
+
+
+# GGML_API GGML_CALL ggml_backend_reg_t ggml_backend_cann_reg(void);
+@ggml_function(
+    "ggml_backend_cann_reg",
+    [],
+    ggml_backend_reg_t_ctypes,
+    enabled=GGML_USE_CANN,
+)
+def ggml_backend_cann_reg() -> Optional[ggml_backend_reg_t]:
+    ...
+
+
+# GGML_API GGML_CALL ggml_backend_t ggml_backend_cann_init(int32_t device);
+@ggml_function(
+    "ggml_backend_cann_init",
+    [ctypes.c_int32],
+    ggml_backend_t_ctypes,
+    enabled=GGML_USE_CANN,
+)
+def ggml_backend_cann_init(
+    device: Union[ctypes.c_int32, int],
+    /,
+) -> Optional[ggml_backend_t]:
+    ...
+
+
+# GGML_API GGML_CALL bool ggml_backend_is_cann(ggml_backend_t backend);
+@ggml_function(
+    "ggml_backend_is_cann",
+    [ggml_backend_t_ctypes],
+    ctypes.c_bool,
+    enabled=GGML_USE_CANN,
+)
+def ggml_backend_is_cann(backend: Union[ggml_backend_t, int], /) -> bool:
+    ...
+
+
+# GGML_API GGML_CALL ggml_backend_buffer_type_t ggml_backend_cann_buffer_type(int32_t device);
+@ggml_function(
+    "ggml_backend_cann_buffer_type",
+    [ctypes.c_int32],
+    ggml_backend_buffer_type_t_ctypes,
+    enabled=GGML_USE_CANN,
+)
+def ggml_backend_cann_buffer_type(
+    device: Union[ctypes.c_int32, int],
+    /,
+) -> Optional[ggml_backend_buffer_type_t]:
+    ...
+
+
+# GGML_API GGML_CALL int32_t ggml_backend_cann_get_device_count(void);
+@ggml_function(
+    "ggml_backend_cann_get_device_count",
+    [],
+    ctypes.c_int32,
+    enabled=GGML_USE_CANN,
+)
+def ggml_backend_cann_get_device_count() -> int:
+    ...
+
+
+# GGML_API GGML_CALL ggml_backend_buffer_type_t ggml_backend_cann_host_buffer_type(void);
+@ggml_function(
+    "ggml_backend_cann_host_buffer_type",
+    [],
+    ggml_backend_buffer_type_t_ctypes,
+    enabled=GGML_USE_CANN,
+)
+def ggml_backend_cann_host_buffer_type() -> Optional[ggml_backend_buffer_type_t]:
+    ...
+
+
+# GGML_API GGML_CALL void ggml_backend_cann_get_device_description(int32_t device, char * description, size_t description_size);
+@ggml_function(
+    "ggml_backend_cann_get_device_description",
+    [
+        ctypes.c_int32,
+        ctypes.c_char_p,
+        ctypes.c_size_t,
+    ],
+    None,
+    enabled=GGML_USE_CANN,
+)
+def ggml_backend_cann_get_device_description(
+    device: Union[ctypes.c_int32, int],
+    description: ctypes.c_char_p,
+    description_size: Union[ctypes.c_size_t, int],
+    /,
+) -> None:
+    ...
+
+
+# GGML_API GGML_CALL void ggml_backend_cann_get_device_memory(int32_t device, size_t * free, size_t * total);
+@ggml_function(
+    "ggml_backend_cann_get_device_memory",
+    [
+        ctypes.c_int32,
+        ctypes.POINTER(ctypes.c_size_t),
+        ctypes.POINTER(ctypes.c_size_t),
+    ],
+    None,
+    enabled=GGML_USE_CANN,
+)
+def ggml_backend_cann_get_device_memory(
+    device: Union[ctypes.c_int32, int],
+    free: CtypesPointer[ctypes.c_size_t],
+    total: CtypesPointer[ctypes.c_size_t],
+    /,
+) -> None:
+    ...
+
+
+#####################################################
 # GGML CUDA API
 # source: src/ggml-cuda.h
 #####################################################
