@@ -862,6 +862,25 @@ GGML_TRI_TYPE_UPPER = 1
 GGML_TRI_TYPE_LOWER_DIAG = 2
 GGML_TRI_TYPE_LOWER = 3
 
+# enum ggml_scale_mode {
+#     GGML_SCALE_MODE_NEAREST  = 0,
+#     GGML_SCALE_MODE_BILINEAR = 1,
+#     GGML_SCALE_MODE_BICUBIC  = 2,
+#
+#     GGML_SCALE_MODE_COUNT
+# };
+GGML_SCALE_MODE_NEAREST = 0
+GGML_SCALE_MODE_BILINEAR = 1
+GGML_SCALE_MODE_BICUBIC = 2
+GGML_SCALE_MODE_COUNT = 3
+
+# enum ggml_scale_flag {
+#     GGML_SCALE_FLAG_ALIGN_CORNERS = (1 << 8),
+#     GGML_SCALE_FLAG_ANTIALIAS     = (1 << 9),
+# };
+GGML_SCALE_FLAG_ALIGN_CORNERS = 1 << 8
+GGML_SCALE_FLAG_ANTIALIAS = 1 << 9
+
 GGML_SCHED_PRIO_LOW = -1
 GGML_SCHED_PRIO_NORMAL = 0
 GGML_SCHED_PRIO_MEDIUM = 1
@@ -1820,6 +1839,16 @@ def ggml_are_same_stride(t0: ggml_tensor_p, t1: ggml_tensor_p, /) -> bool:
     ...
 
 
+# GGML_API bool ggml_can_repeat(const struct ggml_tensor * t0, const struct ggml_tensor * t1);
+@ggml_function(
+    "ggml_can_repeat",
+    [ctypes.POINTER(ggml_tensor), ctypes.POINTER(ggml_tensor)],
+    ctypes.c_bool,
+)
+def ggml_can_repeat(t0: ggml_tensor_p, t1: ggml_tensor_p, /) -> bool:
+    ...
+
+
 # // use this to compute the memory overhead of a tensor
 # GGML_API size_t ggml_tensor_overhead(void);
 @ggml_function("ggml_tensor_overhead", [], ctypes.c_size_t)
@@ -2100,6 +2129,16 @@ def ggml_new_tensor_4d(
 
     Returns:
         Pointer to ggml_tensor"""
+    ...
+
+
+# GGML_API void * ggml_new_buffer(struct ggml_context * ctx, size_t nbytes);
+@ggml_function("ggml_new_buffer", [ggml_context_p_ctypes, ctypes.c_size_t], ctypes.c_void_p)
+def ggml_new_buffer(
+    ctx: ggml_context_p,
+    nbytes: Union[ctypes.c_size_t, int],
+    /,
+) -> Optional[int]:
     ...
 
 
@@ -2763,6 +2802,31 @@ def ggml_add_cast(
     ...
 
 
+# GGML_API struct ggml_tensor * ggml_add_id(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b,
+#         struct ggml_tensor  * ids);
+@ggml_function(
+    "ggml_add_id",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_add_id(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    ids: ggml_tensor_p,
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
 # GGML_API struct ggml_tensor * ggml_add1(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a,
@@ -3367,6 +3431,18 @@ def ggml_sum_rows(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
     ...
 
 
+# GGML_API struct ggml_tensor * ggml_cumsum(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_cumsum",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_cumsum(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    ...
+
+
 # // mean along rows
 # GGML_API struct ggml_tensor * ggml_mean(
 #         struct ggml_context * ctx,
@@ -3411,6 +3487,28 @@ def ggml_argmax(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
     ...
 
 
+# GGML_API struct ggml_tensor * ggml_count_equal(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b);
+@ggml_function(
+    "ggml_count_equal",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_count_equal(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
 # // if a is the same shape as b, and a is not parameter, return a
 # // otherwise, return a new tensor: repeat(a) to fit in b
 # GGML_API struct ggml_tensor * ggml_repeat(
@@ -3440,6 +3538,37 @@ def ggml_repeat(
 
     Returns:
         Pointer to ggml_tensor"""
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_repeat_4d(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#                    int64_t    ne0,
+#                    int64_t    ne1,
+#                    int64_t    ne2,
+#                    int64_t    ne3);
+@ggml_function(
+    "ggml_repeat_4d",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_int64,
+        ctypes.c_int64,
+        ctypes.c_int64,
+        ctypes.c_int64,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_repeat_4d(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    ne0: Union[ctypes.c_int64, int],
+    ne1: Union[ctypes.c_int64, int],
+    ne2: Union[ctypes.c_int64, int],
+    ne3: Union[ctypes.c_int64, int],
+    /,
+) -> ggml_tensor_p:
     ...
 
 
@@ -3774,6 +3903,37 @@ def ggml_leaky_relu(
 
     Returns:
         Pointer to ggml_tensor"""
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_xielu(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         float                 alpha_n,
+#         float                 alpha_p,
+#         float                 beta,
+#         float                 eps);
+@ggml_function(
+    "ggml_xielu",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_float,
+        ctypes.c_float,
+        ctypes.c_float,
+        ctypes.c_float,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_xielu(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    alpha_n: Union[ctypes.c_float, float],
+    alpha_p: Union[ctypes.c_float, float],
+    beta: Union[ctypes.c_float, float],
+    eps: Union[ctypes.c_float, float],
+    /,
+) -> ggml_tensor_p:
     ...
 
 
@@ -4269,6 +4429,314 @@ def ggml_trunc_inplace(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_
     ...
 
 
+# GGML_API struct ggml_tensor * ggml_glu(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         enum ggml_glu_op      op,
+#         bool                  swapped);
+@ggml_function(
+    "ggml_glu",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_int,
+        ctypes.c_bool,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_glu(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    op: Union[ctypes.c_int, int],
+    swapped: Union[ctypes.c_bool, bool],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_reglu(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_reglu",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_reglu(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_reglu_swapped(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_reglu_swapped",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_reglu_swapped(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_geglu(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_geglu",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_geglu(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_geglu_swapped(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_geglu_swapped",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_geglu_swapped(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_swiglu(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_swiglu",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_swiglu(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_swiglu_swapped(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_swiglu_swapped",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_swiglu_swapped(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_geglu_erf(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_geglu_erf",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_geglu_erf(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_geglu_erf_swapped(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_geglu_erf_swapped",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_geglu_erf_swapped(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_geglu_quick(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_geglu_quick",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_geglu_quick(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_geglu_quick_swapped(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a);
+@ggml_function(
+    "ggml_geglu_quick_swapped",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_geglu_quick_swapped(ctx: ggml_context_p, a: ggml_tensor_p, /) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_glu_split(
+#         struct ggml_context * ctx,
+#          struct ggml_tensor * a,
+#          struct ggml_tensor * b,
+#          enum ggml_glu_op     op);
+@ggml_function(
+    "ggml_glu_split",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_int,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_glu_split(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    op: Union[ctypes.c_int, int],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_reglu_split(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b);
+@ggml_function(
+    "ggml_reglu_split",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_reglu_split(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_geglu_split(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b);
+@ggml_function(
+    "ggml_geglu_split",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_geglu_split(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_swiglu_split(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b);
+@ggml_function(
+    "ggml_swiglu_split",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_swiglu_split(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_geglu_erf_split(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b);
+@ggml_function(
+    "ggml_geglu_erf_split",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_geglu_erf_split(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_geglu_quick_split(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b);
+@ggml_function(
+    "ggml_geglu_quick_split",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_geglu_quick_split(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_swiglu_oai(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b,
+#         float                 alpha,
+#         float                 limit);
+@ggml_function(
+    "ggml_swiglu_oai",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_float,
+        ctypes.c_float,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_swiglu_oai(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    alpha: Union[ctypes.c_float, float],
+    limit: Union[ctypes.c_float, float],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
 # // normalize along rows
 # GGML_API struct ggml_tensor * ggml_norm(
 #         struct ggml_context * ctx,
@@ -4379,22 +4847,27 @@ def ggml_rms_norm_inplace(
 
 # // group normalize along ne0*ne1*n_groups
 # // used in stable-diffusion
-# // TODO: eps is hardcoded to 1e-6 for now
 # GGML_API struct ggml_tensor * ggml_group_norm(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a,
-#         int                   n_groups);
+#         int                   n_groups,
+#         float                 eps);
 @ggml_function(
     "ggml_group_norm",
     [
         ggml_context_p_ctypes,
         ctypes.POINTER(ggml_tensor),
         ctypes.c_int,
+        ctypes.c_float,
     ],
     ctypes.POINTER(ggml_tensor),
 )
 def ggml_group_norm(
-    ctx: ggml_context_p, a: ggml_tensor_p, n_groups: int, /
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    n_groups: Union[ctypes.c_int, int],
+    eps: Union[ctypes.c_float, float],
+    /,
 ) -> ggml_tensor_p:
     """Group normalize a tensor and return the result.
 
@@ -4402,6 +4875,7 @@ def ggml_group_norm(
         ctx: ggml context
         a: tensor
         n_groups: int
+        eps: minimum value to avoid division by zero
 
     Returns:
         Pointer to ggml_tensor"""
@@ -4411,18 +4885,24 @@ def ggml_group_norm(
 # GGML_API struct ggml_tensor * ggml_group_norm_inplace(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a,
-#         int                   n_groups);
+#         int                   n_groups,
+#         float                 eps);
 @ggml_function(
     "ggml_group_norm_inplace",
     [
         ggml_context_p_ctypes,
         ctypes.POINTER(ggml_tensor),
         ctypes.c_int,
+        ctypes.c_float,
     ],
     ctypes.POINTER(ggml_tensor),
 )
 def ggml_group_norm_inplace(
-    ctx: ggml_context_p, a: ggml_tensor_p, n_groups: int, /
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    n_groups: Union[ctypes.c_int, int],
+    eps: Union[ctypes.c_float, float],
+    /,
 ) -> ggml_tensor_p:
     """Group normalize a tensor and store the result in the first tensor.
 
@@ -4430,6 +4910,7 @@ def ggml_group_norm_inplace(
         ctx: ggml context
         a: tensor
         n_groups: int
+        eps: minimum value to avoid division by zero
 
     Returns:
         Pointer to ggml_tensor"""
@@ -4573,6 +5054,18 @@ def ggml_mul_mat_set_prec(a: ggml_tensor_p, prec: Union[ctypes.c_int, int], /) -
     ...
 
 
+# GGML_API void ggml_mul_mat_set_hint(
+#         struct ggml_tensor * a,
+#         enum ggml_op_hint    hint);
+@ggml_function(
+    "ggml_mul_mat_set_hint",
+    [ctypes.POINTER(ggml_tensor), ctypes.c_int],
+    None,
+)
+def ggml_mul_mat_set_hint(a: ggml_tensor_p, hint: Union[ctypes.c_int, int], /) -> None:
+    ...
+
+
 # // indirect matrix multiplication
 # GGML_API struct ggml_tensor * ggml_mul_mat_id(
 #         struct ggml_context * ctx,
@@ -4703,6 +5196,57 @@ def ggml_scale_inplace(
 
     Returns:
         Pointer to ggml_tensor"""
+    ...
+
+
+# // x = s * a + b
+# GGML_API struct ggml_tensor * ggml_scale_bias(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         float                 s,
+#         float                 b);
+@ggml_function(
+    "ggml_scale_bias",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_float,
+        ctypes.c_float,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_scale_bias(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    s: Union[ctypes.c_float, float],
+    b: Union[ctypes.c_float, float],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_scale_bias_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         float                 s,
+#         float                 b);
+@ggml_function(
+    "ggml_scale_bias_inplace",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_float,
+        ctypes.c_float,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_scale_bias_inplace(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    s: Union[ctypes.c_float, float],
+    b: Union[ctypes.c_float, float],
+    /,
+) -> ggml_tensor_p:
     ...
 
 
@@ -5408,6 +5952,31 @@ def ggml_get_rows_back(
     ...
 
 
+# GGML_API struct ggml_tensor * ggml_set_rows(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b,
+#         struct ggml_tensor  * c);
+@ggml_function(
+    "ggml_set_rows",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_set_rows(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    c: ggml_tensor_p,
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
 # GGML_API struct ggml_tensor * ggml_diag(
 #     struct ggml_context     * ctx,
 #     struct ggml_tensor      * a);
@@ -5556,6 +6125,106 @@ def ggml_soft_max_ext(
     ...
 
 
+# GGML_API struct ggml_tensor * ggml_soft_max_ext_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * mask,
+#         float                 scale,
+#         float                 max_bias);
+@ggml_function(
+    "ggml_soft_max_ext_inplace",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_float,
+        ctypes.c_float,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_soft_max_ext_inplace(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    mask: ggml_tensor_p,
+    scale: Union[ctypes.c_float, float],
+    max_bias: Union[ctypes.c_float, float],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API void ggml_soft_max_add_sinks(
+#         struct ggml_tensor * a,
+#         struct ggml_tensor * sinks);
+@ggml_function(
+    "ggml_soft_max_add_sinks",
+    [ctypes.POINTER(ggml_tensor), ctypes.POINTER(ggml_tensor)],
+    None,
+)
+def ggml_soft_max_add_sinks(
+    a: ggml_tensor_p,
+    sinks: ggml_tensor_p,
+    /,
+) -> None:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_soft_max_ext_back(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b,
+#         float                 scale,
+#         float                 max_bias);
+@ggml_function(
+    "ggml_soft_max_ext_back",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_float,
+        ctypes.c_float,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_soft_max_ext_back(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    scale: Union[ctypes.c_float, float],
+    max_bias: Union[ctypes.c_float, float],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_soft_max_ext_back_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b,
+#         float                 scale,
+#         float                 max_bias);
+@ggml_function(
+    "ggml_soft_max_ext_back_inplace",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_float,
+        ctypes.c_float,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_soft_max_ext_back_inplace(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    scale: Union[ctypes.c_float, float],
+    max_bias: Union[ctypes.c_float, float],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
 # GGML_API struct ggml_tensor * ggml_soft_max_back(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a,
@@ -5609,15 +6278,13 @@ def ggml_soft_max_back_inplace(
 #         struct ggml_tensor  * a,
 #         struct ggml_tensor  * b,
 #         int                   n_dims,
-#         int                   mode,
-#         int                   n_ctx);
+#         int                   mode);
 @ggml_function(
     "ggml_rope",
     [
         ggml_context_p_ctypes,
         ctypes.POINTER(ggml_tensor),
         ctypes.POINTER(ggml_tensor),
-        ctypes.c_int,
         ctypes.c_int,
         ctypes.c_int,
     ],
@@ -5629,7 +6296,6 @@ def ggml_rope(
     b: ggml_tensor_p,
     n_dims: Union[ctypes.c_int, int],
     mode: Union[ctypes.c_int, int],
-    n_ctx: Union[ctypes.c_int, int],
     /,
 ) -> ggml_tensor_p:
     """Rotary position embedding
@@ -5642,7 +6308,6 @@ def ggml_rope(
         mode: if mode & 1 == 1, skip n_past elements (DEPRECATED)
                 if mode & 2 == 1, GPT-NeoX style
                 if mode & 4 == 1, ChatGLM style
-        n_ctx: context size
 
     Returns:
         Pointer to ggml_tensor"""
@@ -5655,15 +6320,13 @@ def ggml_rope(
 #         struct ggml_tensor  * a,
 #         struct ggml_tensor  * b,
 #         int                   n_dims,
-#         int                   mode,
-#         int                   n_ctx);
+#         int                   mode);
 @ggml_function(
     "ggml_rope_inplace",
     [
         ggml_context_p_ctypes,
         ctypes.POINTER(ggml_tensor),
         ctypes.POINTER(ggml_tensor),
-        ctypes.c_int,
         ctypes.c_int,
         ctypes.c_int,
     ],
@@ -5675,7 +6338,6 @@ def ggml_rope_inplace(
     b: ggml_tensor_p,
     n_dims: Union[ctypes.c_int, int],
     mode: Union[ctypes.c_int, int],
-    n_ctx: Union[ctypes.c_int, int],
     /,
 ) -> ggml_tensor_p:
     """Rotary position embedding inplace
@@ -5688,7 +6350,6 @@ def ggml_rope_inplace(
         mode: if mode & 1 == 1, skip n_past elements (DEPRECATED)
                 if mode & 2 == 1, GPT-NeoX style
                 if mode & 4 == 1, ChatGLM style
-        n_ctx: context size
 
     Returns:
         Pointer to ggml_tensor"""
@@ -5703,8 +6364,7 @@ def ggml_rope_inplace(
 #         struct ggml_tensor  * c,
 #         int                   n_dims,
 #         int                   mode,
-#         int                   n_ctx,
-#         int                   n_orig_ctx,
+#         int                   n_ctx_orig,
 #         float                 freq_base,
 #         float                 freq_scale,
 #         float                 ext_factor,
@@ -5718,7 +6378,6 @@ def ggml_rope_inplace(
         ctypes.POINTER(ggml_tensor),
         ctypes.POINTER(ggml_tensor),
         ctypes.POINTER(ggml_tensor),
-        ctypes.c_int,
         ctypes.c_int,
         ctypes.c_int,
         ctypes.c_int,
@@ -5738,8 +6397,7 @@ def ggml_rope_ext(
     c: ggml_tensor_p,
     n_dims: Union[ctypes.c_int, int],
     mode: Union[ctypes.c_int, int],
-    n_ctx: Union[ctypes.c_int, int],
-    n_orig_ctx: Union[ctypes.c_int, int],
+    n_ctx_orig: Union[ctypes.c_int, int],
     freq_base: Union[ctypes.c_float, float],
     freq_scale: Union[ctypes.c_float, float],
     ext_factor: Union[ctypes.c_float, float],
@@ -5759,8 +6417,7 @@ def ggml_rope_ext(
 #         struct ggml_tensor  * c,
 #         int                   n_dims,
 #         int                   mode,
-#         int                   n_ctx,
-#         int                   n_orig_ctx,
+#         int                   n_ctx_orig,
 #         float                 freq_base,
 #         float                 freq_scale,
 #         float                 ext_factor,
@@ -5774,7 +6431,6 @@ def ggml_rope_ext(
         ctypes.POINTER(ggml_tensor),
         ctypes.POINTER(ggml_tensor),
         ctypes.POINTER(ggml_tensor),
-        ctypes.c_int,
         ctypes.c_int,
         ctypes.c_int,
         ctypes.c_int,
@@ -5794,8 +6450,117 @@ def ggml_rope_ext_inplace(
     c: ggml_tensor_p,
     n_dims: Union[ctypes.c_int, int],
     mode: Union[ctypes.c_int, int],
-    n_ctx: Union[ctypes.c_int, int],
-    n_orig_ctx: Union[ctypes.c_int, int],
+    n_ctx_orig: Union[ctypes.c_int, int],
+    freq_base: Union[ctypes.c_float, float],
+    freq_scale: Union[ctypes.c_float, float],
+    ext_factor: Union[ctypes.c_float, float],
+    attn_factor: Union[ctypes.c_float, float],
+    beta_fast: Union[ctypes.c_float, float],
+    beta_slow: Union[ctypes.c_float, float],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_rope_multi(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b,
+#         struct ggml_tensor  * c,
+#         int                   n_dims,
+#         int                   sections[GGML_MROPE_SECTIONS],
+#         int                   mode,
+#         int                   n_ctx_orig,
+#         float                 freq_base,
+#         float                 freq_scale,
+#         float                 ext_factor,
+#         float                 attn_factor,
+#         float                 beta_fast,
+#         float                 beta_slow);
+@ggml_function(
+    "ggml_rope_multi",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_int,
+        ctypes.POINTER(ctypes.c_int),
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_float,
+        ctypes.c_float,
+        ctypes.c_float,
+        ctypes.c_float,
+        ctypes.c_float,
+        ctypes.c_float,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_rope_multi(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    c: ggml_tensor_p,
+    n_dims: Union[ctypes.c_int, int],
+    sections: CtypesPointer[ctypes.c_int],
+    mode: Union[ctypes.c_int, int],
+    n_ctx_orig: Union[ctypes.c_int, int],
+    freq_base: Union[ctypes.c_float, float],
+    freq_scale: Union[ctypes.c_float, float],
+    ext_factor: Union[ctypes.c_float, float],
+    attn_factor: Union[ctypes.c_float, float],
+    beta_fast: Union[ctypes.c_float, float],
+    beta_slow: Union[ctypes.c_float, float],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_rope_multi_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b,
+#         struct ggml_tensor  * c,
+#         int                   n_dims,
+#         int                   sections[GGML_MROPE_SECTIONS],
+#         int                   mode,
+#         int                   n_ctx_orig,
+#         float                 freq_base,
+#         float                 freq_scale,
+#         float                 ext_factor,
+#         float                 attn_factor,
+#         float                 beta_fast,
+#         float                 beta_slow);
+@ggml_function(
+    "ggml_rope_multi_inplace",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_int,
+        ctypes.POINTER(ctypes.c_int),
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_float,
+        ctypes.c_float,
+        ctypes.c_float,
+        ctypes.c_float,
+        ctypes.c_float,
+        ctypes.c_float,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_rope_multi_inplace(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    c: ggml_tensor_p,
+    n_dims: Union[ctypes.c_int, int],
+    sections: CtypesPointer[ctypes.c_int],
+    mode: Union[ctypes.c_int, int],
+    n_ctx_orig: Union[ctypes.c_int, int],
     freq_base: Union[ctypes.c_float, float],
     freq_scale: Union[ctypes.c_float, float],
     ext_factor: Union[ctypes.c_float, float],
@@ -5813,8 +6578,7 @@ def ggml_rope_ext_inplace(
 #         struct ggml_tensor  * b,
 #         int                   n_dims,
 #         int                   mode,
-#         int                   n_ctx,
-#         int                   n_orig_ctx,
+#         int                   n_ctx_orig,
 #         float                 freq_base,
 #         float                 freq_scale,
 #         float                 ext_factor,
@@ -5828,7 +6592,6 @@ def ggml_rope_ext_inplace(
         ggml_context_p_ctypes,
         ctypes.POINTER(ggml_tensor),
         ctypes.POINTER(ggml_tensor),
-        ctypes.c_int,
         ctypes.c_int,
         ctypes.c_int,
         ctypes.c_int,
@@ -5847,8 +6610,7 @@ def ggml_rope_custom(
     b: ggml_tensor_p,
     n_dims: Union[ctypes.c_int, int],
     mode: Union[ctypes.c_int, int],
-    n_ctx: Union[ctypes.c_int, int],
-    n_orig_ctx: Union[ctypes.c_int, int],
+    n_ctx_orig: Union[ctypes.c_int, int],
     freq_base: Union[ctypes.c_float, float],
     freq_scale: Union[ctypes.c_float, float],
     ext_factor: Union[ctypes.c_float, float],
@@ -5867,8 +6629,7 @@ def ggml_rope_custom(
 #         struct ggml_tensor  * b,
 #         int                   n_dims,
 #         int                   mode,
-#         int                   n_ctx,
-#         int                   n_orig_ctx,
+#         int                   n_ctx_orig,
 #         float                 freq_base,
 #         float                 freq_scale,
 #         float                 ext_factor,
@@ -5882,7 +6643,6 @@ def ggml_rope_custom(
         ggml_context_p_ctypes,
         ctypes.POINTER(ggml_tensor),
         ctypes.POINTER(ggml_tensor),
-        ctypes.c_int,
         ctypes.c_int,
         ctypes.c_int,
         ctypes.c_int,
@@ -5901,8 +6661,7 @@ def ggml_rope_custom_inplace(
     b: ggml_tensor_p,
     n_dims: Union[ctypes.c_int, int],
     mode: Union[ctypes.c_int, int],
-    n_ctx: Union[ctypes.c_int, int],
-    n_orig_ctx: Union[ctypes.c_int, int],
+    n_ctx_orig: Union[ctypes.c_int, int],
     freq_base: Union[ctypes.c_float, float],
     freq_scale: Union[ctypes.c_float, float],
     ext_factor: Union[ctypes.c_float, float],
@@ -6008,6 +6767,113 @@ def ggml_rope_back(
     ...
 
 
+# GGML_API struct ggml_tensor * ggml_rope_ext_back(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b,
+#         struct ggml_tensor  * c,
+#         int                   n_dims,
+#         int                   mode,
+#         int                   n_ctx_orig,
+#         float                 freq_base,
+#         float                 freq_scale,
+#         float                 ext_factor,
+#         float                 attn_factor,
+#         float                 beta_fast,
+#         float                 beta_slow);
+@ggml_function(
+    "ggml_rope_ext_back",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_float,
+        ctypes.c_float,
+        ctypes.c_float,
+        ctypes.c_float,
+        ctypes.c_float,
+        ctypes.c_float,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_rope_ext_back(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    c: ggml_tensor_p,
+    n_dims: Union[ctypes.c_int, int],
+    mode: Union[ctypes.c_int, int],
+    n_ctx_orig: Union[ctypes.c_int, int],
+    freq_base: Union[ctypes.c_float, float],
+    freq_scale: Union[ctypes.c_float, float],
+    ext_factor: Union[ctypes.c_float, float],
+    attn_factor: Union[ctypes.c_float, float],
+    beta_fast: Union[ctypes.c_float, float],
+    beta_slow: Union[ctypes.c_float, float],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_rope_multi_back(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b,
+#         struct ggml_tensor  * c,
+#         int                   n_dims,
+#         int                   sections[4],
+#         int                   mode,
+#         int                   n_ctx_orig,
+#         float                 freq_base,
+#         float                 freq_scale,
+#         float                 ext_factor,
+#         float                 attn_factor,
+#         float                 beta_fast,
+#         float                 beta_slow);
+@ggml_function(
+    "ggml_rope_multi_back",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_int,
+        ctypes.POINTER(ctypes.c_int),
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_float,
+        ctypes.c_float,
+        ctypes.c_float,
+        ctypes.c_float,
+        ctypes.c_float,
+        ctypes.c_float,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_rope_multi_back(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    c: ggml_tensor_p,
+    n_dims: Union[ctypes.c_int, int],
+    sections: CtypesPointer[ctypes.c_int],
+    mode: Union[ctypes.c_int, int],
+    n_ctx_orig: Union[ctypes.c_int, int],
+    freq_base: Union[ctypes.c_float, float],
+    freq_scale: Union[ctypes.c_float, float],
+    ext_factor: Union[ctypes.c_float, float],
+    attn_factor: Union[ctypes.c_float, float],
+    beta_fast: Union[ctypes.c_float, float],
+    beta_slow: Union[ctypes.c_float, float],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
 # // clamp
 # // in-place, returns view(a)
 # GGML_API struct ggml_tensor * ggml_clamp(
@@ -6086,6 +6952,52 @@ def ggml_im2col(
     d1: Union[ctypes.c_int, int],
     is_2D: Union[ctypes.c_bool, bool],
     dst_type: Union[ctypes.c_int, int],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_im2col_back(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b,
+#         int64_t             * ne,
+#         int                   s0,
+#         int                   s1,
+#         int                   p0,
+#         int                   p1,
+#         int                   d0,
+#         int                   d1,
+#         bool                  is_2D);
+@ggml_function(
+    "ggml_im2col_back",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ctypes.c_int64),
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_bool,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_im2col_back(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    ne: CtypesPointer[ctypes.c_int64],
+    s0: Union[ctypes.c_int, int],
+    s1: Union[ctypes.c_int, int],
+    p0: Union[ctypes.c_int, int],
+    p1: Union[ctypes.c_int, int],
+    d0: Union[ctypes.c_int, int],
+    d1: Union[ctypes.c_int, int],
+    is_2D: Union[ctypes.c_bool, bool],
     /,
 ) -> ggml_tensor_p:
     ...
@@ -6174,6 +7086,37 @@ def ggml_conv_1d(
     ...
 
 
+# GGML_API struct ggml_tensor * ggml_conv_1d_dw(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b,
+#         int                   s0,
+#         int                   p0,
+#         int                   d0);
+@ggml_function(
+    "ggml_conv_1d_dw",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_conv_1d_dw(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    s0: Union[ctypes.c_int, int],
+    p0: Union[ctypes.c_int, int],
+    d0: Union[ctypes.c_int, int],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
 # // conv_1d with padding = half
 # // alias for ggml_conv_1d(a, b, s, a->ne[0]/2, d)
 # GGML_API struct ggml_tensor* ggml_conv_1d_ph(
@@ -6211,6 +7154,34 @@ def ggml_conv_1d_ph(
 
     Returns:
         output tensor"""
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_conv_1d_dw_ph(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b,
+#         int                   s0,
+#         int                   d0);
+@ggml_function(
+    "ggml_conv_1d_dw_ph",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_int,
+        ctypes.c_int,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_conv_1d_dw_ph(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    s0: Union[ctypes.c_int, int],
+    d0: Union[ctypes.c_int, int],
+    /,
+) -> ggml_tensor_p:
     ...
 
 
@@ -6310,6 +7281,113 @@ def ggml_conv_2d(
     ...
 
 
+# GGML_API struct ggml_tensor * ggml_im2col_3d(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b,
+#         int64_t               IC,
+#         int                   s0,
+#         int                   s1,
+#         int                   s2,
+#         int                   p0,
+#         int                   p1,
+#         int                   p2,
+#         int                   d0,
+#         int                   d1,
+#         int                   d2,
+#         enum ggml_type        dst_type);
+@ggml_function(
+    "ggml_im2col_3d",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_int64,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_im2col_3d(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    IC: Union[ctypes.c_int64, int],
+    s0: Union[ctypes.c_int, int],
+    s1: Union[ctypes.c_int, int],
+    s2: Union[ctypes.c_int, int],
+    p0: Union[ctypes.c_int, int],
+    p1: Union[ctypes.c_int, int],
+    p2: Union[ctypes.c_int, int],
+    d0: Union[ctypes.c_int, int],
+    d1: Union[ctypes.c_int, int],
+    d2: Union[ctypes.c_int, int],
+    dst_type: Union[ctypes.c_int, int],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_conv_3d(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b,
+#         int64_t               IC,
+#         int                   s0,
+#         int                   s1,
+#         int                   s2,
+#         int                   p0,
+#         int                   p1,
+#         int                   p2,
+#         int                   d0,
+#         int                   d1,
+#         int                   d2);
+@ggml_function(
+    "ggml_conv_3d",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_int64,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_conv_3d(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    IC: Union[ctypes.c_int64, int],
+    s0: Union[ctypes.c_int, int],
+    s1: Union[ctypes.c_int, int],
+    s2: Union[ctypes.c_int, int],
+    p0: Union[ctypes.c_int, int],
+    p1: Union[ctypes.c_int, int],
+    p2: Union[ctypes.c_int, int],
+    d0: Union[ctypes.c_int, int],
+    d1: Union[ctypes.c_int, int],
+    d2: Union[ctypes.c_int, int],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
 # // kernel size is a->ne[0] x a->ne[1]
 # // stride is equal to kernel size
 # // padding is zero
@@ -6380,6 +7458,86 @@ def ggml_conv_2d_s1_ph(
     ...
 
 
+# GGML_API struct ggml_tensor * ggml_conv_2d_dw(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b,
+#         int                  s0,
+#         int                  s1,
+#         int                  p0,
+#         int                  p1,
+#         int                  d0,
+#         int                  d1);
+@ggml_function(
+    "ggml_conv_2d_dw",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_conv_2d_dw(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    s0: Union[ctypes.c_int, int],
+    s1: Union[ctypes.c_int, int],
+    p0: Union[ctypes.c_int, int],
+    p1: Union[ctypes.c_int, int],
+    d0: Union[ctypes.c_int, int],
+    d1: Union[ctypes.c_int, int],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_conv_2d_dw_direct(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b,
+#         int                   stride0,
+#         int                   stride1,
+#         int                   pad0,
+#         int                   pad1,
+#         int                   dilation0,
+#         int                   dilation1);
+@ggml_function(
+    "ggml_conv_2d_dw_direct",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_conv_2d_dw_direct(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    stride0: Union[ctypes.c_int, int],
+    stride1: Union[ctypes.c_int, int],
+    pad0: Union[ctypes.c_int, int],
+    pad1: Union[ctypes.c_int, int],
+    dilation0: Union[ctypes.c_int, int],
+    dilation1: Union[ctypes.c_int, int],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
 # GGML_API struct ggml_tensor * ggml_conv_transpose_2d_p0(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a,
@@ -6411,6 +7569,104 @@ def ggml_conv_transpose_2d_p0(
 
     Returns:
         output tensor"""
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_conv_2d_direct(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b,
+#         int                   s0,
+#         int                   s1,
+#         int                   p0,
+#         int                   p1,
+#         int                   d0,
+#         int                   d1);
+@ggml_function(
+    "ggml_conv_2d_direct",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_conv_2d_direct(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    s0: Union[ctypes.c_int, int],
+    s1: Union[ctypes.c_int, int],
+    p0: Union[ctypes.c_int, int],
+    p1: Union[ctypes.c_int, int],
+    d0: Union[ctypes.c_int, int],
+    d1: Union[ctypes.c_int, int],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_conv_3d_direct(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b,
+#         int                   s0,
+#         int                   s1,
+#         int                   s2,
+#         int                   p0,
+#         int                   p1,
+#         int                   p2,
+#         int                   d0,
+#         int                   d1,
+#         int                   d2,
+#         int                   n_channels,
+#         int                   n_batch,
+#         int                   n_channels_out);
+@ggml_function(
+    "ggml_conv_3d_direct",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_conv_3d_direct(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    s0: Union[ctypes.c_int, int],
+    s1: Union[ctypes.c_int, int],
+    s2: Union[ctypes.c_int, int],
+    p0: Union[ctypes.c_int, int],
+    p1: Union[ctypes.c_int, int],
+    p2: Union[ctypes.c_int, int],
+    d0: Union[ctypes.c_int, int],
+    d1: Union[ctypes.c_int, int],
+    d2: Union[ctypes.c_int, int],
+    n_channels: Union[ctypes.c_int, int],
+    n_batch: Union[ctypes.c_int, int],
+    n_channels_out: Union[ctypes.c_int, int],
+    /,
+) -> ggml_tensor_p:
     ...
 
 
@@ -6487,6 +7743,7 @@ def ggml_pool_1d(
         ctypes.c_int,
         ctypes.c_int,
         ctypes.c_int,
+        ctypes.c_int,
         ctypes.c_float,
         ctypes.c_float,
     ],
@@ -6521,24 +7778,73 @@ def ggml_pool_2d(
     ...
 
 
+# GGML_API struct ggml_tensor * ggml_pool_2d_back(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * af,
+#         enum ggml_op_pool     op,
+#         int                   k0,
+#         int                   k1,
+#         int                   s0,
+#         int                   s1,
+#         float                 p0,
+#         float                 p1);
+@ggml_function(
+    "ggml_pool_2d_back",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_float,
+        ctypes.c_float,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_pool_2d_back(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    af: ggml_tensor_p,
+    op: Union[ctypes.c_int, int],
+    k0: Union[ctypes.c_int, int],
+    k1: Union[ctypes.c_int, int],
+    s0: Union[ctypes.c_int, int],
+    s1: Union[ctypes.c_int, int],
+    p0: Union[ctypes.c_float, float],
+    p1: Union[ctypes.c_float, float],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
 # // nearest interpolate
 # // multiplies ne0 and ne1 by scale factor
 # // used in stable-diffusion
 # GGML_API struct ggml_tensor * ggml_upscale(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a,
-#         int                   scale_factor);
+#         int                   scale_factor,
+#         enum ggml_scale_mode  mode);
 @ggml_function(
     "ggml_upscale",
     [
         ggml_context_p_ctypes,
         ctypes.POINTER(ggml_tensor),
         ctypes.c_int,
+        ctypes.c_int,
     ],
     ctypes.POINTER(ggml_tensor),
 )
 def ggml_upscale(
-    ctx: ggml_context_p, a: ggml_tensor_p, scale_factor: Union[ctypes.c_int, int], /
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    scale_factor: Union[ctypes.c_int, int],
+    mode: Union[ctypes.c_int, int],
+    /,
 ) -> ggml_tensor_p:
     """Upscale
 
@@ -6547,6 +7853,7 @@ def ggml_upscale(
     Parameters:
         a: input tensor
         scale_factor: scale factor
+        mode: scale mode
 
     Returns:
         output tensor"""
@@ -6562,12 +7869,14 @@ def ggml_upscale(
 #         int                   ne0,
 #         int                   ne1,
 #         int                   ne2,
-#         int                   ne3);
+#         int                   ne3,
+#         enum ggml_scale_mode  mode);
 @ggml_function(
     "ggml_upscale_ext",
     [
         ggml_context_p_ctypes,
         ctypes.POINTER(ggml_tensor),
+        ctypes.c_int,
         ctypes.c_int,
         ctypes.c_int,
         ctypes.c_int,
@@ -6582,6 +7891,7 @@ def ggml_upscale_ext(
     ne1: Union[ctypes.c_int, int],
     ne2: Union[ctypes.c_int, int],
     ne3: Union[ctypes.c_int, int],
+    mode: Union[ctypes.c_int, int],
     /,
 ) -> ggml_tensor_p:
     """Upscale to specified dimensions
@@ -6592,9 +7902,44 @@ def ggml_upscale_ext(
         ne1: dimension 1
         ne2: dimension 2
         ne3: dimension 3
+        mode: scale mode
 
     Returns:
         output tensor"""
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_interpolate(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         int64_t               ne0,
+#         int64_t               ne1,
+#         int64_t               ne2,
+#         int64_t               ne3,
+#         uint32_t              mode);
+@ggml_function(
+    "ggml_interpolate",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_int64,
+        ctypes.c_int64,
+        ctypes.c_int64,
+        ctypes.c_int64,
+        ctypes.c_uint32,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_interpolate(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    ne0: Union[ctypes.c_int64, int],
+    ne1: Union[ctypes.c_int64, int],
+    ne2: Union[ctypes.c_int64, int],
+    ne3: Union[ctypes.c_int64, int],
+    mode: Union[ctypes.c_uint32, int],
+    /,
+) -> ggml_tensor_p:
     ...
 
 
@@ -6638,6 +7983,201 @@ def ggml_pad(
 
     Returns:
         output tensor"""
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_pad_circular(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         int                   p0,
+#         int                   p1,
+#         int                   p2,
+#         int                   p3);
+@ggml_function(
+    "ggml_pad_circular",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_pad_circular(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    p0: Union[ctypes.c_int, int],
+    p1: Union[ctypes.c_int, int],
+    p2: Union[ctypes.c_int, int],
+    p3: Union[ctypes.c_int, int],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_pad_ext(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         int                  lp0,
+#         int                  rp0,
+#         int                  lp1,
+#         int                  rp1,
+#         int                  lp2,
+#         int                  rp2,
+#         int                  lp3,
+#         int                  rp3);
+@ggml_function(
+    "ggml_pad_ext",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_pad_ext(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    lp0: Union[ctypes.c_int, int],
+    rp0: Union[ctypes.c_int, int],
+    lp1: Union[ctypes.c_int, int],
+    rp1: Union[ctypes.c_int, int],
+    lp2: Union[ctypes.c_int, int],
+    rp2: Union[ctypes.c_int, int],
+    lp3: Union[ctypes.c_int, int],
+    rp3: Union[ctypes.c_int, int],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_pad_ext_circular(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         int                   lp0,
+#         int                   rp0,
+#         int                   lp1,
+#         int                   rp1,
+#         int                   lp2,
+#         int                   rp2,
+#         int                   lp3,
+#         int                   rp3);
+@ggml_function(
+    "ggml_pad_ext_circular",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_pad_ext_circular(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    lp0: Union[ctypes.c_int, int],
+    rp0: Union[ctypes.c_int, int],
+    lp1: Union[ctypes.c_int, int],
+    rp1: Union[ctypes.c_int, int],
+    lp2: Union[ctypes.c_int, int],
+    rp2: Union[ctypes.c_int, int],
+    lp3: Union[ctypes.c_int, int],
+    rp3: Union[ctypes.c_int, int],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_pad_reflect_1d(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         int                   p0,
+#         int                   p1);
+@ggml_function(
+    "ggml_pad_reflect_1d",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_int,
+        ctypes.c_int,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_pad_reflect_1d(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    p0: Union[ctypes.c_int, int],
+    p1: Union[ctypes.c_int, int],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_roll(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         int                   shift0,
+#         int                   shift1,
+#         int                   shift2,
+#         int                   shift3);
+@ggml_function(
+    "ggml_roll",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_roll(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    shift0: Union[ctypes.c_int, int],
+    shift1: Union[ctypes.c_int, int],
+    shift2: Union[ctypes.c_int, int],
+    shift3: Union[ctypes.c_int, int],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_tri(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         enum ggml_tri_type    type);
+@ggml_function(
+    "ggml_tri",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_int,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_tri(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    type_: Union[ctypes.c_int, int],
+    /,
+) -> ggml_tensor_p:
     ...
 
 
@@ -6770,6 +8310,24 @@ def ggml_argsort(
     ...
 
 
+# GGML_API struct ggml_tensor * ggml_argsort_top_k(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         int                   k);
+@ggml_function(
+    "ggml_argsort_top_k",
+    [ggml_context_p_ctypes, ctypes.POINTER(ggml_tensor), ctypes.c_int],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_argsort_top_k(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    k: Union[ctypes.c_int, int],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
 # GGML_API struct ggml_tensor * ggml_arange(
 #         struct ggml_context * ctx,
 #         float                 start,
@@ -6839,7 +8397,8 @@ GGML_KQ_MASK_PAD = 32
 #         struct ggml_tensor  * v,
 #         struct ggml_tensor  * mask,
 #         float                 scale,
-#         float                 max_bias);
+#         float                 max_bias,
+#         float                 logit_softcap);
 @ggml_function(
     "ggml_flash_attn_ext",
     [
@@ -6848,6 +8407,7 @@ GGML_KQ_MASK_PAD = 32
         ctypes.POINTER(ggml_tensor),
         ctypes.POINTER(ggml_tensor),
         ctypes.POINTER(ggml_tensor),
+        ctypes.c_float,
         ctypes.c_float,
         ctypes.c_float,
     ],
@@ -6861,6 +8421,7 @@ def ggml_flash_attn_ext(
     mask: ggml_tensor_p,
     scale: Union[ctypes.c_float, float],
     max_bias: Union[ctypes.c_float, float],
+    logit_softcap: Union[ctypes.c_float, float],
     /,
 ) -> ggml_tensor_p:
     ...
@@ -6876,6 +8437,33 @@ def ggml_flash_attn_ext(
 )
 def ggml_flash_attn_ext_set_prec(
     a: ggml_tensor_p, prec: Union[ctypes.c_int, int], /
+) -> None:
+    ...
+
+
+# GGML_API enum ggml_prec ggml_flash_attn_ext_get_prec(
+#         const struct ggml_tensor * a);
+@ggml_function(
+    "ggml_flash_attn_ext_get_prec",
+    [ctypes.POINTER(ggml_tensor)],
+    ctypes.c_int,
+)
+def ggml_flash_attn_ext_get_prec(a: ggml_tensor_p, /) -> int:
+    ...
+
+
+# GGML_API void ggml_flash_attn_ext_add_sinks(
+#         struct ggml_tensor * a,
+#         struct ggml_tensor * sinks);
+@ggml_function(
+    "ggml_flash_attn_ext_add_sinks",
+    [ctypes.POINTER(ggml_tensor), ctypes.POINTER(ggml_tensor)],
+    None,
+)
+def ggml_flash_attn_ext_add_sinks(
+    a: ggml_tensor_p,
+    sinks: ggml_tensor_p,
+    /,
 ) -> None:
     ...
 
@@ -6914,16 +8502,12 @@ def ggml_flash_attn_back(
 
 # GGML_API struct ggml_tensor * ggml_ssm_conv(
 #         struct ggml_context * ctx,
-#         struct ggml_tensor  * s,
-#         struct ggml_tensor  * x,
-#         struct ggml_tensor  * c,
-#         struct ggml_tensor  * sq);
+#         struct ggml_tensor  * sx,
+#         struct ggml_tensor  * c);
 @ggml_function(
     "ggml_ssm_conv",
     [
         ggml_context_p_ctypes,
-        ctypes.POINTER(ggml_tensor),
-        ctypes.POINTER(ggml_tensor),
         ctypes.POINTER(ggml_tensor),
         ctypes.POINTER(ggml_tensor),
     ],
@@ -6931,10 +8515,8 @@ def ggml_flash_attn_back(
 )
 def ggml_ssm_conv(
     ctx: ggml_context_p,
-    s: ggml_tensor_p,
-    x: ggml_tensor_p,
+    sx: ggml_tensor_p,
     c: ggml_tensor_p,
-    sq: ggml_tensor_p,
     /,
 ) -> ggml_tensor_p:
     ...
@@ -6948,7 +8530,7 @@ def ggml_ssm_conv(
 #         struct ggml_tensor  * A,
 #         struct ggml_tensor  * B,
 #         struct ggml_tensor  * C,
-#         struct ggml_tensor  * sq);
+#         struct ggml_tensor  * ids);
 @ggml_function(
     "ggml_ssm_scan",
     [
@@ -6971,7 +8553,7 @@ def ggml_ssm_scan(
     A: ggml_tensor_p,
     B: ggml_tensor_p,
     C: ggml_tensor_p,
-    sq: ggml_tensor_p,
+    ids: ggml_tensor_p,
     /,
 ) -> ggml_tensor_p:
     ...
@@ -7135,6 +8717,176 @@ def ggml_add_rel_pos(
 )
 def ggml_add_rel_pos_inplace(
     ctx: ggml_context_p, a: ggml_tensor_p, pw: ggml_tensor_p, ph: ggml_tensor_p, /
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_rwkv_wkv6(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * k,
+#         struct ggml_tensor  * v,
+#         struct ggml_tensor  * r,
+#         struct ggml_tensor  * tf,
+#         struct ggml_tensor  * td,
+#         struct ggml_tensor  * state);
+@ggml_function(
+    "ggml_rwkv_wkv6",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_rwkv_wkv6(
+    ctx: ggml_context_p,
+    k: ggml_tensor_p,
+    v: ggml_tensor_p,
+    r: ggml_tensor_p,
+    tf: ggml_tensor_p,
+    td: ggml_tensor_p,
+    state: ggml_tensor_p,
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_gated_linear_attn(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * k,
+#         struct ggml_tensor  * v,
+#         struct ggml_tensor  * q,
+#         struct ggml_tensor  * g,
+#         struct ggml_tensor  * state,
+#         float scale);
+@ggml_function(
+    "ggml_gated_linear_attn",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_float,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_gated_linear_attn(
+    ctx: ggml_context_p,
+    k: ggml_tensor_p,
+    v: ggml_tensor_p,
+    q: ggml_tensor_p,
+    g: ggml_tensor_p,
+    state: ggml_tensor_p,
+    scale: Union[ctypes.c_float, float],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_rwkv_wkv7(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * r,
+#         struct ggml_tensor  * w,
+#         struct ggml_tensor  * k,
+#         struct ggml_tensor  * v,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b,
+#         struct ggml_tensor  * state);
+@ggml_function(
+    "ggml_rwkv_wkv7",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_rwkv_wkv7(
+    ctx: ggml_context_p,
+    r: ggml_tensor_p,
+    w: ggml_tensor_p,
+    k: ggml_tensor_p,
+    v: ggml_tensor_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    state: ggml_tensor_p,
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_solve_tri(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b,
+#         bool                  left,
+#         bool                  lower,
+#         bool                  uni);
+@ggml_function(
+    "ggml_solve_tri",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_bool,
+        ctypes.c_bool,
+        ctypes.c_bool,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_solve_tri(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    left: Union[ctypes.c_bool, bool],
+    lower: Union[ctypes.c_bool, bool],
+    uni: Union[ctypes.c_bool, bool],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_gated_delta_net(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * q,
+#         struct ggml_tensor  * k,
+#         struct ggml_tensor  * v,
+#         struct ggml_tensor  * g,
+#         struct ggml_tensor  * beta,
+#         struct ggml_tensor  * state);
+@ggml_function(
+    "ggml_gated_delta_net",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_gated_delta_net(
+    ctx: ggml_context_p,
+    q: ggml_tensor_p,
+    k: ggml_tensor_p,
+    v: ggml_tensor_p,
+    g: ggml_tensor_p,
+    beta: ggml_tensor_p,
+    state: ggml_tensor_p,
+    /,
 ) -> ggml_tensor_p:
     ...
 
@@ -7512,6 +9264,16 @@ ggml_custom3_op_t = ctypes.CFUNCTYPE(
 )
 """Custom ternary operator on three tensors."""
 
+# typedef void (*ggml_custom_op_t)(struct ggml_tensor * dst , int ith, int nth, void * userdata);
+ggml_custom_op_t = ctypes.CFUNCTYPE(
+    None,
+    ctypes.POINTER(ggml_tensor),
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_void_p,
+)
+"""Custom operator on a tensor with variadic tensor inputs."""
+
 # #define GGML_N_TASKS_MAX -1
 GGML_N_TASKS_MAX = -1
 
@@ -7696,6 +9458,86 @@ def ggml_map_custom3_inplace(
     ...
 
 
+# GGML_API struct ggml_tensor * ggml_custom_4d(
+#         struct ggml_context * ctx,
+#         enum ggml_type        type,
+#         int64_t               ne0,
+#         int64_t               ne1,
+#         int64_t               ne2,
+#         int64_t               ne3,
+#         struct ggml_tensor ** args,
+#         int                   n_args,
+#         ggml_custom_op_t      fun,
+#         int                   n_tasks,
+#         void                * userdata);
+@ggml_function(
+    "ggml_custom_4d",
+    [
+        ggml_context_p_ctypes,
+        ctypes.c_int,
+        ctypes.c_int64,
+        ctypes.c_int64,
+        ctypes.c_int64,
+        ctypes.c_int64,
+        ctypes.POINTER(ctypes.POINTER(ggml_tensor)),
+        ctypes.c_int,
+        ggml_custom_op_t,
+        ctypes.c_int,
+        ctypes.c_void_p,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_custom_4d(
+    ctx: ggml_context_p,
+    type_: Union[ctypes.c_int, int],
+    ne0: Union[ctypes.c_int64, int],
+    ne1: Union[ctypes.c_int64, int],
+    ne2: Union[ctypes.c_int64, int],
+    ne3: Union[ctypes.c_int64, int],
+    args: CtypesPointer[ggml_tensor_p],
+    n_args: Union[ctypes.c_int, int],
+    fun: CtypesFuncPointer,  # type: ignore
+    n_tasks: Union[ctypes.c_int, int],
+    userdata: Union[ctypes.c_void_p, int, None],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_custom_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor ** args,
+#         int                   n_args,
+#         ggml_custom_op_t      fun,
+#         int                   n_tasks,
+#         void                * userdata);
+@ggml_function(
+    "ggml_custom_inplace",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ctypes.POINTER(ggml_tensor)),
+        ctypes.c_int,
+        ggml_custom_op_t,
+        ctypes.c_int,
+        ctypes.c_void_p,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_custom_inplace(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    args: CtypesPointer[ggml_tensor_p],
+    n_args: Union[ctypes.c_int, int],
+    fun: CtypesFuncPointer,  # type: ignore
+    n_tasks: Union[ctypes.c_int, int],
+    userdata: Union[ctypes.c_void_p, int, None],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
 # // loss function
 
 
@@ -7744,6 +9586,62 @@ def ggml_cross_entropy_loss_back(
     ...
 
 
+# GGML_API struct ggml_tensor * ggml_opt_step_adamw(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * grad,
+#         struct ggml_tensor  * m,
+#         struct ggml_tensor  * v,
+#         struct ggml_tensor  * adamw_params);
+@ggml_function(
+    "ggml_opt_step_adamw",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_opt_step_adamw(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    grad: ggml_tensor_p,
+    m: ggml_tensor_p,
+    v: ggml_tensor_p,
+    adamw_params: ggml_tensor_p,
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_opt_step_sgd(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * grad,
+#         struct ggml_tensor  * sgd_params);
+@ggml_function(
+    "ggml_opt_step_sgd",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_opt_step_sgd(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    grad: ggml_tensor_p,
+    sgd_params: ggml_tensor_p,
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
 # //
 # // automatic differentiation
 # //
@@ -7784,6 +9682,31 @@ def ggml_build_forward_expand(
     Parameters:
         cgraph: The graph.
         tensor: The tensor."""
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_build_forward_select(
+#         struct ggml_cgraph * cgraph,
+#         struct ggml_tensor ** tensors,
+#         int n_tensors,
+#         int idx);
+@ggml_function(
+    "ggml_build_forward_select",
+    [
+        ctypes.POINTER(ggml_cgraph),
+        ctypes.POINTER(ctypes.POINTER(ggml_tensor)),
+        ctypes.c_int,
+        ctypes.c_int,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_build_forward_select(
+    cgraph: ggml_cgraph_p,
+    tensors: CtypesPointer[ggml_tensor_p],
+    n_tensors: Union[ctypes.c_int, int],
+    idx: Union[ctypes.c_int, int],
+    /,
+) -> ggml_tensor_p:
     ...
 
 
@@ -7959,6 +9882,56 @@ def ggml_graph_overhead_custom(
     size: Union[ctypes.c_size_t, int],
     grads: Union[ctypes.c_bool, bool],
 ) -> int:
+    ...
+
+
+# GGML_API int ggml_graph_size(struct ggml_cgraph * cgraph);
+@ggml_function("ggml_graph_size", [ctypes.POINTER(ggml_cgraph)], ctypes.c_int)
+def ggml_graph_size(cgraph: ggml_cgraph_p, /) -> int:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_graph_node(struct ggml_cgraph * cgraph, int i);
+@ggml_function(
+    "ggml_graph_node",
+    [ctypes.POINTER(ggml_cgraph), ctypes.c_int],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_graph_node(
+    cgraph: ggml_cgraph_p,
+    i: Union[ctypes.c_int, int],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# GGML_API struct ggml_tensor ** ggml_graph_nodes(struct ggml_cgraph * cgraph);
+@ggml_function(
+    "ggml_graph_nodes",
+    [ctypes.POINTER(ggml_cgraph)],
+    ctypes.POINTER(ctypes.POINTER(ggml_tensor)),
+)
+def ggml_graph_nodes(cgraph: ggml_cgraph_p, /) -> CtypesPointer[ggml_tensor_p]:
+    ...
+
+
+# GGML_API int ggml_graph_n_nodes(struct ggml_cgraph * cgraph);
+@ggml_function("ggml_graph_n_nodes", [ctypes.POINTER(ggml_cgraph)], ctypes.c_int)
+def ggml_graph_n_nodes(cgraph: ggml_cgraph_p, /) -> int:
+    ...
+
+
+# GGML_API void ggml_graph_add_node(struct ggml_cgraph * cgraph, struct ggml_tensor * tensor);
+@ggml_function(
+    "ggml_graph_add_node",
+    [ctypes.POINTER(ggml_cgraph), ctypes.POINTER(ggml_tensor)],
+    None,
+)
+def ggml_graph_add_node(
+    cgraph: ggml_cgraph_p,
+    tensor: ggml_tensor_p,
+    /,
+) -> None:
     ...
 
 
@@ -8252,6 +10225,41 @@ ggml_opt_callback = ctypes.CFUNCTYPE(
 ggml_log_callback = ctypes.CFUNCTYPE(
     None, ctypes.c_int, ctypes.c_char_p, ctypes.c_void_p
 )
+
+
+# GGML_API void ggml_log_get(ggml_log_callback * log_callback, void ** user_data);
+@ggml_function(
+    "ggml_log_get",
+    [
+        ctypes.POINTER(ggml_log_callback),
+        ctypes.POINTER(ctypes.c_void_p),
+    ],
+    None,
+)
+def ggml_log_get(
+    log_callback: CtypesPointer[ggml_log_callback],
+    user_data: CtypesPointer[ctypes.c_void_p],
+    /,
+) -> None:
+    ...
+
+
+# GGML_API void ggml_log_set(ggml_log_callback log_callback, void * user_data);
+@ggml_function(
+    "ggml_log_set",
+    [
+        ggml_log_callback,
+        ctypes.c_void_p,
+    ],
+    None,
+)
+def ggml_log_set(
+    log_callback: CtypesFuncPointer,  # type: ignore
+    user_data: Union[ctypes.c_void_p, int, None],
+    /,
+) -> None:
+    ...
+
 
 # // optimization parameters
 # //

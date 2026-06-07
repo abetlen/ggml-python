@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- feat: add missing ggml.h bindings by @abetlen in #118
 - feat: add arithmetic op bindings by @aisk in #114
 - fix: detect current optional backend symbols by @abetlen in #117
 - ci: increase Windows HIP SDK installer timeout by @abetlen in #112
