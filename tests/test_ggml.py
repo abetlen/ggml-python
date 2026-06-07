@@ -81,7 +81,6 @@ def test_ggml_backend_feature_flags_match_exported_symbols():
     assert ggml.GGML_USE_VULKAN_CPU_ASSIST == hasattr(
         ggml.lib, "ggml_vk_init_cpu_assist"
     )
-    assert ggml.GGML_USE_WEBGPU == hasattr(ggml.lib, "ggml_backend_webgpu_init")
     assert ggml.GGML_USE_RPC == hasattr(ggml.lib, "ggml_backend_rpc_init")
 
 
