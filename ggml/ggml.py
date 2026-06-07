@@ -11802,6 +11802,7 @@ def ggml_backend_metal_reg() -> Optional[ggml_backend_reg_t]:
 #####################################################
 
 
+GGML_USE_OPENCL = hasattr(lib, "ggml_backend_opencl_init")
 GGML_USE_CLBLAST = hasattr(lib, "ggml_cl_init")
 
 
@@ -11934,22 +11935,57 @@ def ggml_cl_transform_tensor(
 
 # // backend API
 
-# // GGML_API ggml_backend_t ggml_backend_opencl_init(void);
+# GGML_API ggml_backend_t ggml_backend_opencl_init(void);
+@ggml_function(
+    "ggml_backend_opencl_init",
+    [],
+    ggml_backend_t_ctypes,
+    enabled=GGML_USE_OPENCL,
+)
+def ggml_backend_opencl_init() -> Optional[ggml_backend_t]:
+    ...
 
-# // GGML_API bool ggml_backend_is_opencl(ggml_backend_t backend);
+# GGML_API bool ggml_backend_is_opencl(ggml_backend_t backend);
+@ggml_function(
+    "ggml_backend_is_opencl",
+    [ggml_backend_t_ctypes],
+    ctypes.c_bool,
+    enabled=GGML_USE_OPENCL,
+)
+def ggml_backend_is_opencl(backend: Union[ggml_backend_t, int], /) -> bool:
+    ...
 
 
 # GGML_API ggml_backend_buffer_type_t ggml_backend_opencl_buffer_type(void);
-# // GGML_API ggml_backend_buffer_type_t ggml_backend_opencl_host_buffer_type(void);
+@ggml_function(
+    "ggml_backend_opencl_buffer_type",
+    [],
+    ggml_backend_buffer_type_t_ctypes,
+    enabled=GGML_USE_OPENCL,
+)
+def ggml_backend_opencl_buffer_type() -> Optional[ggml_backend_buffer_type_t]:
+    ...
+
+
+# GGML_API ggml_backend_buffer_type_t ggml_backend_opencl_host_buffer_type(void);
 @ggml_function(
     "ggml_backend_opencl_host_buffer_type",
     [],
     ggml_backend_buffer_type_t_ctypes,
-    enabled=GGML_USE_CLBLAST,
+    enabled=GGML_USE_OPENCL,
 )
-def ggml_backend_opencl_host_buffer_type() -> (
-    Union[ggml_backend_buffer_type_t, int, None]
-):
+def ggml_backend_opencl_host_buffer_type() -> Optional[ggml_backend_buffer_type_t]:
+    ...
+
+
+# GGML_API ggml_backend_reg_t ggml_backend_opencl_reg(void);
+@ggml_function(
+    "ggml_backend_opencl_reg",
+    [],
+    ggml_backend_reg_t_ctypes,
+    enabled=GGML_USE_OPENCL,
+)
+def ggml_backend_opencl_reg() -> Optional[ggml_backend_reg_t]:
     ...
 
 
@@ -11960,7 +11996,8 @@ def ggml_backend_opencl_host_buffer_type() -> (
 # source: src/ggml-vulkan.h
 #####################################################
 
-GGML_USE_VULKAN = hasattr(lib, "ggml_vk_init_cpu_assist")
+GGML_USE_VULKAN = hasattr(lib, "ggml_backend_vk_init")
+GGML_USE_VULKAN_CPU_ASSIST = hasattr(lib, "ggml_vk_init_cpu_assist")
 
 # #define GGML_VK_NAME "Vulkan"
 # #define GGML_VK_MAX_DEVICES 16
@@ -11969,13 +12006,13 @@ GGML_VK_MAX_DEVICES = 16
 
 
 # GGML_API void ggml_vk_instance_init(void);
-@ggml_function("ggml_vk_instance_init", [], None, enabled=GGML_USE_VULKAN)
+@ggml_function("ggml_vk_instance_init", [], None, enabled=GGML_USE_VULKAN_CPU_ASSIST)
 def ggml_vk_instance_init():
     ...
 
 
 # GGML_API void ggml_vk_init_cpu_assist(void);
-@ggml_function("ggml_vk_init_cpu_assist", [], None, enabled=GGML_USE_VULKAN)
+@ggml_function("ggml_vk_init_cpu_assist", [], None, enabled=GGML_USE_VULKAN_CPU_ASSIST)
 def ggml_vk_init_cpu_assist():
     ...
 
@@ -11985,7 +12022,7 @@ def ggml_vk_init_cpu_assist():
     "ggml_vk_preallocate_buffers_graph_cpu_assist",
     [ctypes.POINTER(ggml_tensor)],
     None,
-    enabled=GGML_USE_VULKAN,
+    enabled=GGML_USE_VULKAN_CPU_ASSIST,
 )
 def ggml_vk_preallocate_buffers_graph_cpu_assist(node: ggml_tensor_p, /):
     ...
@@ -11993,7 +12030,10 @@ def ggml_vk_preallocate_buffers_graph_cpu_assist(node: ggml_tensor_p, /):
 
 # GGML_API void ggml_vk_preallocate_buffers_cpu_assist(void);
 @ggml_function(
-    "ggml_vk_preallocate_buffers_cpu_assist", [], None, enabled=GGML_USE_VULKAN
+    "ggml_vk_preallocate_buffers_cpu_assist",
+    [],
+    None,
+    enabled=GGML_USE_VULKAN_CPU_ASSIST,
 )
 def ggml_vk_preallocate_buffers_cpu_assist():
     ...
@@ -12007,7 +12047,7 @@ def ggml_vk_preallocate_buffers_cpu_assist():
         ctypes.c_bool,
     ],
     None,
-    enabled=GGML_USE_VULKAN,
+    enabled=GGML_USE_VULKAN_CPU_ASSIST,
 )
 def ggml_vk_build_graph_cpu_assist(node: ggml_tensor_p, last_node: bool, /):
     ...
@@ -12021,7 +12061,7 @@ def ggml_vk_build_graph_cpu_assist(node: ggml_tensor_p, last_node: bool, /):
         ctypes.POINTER(ggml_tensor),
     ],
     ctypes.c_bool,
-    enabled=GGML_USE_VULKAN,
+    enabled=GGML_USE_VULKAN_CPU_ASSIST,
 )
 def ggml_vk_compute_forward_cpu_assist(
     params: ggml_compute_params_p, tensor: ggml_tensor_p, /
@@ -12035,13 +12075,15 @@ def ggml_vk_compute_forward_cpu_assist(
 
 
 # GGML_API void ggml_vk_graph_cleanup_cpu_assist(void);
-@ggml_function("ggml_vk_graph_cleanup_cpu_assist", [], None, enabled=GGML_USE_VULKAN)
+@ggml_function(
+    "ggml_vk_graph_cleanup_cpu_assist", [], None, enabled=GGML_USE_VULKAN_CPU_ASSIST
+)
 def ggml_vk_graph_cleanup_cpu_assist():
     ...
 
 
 # GGML_API void ggml_vk_free_cpu_assist(void);
-@ggml_function("ggml_vk_free_cpu_assist", [], None, enabled=GGML_USE_VULKAN)
+@ggml_function("ggml_vk_free_cpu_assist", [], None, enabled=GGML_USE_VULKAN_CPU_ASSIST)
 def ggml_vk_free_cpu_assist():
     ...
 
