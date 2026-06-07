@@ -82,6 +82,7 @@ def test_ggml_backend_feature_flags_match_exported_symbols():
         ggml.lib, "ggml_vk_init_cpu_assist"
     )
     assert ggml.GGML_USE_RPC == hasattr(ggml.lib, "ggml_backend_rpc_init")
+    assert ggml.GGML_USE_RPC_LEGACY_SERVER == hasattr(ggml.lib, "start_rpc_server")
 
 
 def test_ggml_custom_op():
