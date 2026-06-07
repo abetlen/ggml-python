@@ -64,6 +64,14 @@ set(GGML_PYTHON_TARGETS
 
 foreach(GGML_PYTHON_TARGET IN LISTS GGML_PYTHON_TARGETS)
     if(TARGET ${GGML_PYTHON_TARGET})
+        if(UNIX AND NOT APPLE)
+            set_target_properties(${GGML_PYTHON_TARGET} PROPERTIES
+                NO_SONAME TRUE
+                RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+                LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+            )
+        endif()
+
         install(
             TARGETS ${GGML_PYTHON_TARGET}
             ARCHIVE DESTINATION ${GGML_PYTHON_INSTALL_DIR}

@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- fix(build): reduce duplicate Linux wheel library files by @abetlen in #141
 - fix(build): default GGML_METAL to OFF to match docs by @abetlen in #140
 - fix(ci): repair Linux CUDA wheel tags by @abetlen in #138
 - fix(ci): repair Linux ROCm wheel tags by @abetlen in #139
