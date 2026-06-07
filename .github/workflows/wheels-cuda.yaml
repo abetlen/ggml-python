@@ -2,6 +2,11 @@ name: Wheels CUDA
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release tag to upload wheel assets to
+        required: false
+        type: string
   push:
     tags:
       - "v*.*.*"
@@ -247,7 +252,7 @@ jobs:
           set -euxo pipefail
           mkdir -p wheelhouse
           export LD_LIBRARY_PATH="${CUDA_LIBRARY_PATHS}:${LD_LIBRARY_PATH:-}"
-          auditwheel repair \
+          python -m auditwheel repair \
             --exclude libcuda.so \
             --exclude libcuda.so.1 \
             --exclude libcudart.so.11.0 \
@@ -263,13 +268,13 @@ jobs:
             dist/*.whl
           rm dist/*.whl
           cp wheelhouse/*.whl dist/
-          auditwheel show dist/*.whl
+          python -m auditwheel show dist/*.whl
 
       - uses: softprops/action-gh-release@v3
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
         with:
           files: dist/*
           # Set tag_name to <tag>-cu<cuda_version>.
-          tag_name: ${{ github.ref_name }}-cu${{ env.CUDA_VERSION }}
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}-cu${{ env.CUDA_VERSION }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
