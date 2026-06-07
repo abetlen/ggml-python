@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- feat(contrib): add ONNX backend by @dmille, @mrezanvari, and @abetlen in #23
 - feat: add missing ggml.h bindings by @abetlen in #118
 - feat: add CUDA backend bindings by @abetlen in #119
 - feat: add RPC backend bindings by @abetlen in #120

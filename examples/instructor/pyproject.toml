@@ -1,0 +1,34 @@
+[project]
+name = "onnx-instructor-dev"
+version = "0.1.0"
+description = "ONNX Runtime comparison example for instructor-base embeddings."
+requires-python = ">=3.8,<3.12"
+authors = [
+    { name = "Mohammadreza Anvari", email = "mrezanvari@gmail.com" },
+]
+dependencies = [
+    "huggingface-hub==0.16.4",
+    "InstructorEmbedding==1.0.1",
+    "ipykernel>=6.24.0,<7",
+    "numpy==1.24.4",
+    "onnx==1.14.0",
+    "onnxruntime==1.15.1",
+    "optimum[exporters]==1.10.0",
+    "scikit-learn==1.3.0",
+    "sentence-transformers==2.2.2",
+    "torch==2.0.1+cpu",
+    "transformers==4.31.0",
+]
+
+[tool.uv]
+package = false
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu" },
+]
