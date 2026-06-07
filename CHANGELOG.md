@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat: add BLAS backend bindings by @abetlen in #122
 - feat: add CANN backend bindings by @abetlen in #123
 - feat: add SYCL backend bindings by @abetlen in #124
+- feat: add OpenVINO backend bindings by @abetlen in #125
 - feat: add arithmetic op bindings by @aisk in #114
 - fix: detect current optional backend symbols by @abetlen in #117
 - ci: increase Windows HIP SDK installer timeout by @abetlen in #112
