@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat: add missing ggml.h bindings by @abetlen in #118
 - feat: add CUDA backend bindings by @abetlen in #119
 - feat: add RPC backend bindings by @abetlen in #120
+- feat: add Vulkan backend registry binding by @abetlen in #121
 - feat: add arithmetic op bindings by @aisk in #114
 - fix: detect current optional backend symbols by @abetlen in #117
 - ci: increase Windows HIP SDK installer timeout by @abetlen in #112
