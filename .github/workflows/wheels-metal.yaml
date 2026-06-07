@@ -30,7 +30,7 @@ jobs:
           cache: "pip"
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.22.0
+        uses: pypa/cibuildwheel@v3.4.1
         env:
           CIBW_REPAIR_WHEEL_COMMAND: ""
           CIBW_ARCHS: "arm64"
