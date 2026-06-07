@@ -14095,6 +14095,7 @@ def ggml_backend_register(
 
 
 GGML_USE_CUDA = hasattr(lib, "ggml_backend_cuda_init")
+GGML_USE_CUDA_LOG_CALLBACK = hasattr(lib, "ggml_backend_cuda_log_set_callback")
 
 
 GGML_CUDA_MAX_DEVICES = 16
@@ -14137,14 +14138,35 @@ def ggml_backend_cuda_buffer_type(
 
 
 # // split tensor buffer that splits matrices by rows across multiple devices
-# GGML_API GGML_CALL ggml_backend_buffer_type_t ggml_backend_cuda_split_buffer_type(const float * tensor_split);
+# GGML_API GGML_CALL bool ggml_backend_cuda_allreduce_tensor(ggml_backend_t * backends, struct ggml_tensor ** tensors, size_t n_backends);
+@ggml_function(
+    "ggml_backend_cuda_allreduce_tensor",
+    [
+        ctypes.POINTER(ggml_backend_t_ctypes),
+        ctypes.POINTER(ctypes.POINTER(ggml_tensor)),
+        ctypes.c_size_t,
+    ],
+    ctypes.c_bool,
+    enabled=GGML_USE_CUDA,
+)
+def ggml_backend_cuda_allreduce_tensor(
+    backends: CtypesPointer[ggml_backend_t_ctypes],
+    tensors: CtypesPointer[ggml_tensor_p],
+    n_backends: Union[ctypes.c_size_t, int],
+    /,
+) -> bool:
+    ...
+
+
+# GGML_API GGML_CALL ggml_backend_buffer_type_t ggml_backend_cuda_split_buffer_type(int main_device, const float * tensor_split);
 @ggml_function(
     "ggml_backend_cuda_split_buffer_type",
-    [ctypes.POINTER(ctypes.c_float)],
+    [ctypes.c_int, ctypes.POINTER(ctypes.c_float)],
     ggml_backend_buffer_type_t_ctypes,
     enabled=GGML_USE_CUDA,
 )
 def ggml_backend_cuda_split_buffer_type(
+    main_device: Union[ctypes.c_int, int],
     tensor_split: CtypesArray[ctypes.c_float],
 ) -> Optional[ggml_backend_buffer_type_t]:
     ...
@@ -14242,6 +14264,17 @@ def ggml_backend_cuda_unregister_host_buffer(
     ...
 
 
+# GGML_API GGML_CALL ggml_backend_reg_t ggml_backend_cuda_reg(void);
+@ggml_function(
+    "ggml_backend_cuda_reg",
+    [],
+    ggml_backend_reg_t_ctypes,
+    enabled=GGML_USE_CUDA,
+)
+def ggml_backend_cuda_reg() -> Optional[ggml_backend_reg_t]:
+    ...
+
+
 # GGML_API void ggml_backend_cuda_log_set_callback(ggml_log_callback log_callback, void * user_data);
 @ggml_function(
     "ggml_backend_cuda_log_set_callback",
@@ -14250,7 +14283,7 @@ def ggml_backend_cuda_unregister_host_buffer(
         ctypes.c_void_p,
     ],
     None,
-    enabled=GGML_USE_CUDA,
+    enabled=GGML_USE_CUDA_LOG_CALLBACK,
 )
 def ggml_backend_cuda_log_set_callback(
     log_callback, user_data: Union[ctypes.c_void_p, int, None], /  # type: ignore
