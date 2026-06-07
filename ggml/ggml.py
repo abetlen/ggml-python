@@ -14784,6 +14784,17 @@ def ggml_backend_vk_host_buffer_type() -> Optional[ggml_backend_buffer_type_t]:
     ...
 
 
+# GGML_API GGML_CALL ggml_backend_reg_t ggml_backend_vk_reg(void);
+@ggml_function(
+    "ggml_backend_vk_reg",
+    [],
+    ggml_backend_reg_t_ctypes,
+    enabled=GGML_USE_VULKAN,
+)
+def ggml_backend_vk_reg() -> Optional[ggml_backend_reg_t]:
+    ...
+
+
 #####################################################
 # GGML Vulkan API
 # source: src/ggml-rpc.h
