@@ -14641,6 +14641,63 @@ def ggml_backend_webgpu_reg() -> Optional[ggml_backend_reg_t]:
 
 
 #####################################################
+# GGML ZenDNN API
+# source: src/ggml-zendnn.h
+#####################################################
+
+
+GGML_USE_ZENDNN = hasattr(lib, "ggml_backend_zendnn_init")
+
+
+# GGML_API GGML_CALL ggml_backend_t ggml_backend_zendnn_init(void);
+@ggml_function(
+    "ggml_backend_zendnn_init",
+    [],
+    ggml_backend_t_ctypes,
+    enabled=GGML_USE_ZENDNN,
+)
+def ggml_backend_zendnn_init() -> Optional[ggml_backend_t]:
+    ...
+
+
+# GGML_API GGML_CALL bool ggml_backend_is_zendnn(ggml_backend_t backend);
+@ggml_function(
+    "ggml_backend_is_zendnn",
+    [ggml_backend_t_ctypes],
+    ctypes.c_bool,
+    enabled=GGML_USE_ZENDNN,
+)
+def ggml_backend_is_zendnn(backend: Union[ggml_backend_t, int], /) -> bool:
+    ...
+
+
+# GGML_API GGML_CALL void ggml_backend_zendnn_set_n_threads(ggml_backend_t backend_zendnn, int n_threads);
+@ggml_function(
+    "ggml_backend_zendnn_set_n_threads",
+    [ggml_backend_t_ctypes, ctypes.c_int],
+    None,
+    enabled=GGML_USE_ZENDNN,
+)
+def ggml_backend_zendnn_set_n_threads(
+    backend_zendnn: Union[ggml_backend_t, int],
+    n_threads: Union[ctypes.c_int, int],
+    /,
+) -> None:
+    ...
+
+
+# GGML_API GGML_CALL ggml_backend_reg_t ggml_backend_zendnn_reg(void);
+@ggml_function(
+    "ggml_backend_zendnn_reg",
+    [],
+    ggml_backend_reg_t_ctypes,
+    enabled=GGML_USE_ZENDNN,
+)
+def ggml_backend_zendnn_reg() -> Optional[ggml_backend_reg_t]:
+    ...
+
+
+#####################################################
 # GGML CUDA API
 # source: src/ggml-cuda.h
 #####################################################
