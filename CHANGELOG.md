@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.40]
+
 - fix(ci): rebuild wheel index after release asset workflows by @abetlen in #133
 - ci: update GitHub Actions workflow dependencies by @abetlen in #134
 - fix(ci): repair release wheel builds for cibuildwheel v3 by @abetlen in #135
