@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat: add OpenVINO backend bindings by @abetlen in #125
 - feat: add Hexagon backend bindings by @abetlen in #126
 - feat: add WebGPU backend bindings by @abetlen in #127
+- feat: add ZenDNN backend bindings by @abetlen in #128
 - feat: add arithmetic op bindings by @aisk in #114
 - fix: detect current optional backend symbols by @abetlen in #117
 - ci: increase Windows HIP SDK installer timeout by @abetlen in #112
