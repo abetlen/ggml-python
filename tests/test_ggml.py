@@ -76,6 +76,7 @@ def test_ggml_backend_feature_flags_match_exported_symbols():
     assert ggml.GGML_USE_CUDA == hasattr(ggml.lib, "ggml_backend_cuda_init")
     assert ggml.GGML_USE_METAL == hasattr(ggml.lib, "ggml_backend_metal_init")
     assert ggml.GGML_USE_OPENCL == hasattr(ggml.lib, "ggml_backend_opencl_init")
+    assert ggml.GGML_USE_OPENVINO == hasattr(ggml.lib, "ggml_backend_openvino_init")
     assert ggml.GGML_USE_CLBLAST == hasattr(ggml.lib, "ggml_cl_init")
     assert ggml.GGML_USE_VULKAN == hasattr(ggml.lib, "ggml_backend_vk_init")
     assert ggml.GGML_USE_VULKAN_CPU_ASSIST == hasattr(
