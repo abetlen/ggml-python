@@ -14568,6 +14568,48 @@ def ggml_backend_openvino_reg() -> Optional[ggml_backend_reg_t]:
 
 
 #####################################################
+# GGML Hexagon API
+# source: src/ggml-hexagon.h
+#####################################################
+
+
+GGML_USE_HEXAGON = hasattr(lib, "ggml_backend_hexagon_init")
+
+
+# GGML_API GGML_CALL ggml_backend_t ggml_backend_hexagon_init(void);
+@ggml_function(
+    "ggml_backend_hexagon_init",
+    [],
+    ggml_backend_t_ctypes,
+    enabled=GGML_USE_HEXAGON,
+)
+def ggml_backend_hexagon_init() -> Optional[ggml_backend_t]:
+    ...
+
+
+# GGML_API GGML_CALL bool ggml_backend_is_hexagon(ggml_backend_t backend);
+@ggml_function(
+    "ggml_backend_is_hexagon",
+    [ggml_backend_t_ctypes],
+    ctypes.c_bool,
+    enabled=GGML_USE_HEXAGON,
+)
+def ggml_backend_is_hexagon(backend: Union[ggml_backend_t, int], /) -> bool:
+    ...
+
+
+# GGML_API GGML_CALL ggml_backend_reg_t ggml_backend_hexagon_reg(void);
+@ggml_function(
+    "ggml_backend_hexagon_reg",
+    [],
+    ggml_backend_reg_t_ctypes,
+    enabled=GGML_USE_HEXAGON,
+)
+def ggml_backend_hexagon_reg() -> Optional[ggml_backend_reg_t]:
+    ...
+
+
+#####################################################
 # GGML CUDA API
 # source: src/ggml-cuda.h
 #####################################################
