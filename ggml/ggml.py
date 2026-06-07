@@ -14610,6 +14610,37 @@ def ggml_backend_hexagon_reg() -> Optional[ggml_backend_reg_t]:
 
 
 #####################################################
+# GGML WebGPU API
+# source: src/ggml-webgpu.h
+#####################################################
+
+
+GGML_USE_WEBGPU = hasattr(lib, "ggml_backend_webgpu_init")
+
+
+# GGML_API GGML_CALL ggml_backend_t ggml_backend_webgpu_init(void);
+@ggml_function(
+    "ggml_backend_webgpu_init",
+    [],
+    ggml_backend_t_ctypes,
+    enabled=GGML_USE_WEBGPU,
+)
+def ggml_backend_webgpu_init() -> Optional[ggml_backend_t]:
+    ...
+
+
+# GGML_API GGML_CALL ggml_backend_reg_t ggml_backend_webgpu_reg(void);
+@ggml_function(
+    "ggml_backend_webgpu_reg",
+    [],
+    ggml_backend_reg_t_ctypes,
+    enabled=GGML_USE_WEBGPU,
+)
+def ggml_backend_webgpu_reg() -> Optional[ggml_backend_reg_t]:
+    ...
+
+
+#####################################################
 # GGML CUDA API
 # source: src/ggml-cuda.h
 #####################################################
