@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - fix(ci): rebuild wheel index after release asset workflows by @abetlen in #133
 - ci: update GitHub Actions workflow dependencies by @abetlen in #134
+- fix(ci): repair release wheel builds for cibuildwheel v3 by @abetlen in #135
 - feat(contrib): add ONNX backend by @dmille, @mrezanvari, and @abetlen in #23
 - feat: add missing ggml.h bindings by @abetlen in #118
 - feat: add CUDA backend bindings by @abetlen in #119
