@@ -39,11 +39,11 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends git cmake lsb-release ninja-build
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: "recursive"
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.pyver }}
 
@@ -76,12 +76,12 @@ jobs:
           export CMAKE_ARGS="-DGGML_HIP=on -DGGML_NATIVE=off -DGGML_AVX=off -DGGML_AVX2=off -DGGML_FMA=off -DGGML_F16C=off -DAMDGPU_TARGETS=$amdgpu_targets -DCMAKE_HIP_ARCHITECTURES=$amdgpu_targets"
           python -m build --wheel
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: wheels-rocm${{ env.ROCM_VERSION }}-${{ matrix.os }}
           path: dist/*.whl
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: dist/*
@@ -103,11 +103,11 @@ jobs:
             amdgpu_targets: gfx1150;gfx1151;gfx1200;gfx1201;gfx1100;gfx1101;gfx1102;gfx1030;gfx1031;gfx1032
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: "recursive"
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.pyver }}
           cache: "pip"
@@ -120,7 +120,7 @@ jobs:
 
       - name: Cache ROCm installation
         id: cache-rocm
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: C:\Program Files\AMD\ROCm
           key: cache-gha-rocm-${{ env.HIPSDK_INSTALLER_VERSION }}-${{ runner.os }}
@@ -213,12 +213,12 @@ jobs:
           Remove-Item dist\*.whl
           python -m wheel pack $wheelRoot.FullName -d dist
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: wheels-hip-${{ matrix.name }}-windows-2022
           path: dist/*.whl
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: dist/*
