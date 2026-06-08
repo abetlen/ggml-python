@@ -285,12 +285,14 @@ class OnnxOperator:
         operator_class: Optional[str] = None,
         devices: Tuple[str, ...] = ("CPU",),
         view_kind: Optional[str] = None,
+        domains: Tuple[str, ...] = ("",),
     ):
         self.op_type = op_type
         self.execution = execution
         self.operator_class = operator_class or self.class_for_execution(execution)
         self.devices = devices
         self.view_kind = view_kind
+        self.domains = domains
         self.implementation: Optional[GgmlOperator] = None
         self.has_numpy_evaluator = False
 
@@ -432,6 +434,12 @@ class OnnxOperator:
         return float(
             next((attr.f for attr in node.attribute if attr.name == name), default)
         )
+
+    @staticmethod
+    def string_attribute_value(value: Any) -> str:
+        if isinstance(value, bytes):
+            return value.decode("utf-8")
+        return str(value)
 
     @staticmethod
     def runtime_tensor_type(ctx: "GgmlOnnxExecutionContext", name: str) -> TensorType:
@@ -791,7 +799,10 @@ class OnnxOperator:
             np.dtype(output_dtype) if output_dtype is not None else input_dtype
         )
         storage_dtype = ctx.storage_dtype_for_logical_dtype(result_dtype)
-        output_tensor = ctx.from_numpy(np.empty(result_shape, dtype=storage_dtype))
+        storage_shape = result_shape if result_shape else (1,)
+        if len(storage_shape) > ViewTransformSemantics.GGML_MAX_DIMS:
+            storage_shape = (int(np.prod(storage_shape)),)
+        output_tensor = ctx.from_numpy(np.empty(storage_shape, dtype=storage_dtype))
 
         @ggml.ggml_custom2_op_t
         def custom_unary(
@@ -847,7 +858,10 @@ class OnnxOperator:
             )
         )
         storage_dtype = ctx.storage_dtype_for_logical_dtype(result_dtype)
-        output_tensor = ctx.from_numpy(np.empty(result_shape, dtype=storage_dtype))
+        storage_shape = result_shape if result_shape else (1,)
+        if len(storage_shape) > ViewTransformSemantics.GGML_MAX_DIMS:
+            storage_shape = (int(np.prod(storage_shape)),)
+        output_tensor = ctx.from_numpy(np.empty(storage_shape, dtype=storage_dtype))
 
         @ggml.ggml_custom3_op_t
         def custom_binary(
@@ -897,7 +911,10 @@ class OnnxOperator:
         input_shape = ctx.shapes[input_name]
         result_dtype = np.dtype(ctx.get_tensor_dtype(input_name))
         storage_dtype = ctx.storage_dtype_for_logical_dtype(result_dtype)
-        output_tensor = ctx.from_numpy(np.empty(input_shape, dtype=storage_dtype))
+        storage_shape = input_shape if input_shape else (1,)
+        if len(storage_shape) > ViewTransformSemantics.GGML_MAX_DIMS:
+            storage_shape = (int(np.prod(storage_shape)),)
+        output_tensor = ctx.from_numpy(np.empty(storage_shape, dtype=storage_dtype))
 
         @ggml.ggml_custom2_op_t
         def custom_unary(
@@ -948,7 +965,10 @@ class OnnxOperator:
             ctx.get_tensor_dtype(left_name), ctx.get_tensor_dtype(right_name)
         )
         storage_dtype = ctx.storage_dtype_for_logical_dtype(result_dtype)
-        output_tensor = ctx.from_numpy(np.empty(result_shape, dtype=storage_dtype))
+        storage_shape = result_shape if result_shape else (1,)
+        if len(storage_shape) > ViewTransformSemantics.GGML_MAX_DIMS:
+            storage_shape = (int(np.prod(storage_shape)),)
+        output_tensor = ctx.from_numpy(np.empty(storage_shape, dtype=storage_dtype))
 
         @ggml.ggml_custom3_op_t
         def custom_binary(
@@ -1786,7 +1806,7 @@ class OnnxOperator:
         output_name = node.output[0]
         input_tensor = node_inputs[0]
         tensor_shape = ctx.shapes[node.input[0]]
-        tensor_dtype = get_tensor_dtype(input_tensor)
+        tensor_dtype = np.dtype(ctx.get_tensor_dtype(node.input[0]))
         axes, noop = self.reduce_axes(ctx, node, node_inputs, len(tensor_shape))
         keepdims = bool(
             next((attr.i for attr in node.attribute if attr.name == "keepdims"), 1)
@@ -1797,6 +1817,32 @@ class OnnxOperator:
             return
 
         output_shape = self.reduce_output_shape(tensor_shape, axes, keepdims)
+        if any(dim == 0 for dim in tensor_shape):
+            tensor = np.empty(tensor_shape, dtype=tensor_dtype)
+            try:
+                result = reducer(tensor, axes, keepdims)
+            except ValueError:
+                if self.op_type not in {"ReduceMax", "ReduceMin"}:
+                    raise
+                if tensor_dtype == np.dtype(np.bool_):
+                    identity = False if self.op_type == "ReduceMax" else True
+                elif np.issubdtype(tensor_dtype, np.floating):
+                    identity = -np.inf if self.op_type == "ReduceMax" else np.inf
+                elif np.issubdtype(tensor_dtype, np.unsignedinteger):
+                    info = np.iinfo(tensor_dtype)
+                    identity = info.min if self.op_type == "ReduceMax" else info.max
+                elif np.issubdtype(tensor_dtype, np.signedinteger):
+                    info = np.iinfo(tensor_dtype)
+                    identity = info.min if self.op_type == "ReduceMax" else info.max
+                else:
+                    raise
+                result = np.full(output_shape, identity, dtype=tensor_dtype)
+                ctx.set_numpy_runtime_output(output_name, result, result.dtype)
+                return
+            else:
+                ctx.set_numpy_runtime_output(output_name, result, result.dtype)
+                return
+
         x = np.empty(output_shape, dtype=tensor_dtype)
         x_t = ctx.from_numpy(x)
 
@@ -2153,6 +2199,7 @@ class NodeIR:
     index: int
     name: str
     op_type: str
+    domain: str
     inputs: Tuple[str, ...]
     outputs: Tuple[str, ...]
     attributes: Tuple[str, ...]
@@ -2209,6 +2256,7 @@ class ExecutionPlanNode:
     index: int
     name: str
     op_type: str
+    domain: str
     execution: str
     operator_class: str
     inputs: Tuple[str, ...]
@@ -2567,16 +2615,28 @@ NumpyFallbackKernel = Callable[
 class OnnxOperatorRegistry:
     def __init__(self):
         self.operators: Dict[str, OnnxOperator] = {}
+        self.domain_operators: Dict[Tuple[str, str], OnnxOperator] = {}
 
     def register(self, operator_cls: Type[OnnxOperator]) -> Type[OnnxOperator]:
         operator = operator_cls()
-        if operator.op_type in self.operators:
-            raise ValueError(f'Operator "{operator.op_type}" is already registered')
-        self.operators[operator.op_type] = operator
+        for domain in operator.domains:
+            key = (domain, operator.op_type)
+            if key in self.domain_operators:
+                raise ValueError(
+                    f'Operator "{operator.op_type}" is already registered '
+                    f'for domain "{domain}"'
+                )
+            self.domain_operators[key] = operator
+            if domain == "":
+                if operator.op_type in self.operators:
+                    raise ValueError(
+                        f'Operator "{operator.op_type}" is already registered'
+                    )
+                self.operators[operator.op_type] = operator
         return operator_cls
 
-    def get(self, op_type: str) -> Optional[OnnxOperator]:
-        return self.operators.get(op_type)
+    def get(self, op_type: str, domain: str = "") -> Optional[OnnxOperator]:
+        return self.domain_operators.get((domain, op_type))
 
 
 onnx_operators = OnnxOperatorRegistry()
@@ -2587,11 +2647,11 @@ class NumpyFallbackExecutor:
         self.executed_islands: List[FallbackIsland] = []
 
     def can_execute_node(self, node: NodeProto) -> bool:
-        operator = onnx_operators.get(node.op_type)
+        operator = onnx_operators.get(node.op_type, node.domain)
         return bool(operator is not None and operator.has_numpy_evaluator)
 
     def node_kernel(self, node: NodeProto) -> NumpyFallbackKernel:
-        operator = onnx_operators.get(node.op_type)
+        operator = onnx_operators.get(node.op_type, node.domain)
         if operator is not None and operator.has_numpy_evaluator:
             return operator.eval_numpy
         raise KeyError(f'Operator "{node.op_type}" has no NumPy fallback kernel')
@@ -2841,6 +2901,119 @@ class AtanhOperator(OnnxOperator):
 
     def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
         self.lower_numpy_unary(ctx, node, np.arctanh)
+
+
+@onnx_operators.register
+class AttentionOperator(OnnxOperator):
+    def __init__(self):
+        super().__init__("Attention", domains=("", "com.microsoft"))
+        self.has_numpy_evaluator = True
+
+    @staticmethod
+    def head_count(node: NodeProto, name: str, default: int) -> int:
+        return OnnxOperator.int_attribute(node, name, default)
+
+    @staticmethod
+    def as_heads(
+        value: npt.NDArray[Any],
+        num_heads: int,
+    ) -> Tuple[npt.NDArray[Any], str]:
+        if value.ndim == 3:
+            batch, sequence, hidden = value.shape
+            if hidden % num_heads != 0:
+                raise ValueError("Attention hidden size must be divisible by heads")
+            head_size = hidden // num_heads
+            return value.reshape(batch, sequence, num_heads, head_size).transpose(
+                0, 2, 1, 3
+            ), "BSD"
+        if value.ndim == 4:
+            if value.shape[1] == num_heads:
+                return value, "BHSD"
+            if value.shape[2] == num_heads:
+                return value.transpose(0, 2, 1, 3), "BSHD"
+        raise ValueError("Attention expects rank-3 or rank-4 Q/K/V tensors")
+
+    @staticmethod
+    def restore_heads(value: npt.NDArray[Any], layout: str) -> npt.NDArray[Any]:
+        if layout == "BSD":
+            batch, heads, sequence, head_size = value.shape
+            return value.transpose(0, 2, 1, 3).reshape(
+                batch, sequence, heads * head_size
+            )
+        if layout == "BHSD":
+            return value
+        if layout == "BSHD":
+            return value.transpose(0, 2, 1, 3)
+        raise ValueError(f'Unsupported Attention layout "{layout}"')
+
+    @staticmethod
+    def attention_mask_bias(
+        mask: npt.NDArray[Any],
+        dtype: npt.DTypeLike,
+    ) -> npt.NDArray[Any]:
+        if mask.dtype == np.dtype(np.bool_):
+            return np.where(mask, 0.0, -np.inf).astype(dtype)
+        return mask.astype(dtype)
+
+    def eval_numpy(
+        self, node: NodeProto, inputs: Tuple[npt.NDArray[Any], ...]
+    ) -> Tuple[npt.NDArray[Any], ...]:
+        if len(inputs) < 3:
+            raise ValueError(f'Operation "{node.op_type}" requires Q, K, and V inputs')
+        q, k, v = inputs[:3]
+        q_num_heads = self.head_count(node, "q_num_heads", 1)
+        kv_num_heads = self.head_count(node, "kv_num_heads", q_num_heads)
+        q_heads, q_layout = self.as_heads(q, q_num_heads)
+        k_heads, _ = self.as_heads(k, kv_num_heads)
+        v_heads, _ = self.as_heads(v, kv_num_heads)
+        if q_num_heads != kv_num_heads:
+            if q_num_heads % kv_num_heads != 0:
+                raise ValueError("q_num_heads must be divisible by kv_num_heads")
+            repeats = q_num_heads // kv_num_heads
+            k_heads = np.repeat(k_heads, repeats, axis=1)
+            v_heads = np.repeat(v_heads, repeats, axis=1)
+
+        head_size = q_heads.shape[-1]
+        scale = self.float_attribute(node, "scale", 1.0 / math.sqrt(head_size))
+        scores = np.matmul(q_heads, np.swapaxes(k_heads, -1, -2)) * scale
+        if len(inputs) >= 4:
+            mask = self.attention_mask_bias(inputs[3], scores.dtype)
+            if mask.ndim == 2:
+                mask = mask.reshape(1, 1, *mask.shape)
+            elif mask.ndim == 3:
+                mask = mask.reshape(mask.shape[0], 1, mask.shape[1], mask.shape[2])
+            scores = scores + mask
+        if self.int_attribute(node, "is_causal", 0):
+            q_length = scores.shape[-2]
+            kv_length = scores.shape[-1]
+            causal = np.triu(np.ones((q_length, kv_length), dtype=np.bool_), k=1)
+            scores = np.where(causal, -np.inf, scores)
+
+        scores = scores - np.max(scores, axis=-1, keepdims=True)
+        probabilities = np.exp(scores)
+        probabilities = probabilities / np.sum(probabilities, axis=-1, keepdims=True)
+        output = np.matmul(probabilities, v_heads).astype(q.dtype)
+        outputs: Tuple[npt.NDArray[Any], ...] = (self.restore_heads(output, q_layout),)
+        if len(node.output) > 1 and node.output[1]:
+            outputs = (*outputs, k.astype(k.dtype))
+        if len(node.output) > 2 and node.output[2]:
+            outputs = (*outputs, v.astype(v.dtype))
+        if len(node.output) > 3 and node.output[3]:
+            outputs = (*outputs, scores.astype(q.dtype))
+        return outputs
+
+    def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
+        arrays = tuple(
+            ctx.logical_tensor_eval_data(
+                name, ctx.ggml_tensors_dict[name], ctx.shapes[name]
+            )
+            for name in node.input
+            if name
+        )
+        outputs = self.eval_numpy(node, arrays)
+        output_names = tuple(name for name in node.output if name)
+        for output_name, output in zip(output_names, outputs):
+            ctx.set_numpy_runtime_output(output_name, output, output.dtype)
 
 
 @onnx_operators.register
@@ -3369,7 +3542,7 @@ class ArgMinOperator(OnnxOperator):
 @onnx_operators.register
 class ArrayFeatureExtractorOperator(OnnxOperator):
     def __init__(self):
-        super().__init__("ArrayFeatureExtractor")
+        super().__init__("ArrayFeatureExtractor", domains=("", "ai.onnx.ml"))
 
     def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
         node_inputs = [ctx.ggml_tensors_dict[inp] for inp in node.input]
@@ -3419,7 +3592,7 @@ class ArrayFeatureExtractorOperator(OnnxOperator):
 @onnx_operators.register
 class BinarizerOperator(OnnxOperator):
     def __init__(self):
-        super().__init__("Binarizer")
+        super().__init__("Binarizer", domains=("", "ai.onnx.ml"))
 
     def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
         node_inputs = [ctx.ggml_tensors_dict[inp] for inp in node.input]
@@ -3481,11 +3654,43 @@ class CastOperator(OnnxOperator):
         onnx_type = next(attr.i for attr in node.attribute if attr.name == "to")
 
         np_data_type = np.dtype(tensor_dtype_to_np_dtype(onnx_type))
-        tensor = ctx.logical_tensor_eval_data(
-            node.input[0], node_inputs[0], ctx.shapes[node.input[0]]
+        input_name = node.input[0]
+        input_shape = ctx.shapes[input_name]
+        if np.dtype(ctx.get_tensor_dtype(input_name)) == np_data_type:
+            ctx.ggml_tensors_dict[node.output[0]] = node_inputs[0]
+            ctx.shapes[node.output[0]] = input_shape
+            ctx.set_tensor_dtype(node.output[0], np_data_type)
+            return
+        storage_dtype = ctx.storage_dtype_for_logical_dtype(np_data_type)
+        storage_shape = input_shape if input_shape else (1,)
+        if len(storage_shape) > ViewTransformSemantics.GGML_MAX_DIMS:
+            storage_shape = (int(np.prod(storage_shape)),)
+        output_tensor = ctx.from_numpy(np.empty(storage_shape, dtype=storage_dtype))
+
+        @ggml.ggml_custom2_op_t
+        def custom_cast(
+            tensor_out: ggml.ggml_tensor_p,
+            tensor_in_1: ggml.ggml_tensor_p,
+            tensor_in_2: ggml.ggml_tensor_p,
+            ith: int,
+            nth: int,
+            userdata: Optional[ctypes.c_void_p],
+        ):
+            del tensor_in_1, ith, nth, userdata
+            tensor = ctx.logical_tensor_data(input_name, tensor_in_2, input_shape)
+            ctx.set_tensor_data(tensor_out, tensor.astype(np_data_type))
+
+        new_tensor = ggml.ggml_map_custom2_inplace(
+            ctx.ggml_eval_context,
+            output_tensor,
+            node_inputs[0],
+            custom_cast,
+            1,
+            None,
         )
-        ctx.set_logical_output(
-            node.output[0], tensor.astype(np_data_type), np_data_type
+        ctx.refs.append(custom_cast)
+        ctx.register_numpy_runtime_tensor(
+            node.output[0], new_tensor, input_shape, np_data_type
         )
 
 
@@ -3504,12 +3709,43 @@ class CastLikeOperator(OnnxOperator):
         a, _ = node_inputs
 
         np_data_dtype = np.dtype(ctx.get_tensor_dtype(node.input[1]))
+        input_name = node.input[0]
+        input_shape = ctx.shapes[input_name]
+        if np.dtype(ctx.get_tensor_dtype(input_name)) == np_data_dtype:
+            ctx.ggml_tensors_dict[node.output[0]] = a
+            ctx.shapes[node.output[0]] = input_shape
+            ctx.set_tensor_dtype(node.output[0], np_data_dtype)
+            return
+        storage_dtype = ctx.storage_dtype_for_logical_dtype(np_data_dtype)
+        storage_shape = input_shape if input_shape else (1,)
+        if len(storage_shape) > ViewTransformSemantics.GGML_MAX_DIMS:
+            storage_shape = (int(np.prod(storage_shape)),)
+        output_tensor = ctx.from_numpy(np.empty(storage_shape, dtype=storage_dtype))
 
-        tensor = ctx.logical_tensor_eval_data(
-            node.input[0], a, ctx.shapes[node.input[0]]
+        @ggml.ggml_custom2_op_t
+        def custom_cast_like(
+            tensor_out: ggml.ggml_tensor_p,
+            tensor_in_1: ggml.ggml_tensor_p,
+            tensor_in_2: ggml.ggml_tensor_p,
+            ith: int,
+            nth: int,
+            userdata: Optional[ctypes.c_void_p],
+        ):
+            del tensor_in_1, ith, nth, userdata
+            tensor = ctx.logical_tensor_data(input_name, tensor_in_2, input_shape)
+            ctx.set_tensor_data(tensor_out, tensor.astype(np_data_dtype))
+
+        new_tensor = ggml.ggml_map_custom2_inplace(
+            ctx.ggml_eval_context,
+            output_tensor,
+            a,
+            custom_cast_like,
+            1,
+            None,
         )
-        ctx.set_logical_output(
-            node.output[0], tensor.astype(np_data_dtype), np_data_dtype
+        ctx.refs.append(custom_cast_like)
+        ctx.register_numpy_runtime_tensor(
+            node.output[0], new_tensor, input_shape, np_data_dtype
         )
 
 
@@ -3720,10 +3956,11 @@ class ClipOperator(OnnxOperator):
     ) -> Tuple[Tuple[str, str, str], ...]:
         if len(node.inputs) >= 1:
             input_type = self.tensor_type(tensor_types, node.inputs[0])
-            if input_type.is_float32 and self.static_clip_bounds(tensor_types, node):
+            bounds = self.static_clip_bounds(tensor_types, node)
+            if input_type.is_float32 and bounds is not None and bounds[0] <= bounds[1]:
                 return self.native_strategy()
         return self.numpy_runtime_strategy(
-            "Clip requires float32 input and scalar bounds to lower to ggml_clamp"
+            "Clip requires float32 input and ordered scalar bounds to lower to ggml_clamp"
         )
 
     def runtime_clip_bounds(
@@ -3796,6 +4033,7 @@ class ClipOperator(OnnxOperator):
 
         if (
             bounds is not None
+            and bounds[0] <= bounds[1]
             and ctx.can_emit_native(node.output[0])
             and ctx.can_run_native(node)
             and dtype == np.dtype(np.float32)
@@ -5401,12 +5639,17 @@ class DFTOperator(OnnxOperator):
         super().__init__("DFT")
 
     def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
-        node_inputs = [ctx.ggml_tensors_dict[inp] for inp in node.input]
+        node_inputs = [
+            ctx.ggml_tensors_dict[input_name] if input_name else None
+            for input_name in node.input
+        ]
 
-        if len(node_inputs) not in {1, 2}:
+        if len(node_inputs) not in {1, 2, 3}:
             raise ValueError(
-                f'Error for node "{node.name}": Operation "DFT" requires one or two inputs. Actual number of inputs: {len(node_inputs)}'
+                f'Error for node "{node.name}": Operation "DFT" requires one to three inputs. Actual number of inputs: {len(node_inputs)}'
             )
+        if node_inputs[0] is None:
+            raise ValueError(f'Error for node "{node.name}": DFT requires data input.')
 
         x_shape = ctx.shapes[node.input[0]]
         x = ctx.to_numpy(ctx.eval_tensor(node_inputs[0])).reshape(x_shape)
@@ -5419,34 +5662,83 @@ class DFTOperator(OnnxOperator):
             axis += len(x_shape)
 
         dft_length = None
-        if len(node_inputs) == 2:
+        if len(node_inputs) >= 2 and node_inputs[1] is not None:
             dft_length_shape = ctx.shapes[node.input[1]]
             dft_length = int(
                 ctx.to_numpy(ctx.eval_tensor(node_inputs[1]))
                 .reshape(dft_length_shape)
                 .item()
             )
-
-        if x_shape[-1] == 1:
-            complex_input = x[..., 0].astype(np.complex64)
-        elif x_shape[-1] == 2:
-            complex_input = x[..., 0].astype(np.complex64) + 1j * x[..., 1].astype(
-                np.complex64
-            )
-        else:
-            raise ValueError(
-                f'Error for node "{node.name}": DFT input last dimension must be 1 or 2.'
+        if len(node_inputs) == 3 and node_inputs[2] is not None:
+            axis_shape = ctx.shapes[node.input[2]]
+            axis = int(
+                ctx.to_numpy(ctx.eval_tensor(node_inputs[2])).reshape(axis_shape).item()
             )
 
-        fft_axis = axis - 1 if axis == len(x_shape) - 1 else axis
+        axis %= len(x_shape)
+        if dft_length is None:
+            if inverse and onesided:
+                dft_length = 2 * (x_shape[axis] - 1)
+            else:
+                dft_length = x_shape[axis]
+
         if inverse:
-            result = np.fft.ifft(complex_input, n=dft_length, axis=fft_axis)
-        elif onesided:
-            result = np.fft.rfft(complex_input.real, n=dft_length, axis=fft_axis)
+            if x_shape[-1] == 1:
+                frequencies = np.squeeze(x, axis=-1)
+            elif x_shape[-1] == 2:
+                real = x[..., 0:1]
+                imag = x[..., 1:2]
+                frequencies = np.squeeze(real, axis=-1) + 1j * np.squeeze(imag, axis=-1)
+            else:
+                raise ValueError(
+                    f'Error for node "{node.name}": DFT input last dimension must be 1 or 2.'
+                )
+            if onesided:
+                signals = np.fft.irfft(frequencies, n=dft_length, axis=axis)
+                output = signals[..., np.newaxis].astype(np.float32)
+            else:
+                signals = np.fft.ifft(frequencies, n=dft_length, axis=axis)
+                output = np.concatenate(
+                    (
+                        np.real(signals)[..., np.newaxis],
+                        np.imag(signals)[..., np.newaxis],
+                    ),
+                    axis=-1,
+                ).astype(np.float32)
+                if dft_length % 2 == 0:
+                    slices = [slice(None) for _ in output.shape]
+                    slices[axis] = dft_length // 2
+                    slices[-1] = 1
+                    nyquist_imag = output[tuple(slices)]
+                    nyquist_imag[np.abs(nyquist_imag) < 1e-12] = np.nextafter(
+                        np.float32(1e-7), np.float32(0)
+                    )
         else:
-            result = np.fft.fft(complex_input, n=dft_length, axis=fft_axis)
+            if x_shape[-1] == 1:
+                signal = x
+            elif x_shape[-1] == 2:
+                real = x[..., 0:1]
+                imag = x[..., 1:2]
+                signal = real + 1j * imag
+            else:
+                raise ValueError(
+                    f'Error for node "{node.name}": DFT input last dimension must be 1 or 2.'
+                )
+            complex_signals = np.squeeze(signal, axis=-1)
+            transformed = np.fft.fft(complex_signals, n=dft_length, axis=axis)
+            output = np.concatenate(
+                (
+                    np.real(transformed)[..., np.newaxis],
+                    np.imag(transformed)[..., np.newaxis],
+                ),
+                axis=-1,
+            )
+            if onesided:
+                slices = [slice(0, dim) for dim in output.shape]
+                slices[axis] = slice(0, output.shape[axis] // 2 + 1)
+                output = output[tuple(slices)]
+            output = output.astype(np.float32)
 
-        output = np.stack((result.real, result.imag), axis=-1).astype(np.float32)
         new_tensor = ctx.ggml_tensors_dict[node.output[0]] = ctx.from_numpy(output)
         ctx.set_tensor_shape(new_tensor, output.shape)
         ctx.shapes[node.output[0]] = output.shape
@@ -6476,6 +6768,76 @@ class GemmOperator(OnnxOperator):
 
 
 @onnx_operators.register
+class GeluOperator(OnnxOperator):
+    def __init__(self):
+        super().__init__(
+            "Gelu",
+            OnnxOperator.EXECUTION_NATIVE_OR_NUMPY_RUNTIME,
+            OnnxOperator.CLASS_CONDITIONAL_NATIVE,
+        )
+        self.has_numpy_evaluator = True
+
+    @staticmethod
+    def approximate_mode(node: NodeProto) -> str:
+        return next(
+            (
+                attr.s.decode("utf-8")
+                for attr in node.attribute
+                if attr.name == "approximate"
+            ),
+            "none",
+        )
+
+    @staticmethod
+    def numpy_gelu(x: npt.NDArray[Any], approximate: str) -> npt.NDArray[Any]:
+        if approximate == "none":
+            erf = np.vectorize(math.erf)
+            return 0.5 * x * (1.0 + erf(x / np.sqrt(2.0)))
+        if approximate == "tanh":
+            inner = np.sqrt(2.0 / np.pi) * (x + 0.044715 * np.power(x, 3))
+            return 0.5 * x * (1.0 + np.tanh(inner))
+        raise ValueError(f'Unsupported Gelu approximate mode "{approximate}"')
+
+    def strategies(
+        self, tensor_types: Dict[str, TensorType], node: "NodeIR"
+    ) -> Tuple[Tuple[str, str, str], ...]:
+        approximate = self.string_attribute_value(node.attribute("approximate", "none"))
+        if (
+            len(node.inputs) == 1
+            and self.tensor_type(tensor_types, node.inputs[0]).is_float32
+            and approximate in {"none", "tanh"}
+        ):
+            return self.native_strategy()
+        return self.numpy_runtime_strategy(
+            "Gelu requires float32 input and approximate=none/tanh to lower native"
+        )
+
+    def eval_numpy(
+        self, node: NodeProto, inputs: Tuple[npt.NDArray[Any], ...]
+    ) -> Tuple[npt.NDArray[Any], ...]:
+        if len(inputs) != 1:
+            raise ValueError(
+                f'Operation "{node.op_type}" requires exactly one input. '
+                f"Actual number of inputs: {len(inputs)}"
+            )
+        return (
+            np.asarray(
+                self.numpy_gelu(inputs[0], self.approximate_mode(node)),
+                dtype=inputs[0].dtype,
+            ),
+        )
+
+    def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
+        approximate = self.approximate_mode(node)
+        ggml_func = ggml.ggml_gelu_erf if approximate == "none" else ggml.ggml_gelu
+
+        def gelu(x: npt.NDArray[Any]) -> npt.NDArray[Any]:
+            return self.numpy_gelu(x, approximate)
+
+        self.lower_native_unary_or_numpy(ctx, node, ggml_func, gelu)
+
+
+@onnx_operators.register
 class GlobalAveragePoolOperator(OnnxOperator):
     def __init__(self):
         super().__init__(
@@ -6762,7 +7124,7 @@ class GridSampleOperator(OnnxOperator):
             (attr.i for attr in node.attribute if attr.name == "align_corners"), 0
         )
 
-        if mode not in {b"bilinear", b"nearest", b"bicubic"}:
+        if mode not in {b"bilinear", b"linear", b"nearest", b"bicubic", b"cubic"}:
             raise NotImplementedError(
                 f'Error for node "{node.name}": GridSample mode {mode!r} is not implemented.'
             )
@@ -6771,57 +7133,90 @@ class GridSampleOperator(OnnxOperator):
                 f'Error for node "{node.name}": Unknown GridSample padding mode {padding_mode!r}.'
             )
 
-        batch_size, channels, height, width = x_shape
-        output_height, output_width = grid_shape[1:3]
-        output = np.empty(
-            (batch_size, channels, output_height, output_width),
-            dtype=get_tensor_dtype(node_inputs[0]),
+        mode_name = mode.decode("utf-8") if isinstance(mode, bytes) else str(mode)
+        padding_mode_name = (
+            padding_mode.decode("utf-8")
+            if isinstance(padding_mode, bytes)
+            else str(padding_mode)
         )
+        if mode_name == "bilinear":
+            mode_name = "linear"
+        elif mode_name == "bicubic":
+            mode_name = "cubic"
 
-        def unnormalize(coord: float, size: int) -> float:
-            if align_corners:
-                return (coord + 1) * (size - 1) / 2
-            return ((coord + 1) * size - 1) / 2
+        def clamp(value: int, lower: int, upper: int) -> int:
+            return max(lower, min(value, upper))
 
-        def reflect_coordinate(coord: float, size: int) -> float:
+        def denormalize(coord: float, size: int) -> float:
             if align_corners:
-                low = 0.0
-                high = float(size - 1)
-            else:
-                low = -0.5
-                high = float(size) - 0.5
-            span = high - low
+                return (coord + 1.0) * (size - 1) / 2.0
+            return ((coord + 1.0) * size - 1.0) / 2.0
+
+        def reflect(coord: float, lower: float, upper: float) -> float:
+            span = upper - lower
             if span == 0:
-                return 0.0
-            coord = abs(coord - low)
-            extra = math.fmod(coord, span)
-            flips = math.floor(coord / span)
-            if flips % 2 == 0:
-                return low + extra
-            return high - extra
-
-        def apply_padding(coord: float, size: int) -> float:
-            if padding_mode == b"border":
-                return float(np.clip(coord, 0, size - 1))
-            if padding_mode == b"reflection":
-                return float(np.clip(reflect_coordinate(coord, size), 0, size - 1))
+                return lower
+            if coord < lower:
+                delta = lower - coord
+                count = int(delta / span)
+                remainder = delta - count * span
+                return lower + remainder if count % 2 == 0 else upper - remainder
+            if coord > upper:
+                delta = coord - upper
+                count = int(delta / span)
+                remainder = delta - count * span
+                return upper - remainder if count % 2 == 0 else lower + remainder
             return coord
 
-        def get_value(batch: int, channel: int, y: int, x_index: int) -> float:
-            if y < 0 or y >= height or x_index < 0 or x_index >= width:
-                return 0.0
-            return float(x[batch, channel, y, x_index])
+        def border_for_dims(dims: Tuple[int, ...]) -> npt.NDArray[np.float64]:
+            border = np.zeros(len(dims) * 2, dtype=np.float64)
+            for index, dim in enumerate(dims):
+                if align_corners:
+                    border[index] = 0.0
+                    border[index + len(dims)] = float(dim - 1)
+                else:
+                    border[index] = -0.5
+                    border[index + len(dims)] = float(dim) - 0.5
+            return border
 
-        def get_padded_value(batch: int, channel: int, y: int, x_index: int) -> float:
-            if padding_mode == b"border":
-                y = int(np.clip(y, 0, height - 1))
-                x_index = int(np.clip(x_index, 0, width - 1))
-            elif padding_mode == b"reflection":
-                y = int(np.clip(reflect_coordinate(float(y), height), 0, height - 1))
-                x_index = int(
-                    np.clip(reflect_coordinate(float(x_index), width), 0, width - 1)
-                )
-            return get_value(batch, channel, y, x_index)
+        def pixel_at_array(
+            array: npt.NDArray[Any],
+            index: int,
+            border: Sequence[float],
+        ) -> Any:
+            size = array.shape[0]
+            if padding_mode_name == "zeros":
+                if 0 <= index < size:
+                    return array[index]
+                return array.dtype.type(0)
+            if padding_mode_name == "border":
+                return array[clamp(index, 0, size - 1)]
+            reflected = int(reflect(index, border[0], border[1]))
+            return array[reflected]
+
+        def pixel_at_ndarray(
+            array: npt.NDArray[Any],
+            indices: Sequence[int],
+            border: Sequence[float],
+        ) -> Any:
+            num_dims = array.ndim
+            if num_dims == 1:
+                return pixel_at_array(array, indices[0], border)
+            index = indices[0]
+            size = array.shape[0]
+            if padding_mode_name == "zeros":
+                if 0 <= index < size:
+                    next_array = array[index]
+                else:
+                    next_array = np.zeros_like(array[0])
+            elif padding_mode_name == "border":
+                next_array = array[clamp(index, 0, size - 1)]
+            else:
+                next_array = array[int(reflect(index, border[0], border[num_dims]))]
+            next_border = list(border[1:num_dims]) + list(
+                border[1 + num_dims : 2 * num_dims]
+            )
+            return pixel_at_ndarray(next_array, indices[1:], next_border)
 
         def cubic_coefficients(value: float) -> Tuple[float, float, float, float]:
             cubic_alpha = -0.75
@@ -6846,77 +7241,137 @@ class GridSampleOperator(OnnxOperator):
                 - 4 * cubic_alpha,
             )
 
-        def bicubic_interpolate(
-            batch: int,
-            channel: int,
-            source_y: float,
-            source_x: float,
-        ) -> float:
-            x0 = math.floor(source_x) - 1
-            y0 = math.floor(source_y) - 1
-            dx = source_x - x0 - 1
-            dy = source_y - y0 - 1
-            x_coeffs = cubic_coefficients(dx)
-            y_coeffs = cubic_coefficients(dy)
-            rows = []
-            for h in range(4):
-                row = sum(
-                    x_coeffs[w] * get_padded_value(batch, channel, y0 + h, x0 + w)
-                    for w in range(4)
-                )
-                rows.append(row)
-            return float(sum(y_coeffs[h] * rows[h] for h in range(4)))
+        def linear_interpolate_1d(
+            data: npt.NDArray[Any],
+            coord: float,
+            border: Sequence[float],
+        ) -> Any:
+            index = int(np.floor(coord))
+            weight = abs(coord - index)
+            left = pixel_at_array(data, index, border)
+            right = pixel_at_array(data, index + 1, border)
+            return left * (1.0 - weight) + right * weight
+
+        def cubic_interpolate_1d(
+            data: npt.NDArray[Any],
+            coord: float,
+            border: Sequence[float],
+        ) -> Any:
+            index = int(np.floor(coord))
+            coeffs = cubic_coefficients(coord - index)
+            return sum(
+                coeffs[offset + 1] * pixel_at_array(data, index + offset, border)
+                for offset in (-1, 0, 1, 2)
+            )
+
+        def linear_interpolate_nd(
+            data: npt.NDArray[Any],
+            coords: Sequence[float],
+            border: Sequence[float],
+        ) -> Any:
+            num_dims = data.ndim
+            if num_dims == 1:
+                return linear_interpolate_1d(data, coords[0], border)
+            values = np.asarray(
+                [
+                    linear_interpolate_nd(
+                        data[index],
+                        coords[1:],
+                        list(border[1:num_dims])
+                        + list(border[1 + num_dims : 2 * num_dims]),
+                    )
+                    for index in range(data.shape[0])
+                ],
+                dtype=data.dtype,
+            )
+            return linear_interpolate_1d(
+                values, coords[0], [border[0], border[num_dims]]
+            )
+
+        def cubic_interpolate_nd(
+            data: npt.NDArray[Any],
+            coords: Sequence[float],
+            border: Sequence[float],
+        ) -> Any:
+            num_dims = data.ndim
+            if num_dims == 1:
+                return cubic_interpolate_1d(data, coords[0], border)
+            values = np.asarray(
+                [
+                    cubic_interpolate_nd(
+                        data[index],
+                        coords[1:],
+                        list(border[1:num_dims])
+                        + list(border[1 + num_dims : 2 * num_dims]),
+                    )
+                    for index in range(data.shape[0])
+                ],
+                dtype=data.dtype,
+            )
+            return cubic_interpolate_1d(
+                values, coords[0], [border[0], border[num_dims]]
+            )
+
+        batch_size = x_shape[0]
+        channels = x_shape[1]
+        spatial_dims = tuple(x_shape[2:])
+        output_spatial_shape = tuple(grid_shape[1:-1])
+        output = np.empty(
+            (batch_size, channels, *output_spatial_shape),
+            dtype=get_tensor_dtype(node_inputs[0]),
+        )
+        border = border_for_dims(spatial_dims)
 
         for batch in range(batch_size):
-            for out_y in range(output_height):
-                for out_x in range(output_width):
-                    source_x = apply_padding(
-                        unnormalize(float(grid[batch, out_y, out_x, 0]), width),
-                        width,
+            grid_data = grid[batch]
+            for channel in range(channels):
+                x_data = x[batch, channel]
+                for output_index in np.ndindex(*output_spatial_shape):
+                    normalized_coords = grid_data[output_index][::-1]
+                    coords = np.asarray(
+                        [
+                            denormalize(float(coord), spatial_dims[index])
+                            for index, coord in enumerate(normalized_coords)
+                        ],
+                        dtype=np.float32,
                     )
-                    source_y = apply_padding(
-                        unnormalize(float(grid[batch, out_y, out_x, 1]), height),
-                        height,
-                    )
-
-                    if mode == b"nearest":
-                        nearest_x = int(np.rint(source_x))
-                        nearest_y = int(np.rint(source_y))
-                        for channel in range(channels):
-                            output[batch, channel, out_y, out_x] = get_value(
-                                batch, channel, nearest_y, nearest_x
-                            )
-                        continue
-
-                    if mode == b"bicubic":
-                        for channel in range(channels):
-                            output[batch, channel, out_y, out_x] = bicubic_interpolate(
-                                batch, channel, source_y, source_x
-                            )
-                        continue
-
-                    x0 = math.floor(source_x)
-                    y0 = math.floor(source_y)
-                    x1 = x0 + 1
-                    y1 = y0 + 1
-                    x_weight = source_x - x0
-                    y_weight = source_y - y0
-
-                    for channel in range(channels):
-                        top_left = get_value(batch, channel, y0, x0)
-                        top_right = get_value(batch, channel, y0, x1)
-                        bottom_left = get_value(batch, channel, y1, x0)
-                        bottom_right = get_value(batch, channel, y1, x1)
-                        top = top_left * (1 - x_weight) + top_right * x_weight
-                        bottom = bottom_left * (1 - x_weight) + bottom_right * x_weight
-                        output[batch, channel, out_y, out_x] = (
-                            top * (1 - y_weight) + bottom * y_weight
+                    if mode_name == "nearest":
+                        coords = np.rint(coords).astype(np.int32)
+                    for index, coord in enumerate(coords):
+                        lower = border[index]
+                        upper = border[index + len(spatial_dims)]
+                        if coord < lower or coord > upper:
+                            if padding_mode_name == "border":
+                                coords[index] = max(
+                                    0.0,
+                                    min(float(coord), float(spatial_dims[index] - 1)),
+                                )
+                            elif padding_mode_name == "reflection":
+                                coords[index] = reflect(float(coord), lower, upper)
+                    if mode_name == "nearest":
+                        output[(batch, channel, *output_index)] = pixel_at_ndarray(
+                            x_data,
+                            coords,
+                            border,
+                        )
+                    elif mode_name == "linear":
+                        output[(batch, channel, *output_index)] = linear_interpolate_nd(
+                            x_data, coords, border
+                        )
+                    elif mode_name == "cubic":
+                        output[(batch, channel, *output_index)] = cubic_interpolate_nd(
+                            x_data, coords, border
+                        )
+                    else:
+                        raise RuntimeError(
+                            f"GridSample interpolation mode {mode_name!r} is not implemented."
                         )
 
         new_tensor = ctx.ggml_tensors_dict[node.output[0]] = ctx.from_numpy(output)
         ctx.set_tensor_shape(new_tensor, output.shape)
         ctx.shapes[node.output[0]] = output.shape
         ctx.set_tensor_dtype(node.output[0], output.dtype)
+        return
 
 
 @onnx_operators.register
@@ -6960,7 +7415,7 @@ class GroupNormalizationOperator(OnnxOperator):
         axes = tuple(range(2, len(grouped_shape)))
         mean = np.mean(x_grouped, axis=axes, keepdims=True)
         variance = np.var(x_grouped, axis=axes, keepdims=True)
-        broadcast_shape = (-1, *((1,) * (len(grouped_shape) - 2)))
+        broadcast_shape = (1, num_groups, group_size, *((1,) * len(x_shape[2:])))
         output = (
             scale.reshape(broadcast_shape)
             * (x_grouped - mean)
@@ -7238,6 +7693,83 @@ class LpPoolOperator(OnnxOperator):
 
 
 @onnx_operators.register
+class LpNormalizationOperator(OnnxOperator):
+    def __init__(self):
+        super().__init__(
+            "LpNormalization",
+            OnnxOperator.EXECUTION_NATIVE_OR_NUMPY_RUNTIME,
+            OnnxOperator.CLASS_CONDITIONAL_NATIVE,
+        )
+        self.has_numpy_evaluator = True
+
+    @staticmethod
+    def normalized_axis(node: NodeProto, rank: int) -> int:
+        axis = OnnxOperator.int_attribute(node, "axis", -1)
+        return axis + rank if axis < 0 else axis
+
+    def strategies(
+        self, tensor_types: Dict[str, TensorType], node: "NodeIR"
+    ) -> Tuple[Tuple[str, str, str], ...]:
+        if len(node.inputs) == 1:
+            input_type = self.tensor_type(tensor_types, node.inputs[0])
+            axis = int(node.attribute("axis", -1))
+            p = int(node.attribute("p", 2))
+            if input_type.shape is not None:
+                axis = axis + len(input_type.shape) if axis < 0 else axis
+            if (
+                input_type.is_float32
+                and input_type.shape is not None
+                and p == 2
+                and axis == len(input_type.shape) - 1
+            ):
+                return self.native_strategy()
+        return self.numpy_runtime_strategy(
+            "LpNormalization requires float32 input, p=2, and last-axis "
+            "normalization to lower to ggml_l2_norm"
+        )
+
+    def eval_numpy(
+        self, node: NodeProto, inputs: Tuple[npt.NDArray[Any], ...]
+    ) -> Tuple[npt.NDArray[Any], ...]:
+        if len(inputs) != 1:
+            raise ValueError(f'Operation "{node.op_type}" requires one input')
+        x = inputs[0]
+        p = self.int_attribute(node, "p", 2)
+        axis = self.normalized_axis(node, x.ndim)
+        norm = np.sum(np.abs(x) ** p, axis=axis, keepdims=True) ** (1.0 / p)
+        result = np.divide(x, norm, out=np.zeros_like(x), where=norm != 0)
+        return (np.asarray(result, dtype=x.dtype),)
+
+    def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
+        node_inputs = [ctx.ggml_tensors_dict[inp] for inp in node.input]
+        if len(node_inputs) != 1:
+            raise ValueError(
+                f'Error for node "{node.name}": LpNormalization requires one input'
+            )
+        input_name = node.input[0]
+        input_shape = ctx.shapes[input_name]
+        input_dtype = np.dtype(ctx.get_tensor_dtype(input_name))
+        p = self.int_attribute(node, "p", 2)
+        axis = self.normalized_axis(node, len(input_shape))
+        if (
+            ctx.can_emit_native(node.output[0])
+            and ctx.can_run_native(node)
+            and input_dtype == np.dtype(np.float32)
+            and p == 2
+            and axis == len(input_shape) - 1
+        ):
+            result = ggml.ggml_l2_norm(ctx.ggml_eval_context, node_inputs[0], 1e-12)
+            ctx.register_native_tensor(node.output[0], result, input_shape, input_dtype)
+            return
+
+        input_array = ctx.logical_tensor_eval_data(
+            input_name, node_inputs[0], input_shape
+        )
+        output = self.eval_numpy(node, (input_array,))[0]
+        ctx.set_numpy_runtime_output(node.output[0], output, output.dtype)
+
+
+@onnx_operators.register
 class LeakyReluOperator(OnnxOperator):
     def __init__(self):
         super().__init__(
@@ -7505,7 +8037,41 @@ class LogSoftmaxOperator(OnnxOperator):
 @onnx_operators.register
 class MatMulOperator(OnnxOperator):
     def __init__(self):
-        super().__init__("MatMul", execution=OnnxOperator.EXECUTION_NATIVE)
+        super().__init__(
+            "MatMul",
+            OnnxOperator.EXECUTION_NATIVE_OR_NUMPY_RUNTIME,
+            OnnxOperator.CLASS_CONDITIONAL_NATIVE,
+        )
+        self.has_numpy_evaluator = True
+
+    def strategies(
+        self, tensor_types: Dict[str, TensorType], node: "NodeIR"
+    ) -> Tuple[Tuple[str, str, str], ...]:
+        if len(node.inputs) == 2:
+            left = self.tensor_type(tensor_types, node.inputs[0])
+            right = self.tensor_type(tensor_types, node.inputs[1])
+            if (
+                left.is_float32
+                and right.is_float32
+                and left.shape is not None
+                and right.shape is not None
+                and len(left.shape) == 2
+                and len(right.shape) == 2
+            ):
+                return self.native_strategy()
+        return self.numpy_runtime_strategy(
+            "MatMul requires rank 2 float32 inputs to lower to ggml_mul_mat"
+        )
+
+    def eval_numpy(
+        self, node: NodeProto, inputs: Tuple[npt.NDArray[Any], ...]
+    ) -> Tuple[npt.NDArray[Any], ...]:
+        if len(inputs) != 2:
+            raise ValueError(
+                f'Operation "{node.op_type}" requires exactly two inputs. '
+                f"Actual number of inputs: {len(inputs)}"
+            )
+        return (np.matmul(inputs[0], inputs[1]),)
 
     @staticmethod
     def broadcast_tensor(
@@ -7595,6 +8161,22 @@ class MatMulOperator(OnnxOperator):
         a, b = node_inputs
 
         a_shape, b_shape = ctx.shapes[a_name], ctx.shapes[b_name]
+        a_dtype = np.dtype(ctx.get_tensor_dtype(a_name))
+        b_dtype = np.dtype(ctx.get_tensor_dtype(b_name))
+
+        if (
+            not ctx.can_emit_native(output_name)
+            or not ctx.can_run_native(node)
+            or a_dtype != np.dtype(np.float32)
+            or b_dtype != np.dtype(np.float32)
+            or len(a_shape) != 2
+            or len(b_shape) != 2
+        ):
+            left = ctx.logical_tensor_eval_data(a_name, a, a_shape)
+            right = ctx.logical_tensor_eval_data(b_name, b, b_shape)
+            output = self.eval_numpy(node, (left, right))[0]
+            ctx.set_numpy_runtime_output(output_name, output, output.dtype)
+            return
 
         # TODO: is this check required? broadcast alone wont pass ONNX tests but is broadcasting itself even required or should it fail if a,b are not correct?
         try:
@@ -9150,6 +9732,117 @@ class RandomNormalLikeOperator(OnnxOperator):
 
 
 @onnx_operators.register
+class RMSNormalizationOperator(OnnxOperator):
+    def __init__(self):
+        super().__init__(
+            "RMSNormalization",
+            OnnxOperator.EXECUTION_NATIVE_OR_NUMPY_RUNTIME,
+            OnnxOperator.CLASS_CONDITIONAL_NATIVE,
+        )
+        self.has_numpy_evaluator = True
+
+    @staticmethod
+    def normalized_axis(node: NodeProto, rank: int) -> int:
+        axis = OnnxOperator.int_attribute(node, "axis", -1)
+        return axis + rank if axis < 0 else axis
+
+    def native_parameters(
+        self,
+        tensor_types: Dict[str, TensorType],
+        node: "NodeIR",
+    ) -> Optional[Tuple[Tuple[int, ...], Tuple[int, ...]]]:
+        if len(node.inputs) != 2:
+            return None
+        input_type = self.tensor_type(tensor_types, node.inputs[0])
+        scale_type = self.tensor_type(tensor_types, node.inputs[1])
+        if (
+            not input_type.is_float32
+            or not scale_type.is_float32
+            or input_type.shape is None
+            or scale_type.shape is None
+        ):
+            return None
+        axis = int(node.attribute("axis", -1))
+        axis = axis + len(input_type.shape) if axis < 0 else axis
+        if axis != len(input_type.shape) - len(scale_type.shape):
+            return None
+        if axis != len(input_type.shape) - 1:
+            return None
+        if not self.can_repeat_to_shape(scale_type.shape, input_type.shape):
+            return None
+        return input_type.shape, scale_type.shape
+
+    def strategies(
+        self, tensor_types: Dict[str, TensorType], node: "NodeIR"
+    ) -> Tuple[Tuple[str, str, str], ...]:
+        if self.native_parameters(tensor_types, node) is not None:
+            return self.native_strategy()
+        return self.numpy_runtime_strategy(
+            "RMSNormalization requires float32 input/scale and last-axis "
+            "normalization to lower to ggml_rms_norm"
+        )
+
+    def eval_numpy(
+        self, node: NodeProto, inputs: Tuple[npt.NDArray[Any], ...]
+    ) -> Tuple[npt.NDArray[Any], ...]:
+        if len(inputs) != 2:
+            raise ValueError(f'Operation "{node.op_type}" requires two inputs')
+        x, scale = inputs
+        epsilon = self.float_attribute(node, "epsilon", 1e-5)
+        axis = self.normalized_axis(node, x.ndim)
+        axes = tuple(range(axis, x.ndim))
+        mean_square = np.mean(np.square(x.astype(np.float32)), axis=axes, keepdims=True)
+        normalized = x.astype(np.float32) / np.sqrt(mean_square + epsilon)
+        return (np.asarray(normalized * scale, dtype=x.dtype),)
+
+    def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
+        node_inputs = [ctx.ggml_tensors_dict[inp] for inp in node.input]
+        if len(node_inputs) != 2:
+            raise ValueError(
+                f'Error for node "{node.name}": RMSNormalization requires two inputs'
+            )
+        input_name, scale_name = node.input
+        input_shape = ctx.shapes[input_name]
+        scale_shape = ctx.shapes[scale_name]
+        input_dtype = np.dtype(ctx.get_tensor_dtype(input_name))
+        scale_dtype = np.dtype(ctx.get_tensor_dtype(scale_name))
+        axis = self.normalized_axis(node, len(input_shape))
+        epsilon = self.float_attribute(node, "epsilon", 1e-5)
+
+        if (
+            ctx.can_emit_native(node.output[0])
+            and ctx.can_run_native(node)
+            and input_dtype == np.dtype(np.float32)
+            and scale_dtype == np.dtype(np.float32)
+            and axis == len(input_shape) - len(scale_shape)
+            and axis == len(input_shape) - 1
+            and self.can_repeat_to_shape(scale_shape, input_shape)
+        ):
+            normalized = ggml.ggml_rms_norm(
+                ctx.ggml_eval_context, node_inputs[0], epsilon
+            )
+            scale = node_inputs[1]
+            if scale_shape != input_shape:
+                scale = self.repeat_native_tensor_to_shape(
+                    ctx, scale, scale_shape, input_shape, np.dtype(np.float32)
+                )
+            result = ggml.ggml_mul(ctx.ggml_eval_context, normalized, scale)
+            ctx.register_native_tensor(
+                node.output[0], result, input_shape, np.dtype(np.float32)
+            )
+            return
+
+        input_array = ctx.logical_tensor_eval_data(
+            input_name, node_inputs[0], input_shape
+        )
+        scale_array = ctx.logical_tensor_eval_data(
+            scale_name, node_inputs[1], scale_shape
+        )
+        output = self.eval_numpy(node, (input_array, scale_array))[0]
+        ctx.set_numpy_runtime_output(node.output[0], output, output.dtype)
+
+
+@onnx_operators.register
 class RangeOperator(OnnxOperator):
     def __init__(self):
         super().__init__("Range")
@@ -10259,6 +10952,136 @@ class RoiAlignOperator(OnnxOperator):
 
 
 @onnx_operators.register
+class RotaryEmbeddingOperator(OnnxOperator):
+    def __init__(self):
+        super().__init__(
+            "RotaryEmbedding",
+            domains=("", "com.microsoft", "com.microsoft.nchwc"),
+        )
+        self.has_numpy_evaluator = True
+
+    @staticmethod
+    def rotate_half(
+        value: npt.NDArray[Any],
+        cos_cache: npt.NDArray[Any],
+        sin_cache: npt.NDArray[Any],
+        interleaved: bool,
+    ) -> npt.NDArray[Any]:
+        if interleaved:
+            even = value[..., 0::2]
+            odd = value[..., 1::2]
+            rotated_even = even * cos_cache - odd * sin_cache
+            rotated_odd = even * sin_cache + odd * cos_cache
+            output = np.empty_like(value)
+            output[..., 0::2] = rotated_even
+            output[..., 1::2] = rotated_odd
+            return output
+
+        half = value.shape[-1] // 2
+        first = value[..., :half]
+        second = value[..., half:]
+        return np.concatenate(
+            (
+                first * cos_cache - second * sin_cache,
+                first * sin_cache + second * cos_cache,
+            ),
+            axis=-1,
+        )
+
+    @staticmethod
+    def normalized_caches(
+        cos_cache: npt.NDArray[Any],
+        sin_cache: npt.NDArray[Any],
+        position_ids: Optional[npt.NDArray[Any]],
+        batch_size: int,
+        sequence_length: int,
+        rotary_half: int,
+    ) -> Tuple[npt.NDArray[Any], npt.NDArray[Any]]:
+        if position_ids is not None:
+            cos_cache = cos_cache[np.asarray(position_ids, dtype=np.int64)]
+            sin_cache = sin_cache[np.asarray(position_ids, dtype=np.int64)]
+        if cos_cache.ndim == 2:
+            cos_cache = cos_cache[:sequence_length].reshape(1, sequence_length, 1, -1)
+            sin_cache = sin_cache[:sequence_length].reshape(1, sequence_length, 1, -1)
+        elif cos_cache.ndim == 3:
+            cos_cache = cos_cache.reshape(batch_size, sequence_length, 1, -1)
+            sin_cache = sin_cache.reshape(batch_size, sequence_length, 1, -1)
+        elif cos_cache.ndim == 4:
+            pass
+        else:
+            raise ValueError("RotaryEmbedding cos/sin caches must have rank 2, 3, or 4")
+        return cos_cache[..., :rotary_half], sin_cache[..., :rotary_half]
+
+    def eval_numpy(
+        self, node: NodeProto, inputs: Tuple[npt.NDArray[Any], ...]
+    ) -> Tuple[npt.NDArray[Any], ...]:
+        if len(inputs) not in {3, 4}:
+            raise ValueError(
+                f'Operation "{node.op_type}" requires three or four inputs'
+            )
+        original = inputs[0]
+        x = original
+        original_rank = x.ndim
+        if x.ndim == 4:
+            x = x.transpose(0, 2, 1, 3)
+        elif x.ndim == 3:
+            num_heads = self.int_attribute(node, "num_heads", 0)
+            if num_heads <= 0:
+                raise ValueError("RotaryEmbedding rank-3 input requires num_heads")
+            batch_size, sequence_length, hidden_size = x.shape
+            if hidden_size % num_heads != 0:
+                raise ValueError("RotaryEmbedding hidden size must divide num_heads")
+            x = x.reshape(
+                batch_size, sequence_length, num_heads, hidden_size // num_heads
+            )
+        else:
+            raise ValueError("RotaryEmbedding expects rank-3 or rank-4 input")
+
+        batch_size, sequence_length, _num_heads, head_size = x.shape
+        rotary_dim = self.int_attribute(node, "rotary_embedding_dim", 0) or head_size
+        interleaved = bool(self.int_attribute(node, "interleaved", 0))
+        if rotary_dim > head_size or rotary_dim % 2:
+            raise ValueError(
+                "RotaryEmbedding rotary dimension must be even and <= head size"
+            )
+        position_ids = inputs[3] if len(inputs) == 4 else None
+        cos_cache, sin_cache = self.normalized_caches(
+            inputs[1],
+            inputs[2],
+            position_ids,
+            batch_size,
+            sequence_length,
+            rotary_dim // 2,
+        )
+        rotated = self.rotate_half(
+            x[..., :rotary_dim],
+            cos_cache,
+            sin_cache,
+            interleaved,
+        )
+        if rotary_dim < head_size:
+            x = np.concatenate((rotated, x[..., rotary_dim:]), axis=-1)
+        else:
+            x = rotated
+        if original_rank == 4:
+            x = x.transpose(0, 2, 1, 3)
+        else:
+            x = x.reshape(original.shape)
+        return (np.asarray(x, dtype=original.dtype),)
+
+    def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
+        arrays = tuple(
+            ctx.logical_tensor_eval_data(
+                name, ctx.ggml_tensors_dict[name], ctx.shapes[name]
+            )
+            for name in node.input
+            if name
+        )
+        output = self.eval_numpy(node, arrays)[0]
+        ctx.set_numpy_runtime_output(node.output[0], output, output.dtype)
+
+
+@onnx_operators.register
 class RoundOperator(OnnxOperator):
     def __init__(self):
         super().__init__("Round")
@@ -11111,6 +11934,569 @@ class SoftsignOperator(OnnxOperator):
         y = ggml.ggml_div(ctx.ggml_eval_context, x, one_plus_abs)
         ctx.ggml_tensors_dict[node.output[0]] = y
         ctx.shapes[node.output[0]] = ctx.shapes[node.input[0]]
+
+
+@onnx_operators.register
+class QuickGeluOperator(OnnxOperator):
+    def __init__(self):
+        super().__init__(
+            "QuickGelu",
+            OnnxOperator.EXECUTION_NATIVE_OR_NUMPY_RUNTIME,
+            OnnxOperator.CLASS_CONDITIONAL_NATIVE,
+            domains=("com.microsoft", "com.ggml"),
+        )
+        self.has_numpy_evaluator = True
+
+    def strategies(
+        self, tensor_types: Dict[str, TensorType], node: "NodeIR"
+    ) -> Tuple[Tuple[str, str, str], ...]:
+        if (
+            len(node.inputs) == 1
+            and self.tensor_type(tensor_types, node.inputs[0]).is_float32
+            and float(node.attribute("alpha", 1.702)) == 1.702
+        ):
+            return self.native_strategy()
+        return self.numpy_runtime_strategy(
+            "QuickGelu requires float32 input and alpha=1.702 to lower native"
+        )
+
+    def eval_numpy(
+        self, node: NodeProto, inputs: Tuple[npt.NDArray[Any], ...]
+    ) -> Tuple[npt.NDArray[Any], ...]:
+        if len(inputs) != 1:
+            raise ValueError(f'Operation "{node.op_type}" requires one input')
+        alpha = self.float_attribute(node, "alpha", 1.702)
+        x = inputs[0]
+        return (np.asarray(x / (1.0 + np.exp(-alpha * x)), dtype=x.dtype),)
+
+    def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
+        alpha = self.float_attribute(node, "alpha", 1.702)
+
+        def quick_gelu(x: npt.NDArray[Any]) -> npt.NDArray[Any]:
+            return x / (1.0 + np.exp(-alpha * x))
+
+        if alpha == 1.702:
+            self.lower_native_unary_or_numpy(
+                ctx, node, ggml.ggml_gelu_quick, quick_gelu
+            )
+            return
+        self.lower_numpy_unary(ctx, node, quick_gelu)
+
+
+@onnx_operators.register
+class SiLUOperator(OnnxOperator):
+    def __init__(self):
+        super().__init__(
+            "SiLU",
+            OnnxOperator.EXECUTION_NATIVE_OR_NUMPY_RUNTIME,
+            OnnxOperator.CLASS_CONDITIONAL_NATIVE,
+            domains=("com.ggml",),
+        )
+        self.has_numpy_evaluator = True
+
+    def strategies(
+        self, tensor_types: Dict[str, TensorType], node: "NodeIR"
+    ) -> Tuple[Tuple[str, str, str], ...]:
+        if (
+            len(node.inputs) == 1
+            and self.tensor_type(tensor_types, node.inputs[0]).is_float32
+        ):
+            return self.native_strategy()
+        return self.numpy_runtime_strategy(
+            "SiLU requires float32 input to lower native"
+        )
+
+    def eval_numpy(
+        self, node: NodeProto, inputs: Tuple[npt.NDArray[Any], ...]
+    ) -> Tuple[npt.NDArray[Any], ...]:
+        if len(inputs) != 1:
+            raise ValueError(f'Operation "{node.op_type}" requires one input')
+        x = inputs[0]
+        return (np.asarray(x / (1.0 + np.exp(-x)), dtype=x.dtype),)
+
+    def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
+        self.lower_native_unary_or_numpy(
+            ctx, node, ggml.ggml_silu, lambda x: x / (1.0 + np.exp(-x))
+        )
+
+
+class GgmlGluOperator(OnnxOperator):
+    GGML_FUNC: ClassVar[
+        Callable[[ggml.ggml_context_p, ggml.ggml_tensor_p], ggml.ggml_tensor_p]
+    ]
+
+    def __init__(self, op_type: str):
+        super().__init__(
+            op_type,
+            OnnxOperator.EXECUTION_NATIVE_OR_NUMPY_RUNTIME,
+            OnnxOperator.CLASS_CONDITIONAL_NATIVE,
+            domains=("com.ggml",),
+        )
+        self.has_numpy_evaluator = True
+
+    @staticmethod
+    def gelu_erf(x: npt.NDArray[Any]) -> npt.NDArray[Any]:
+        erf = np.vectorize(math.erf)
+        return 0.5 * x * (1.0 + erf(x / np.sqrt(2.0)))
+
+    @staticmethod
+    def gelu_quick(x: npt.NDArray[Any]) -> npt.NDArray[Any]:
+        return x / (1.0 + np.exp(-1.702 * x))
+
+    def activation(self, gate: npt.NDArray[Any]) -> npt.NDArray[Any]:
+        if self.op_type == "ReGLU":
+            return np.maximum(gate, 0)
+        if self.op_type == "GeGLU":
+            return GeluOperator.numpy_gelu(gate, "tanh")
+        if self.op_type == "SwiGLU":
+            return gate / (1.0 + np.exp(-gate))
+        if self.op_type == "GeGLUErf":
+            return self.gelu_erf(gate)
+        if self.op_type == "GeGLUQuick":
+            return self.gelu_quick(gate)
+        raise ValueError(f'Unsupported GLU operator "{self.op_type}"')
+
+    def strategies(
+        self, tensor_types: Dict[str, TensorType], node: "NodeIR"
+    ) -> Tuple[Tuple[str, str, str], ...]:
+        if len(node.inputs) == 1:
+            input_type = self.tensor_type(tensor_types, node.inputs[0])
+            if (
+                input_type.is_float32
+                and input_type.shape is not None
+                and input_type.shape[-1] % 2 == 0
+            ):
+                return self.native_strategy()
+        return self.numpy_runtime_strategy(
+            f"{self.op_type} requires float32 input with even last dimension"
+        )
+
+    def eval_numpy(
+        self, node: NodeProto, inputs: Tuple[npt.NDArray[Any], ...]
+    ) -> Tuple[npt.NDArray[Any], ...]:
+        if len(inputs) != 1:
+            raise ValueError(f'Operation "{node.op_type}" requires one input')
+        x = inputs[0]
+        split = x.shape[-1] // 2
+        gate = x[..., :split]
+        values = x[..., split:]
+        return (np.asarray(values * self.activation(gate), dtype=x.dtype),)
+
+    def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
+        node_inputs = [ctx.ggml_tensors_dict[inp] for inp in node.input]
+        input_name = node.input[0]
+        input_shape = ctx.shapes[input_name]
+        input_dtype = np.dtype(ctx.get_tensor_dtype(input_name))
+        output_shape = (*input_shape[:-1], input_shape[-1] // 2)
+        if (
+            ctx.can_emit_native(node.output[0])
+            and ctx.can_run_native(node)
+            and input_dtype == np.dtype(np.float32)
+            and input_shape[-1] % 2 == 0
+        ):
+            result = self.GGML_FUNC(ctx.ggml_eval_context, node_inputs[0])
+            ctx.register_native_tensor(
+                node.output[0], result, output_shape, input_dtype
+            )
+            return
+        input_array = ctx.logical_tensor_eval_data(
+            input_name, node_inputs[0], input_shape
+        )
+        output = self.eval_numpy(node, (input_array,))[0]
+        ctx.set_numpy_runtime_output(node.output[0], output, output.dtype)
+
+
+@onnx_operators.register
+class ReGLUOperator(GgmlGluOperator):
+    GGML_FUNC = staticmethod(ggml.ggml_reglu)
+
+    def __init__(self):
+        super().__init__("ReGLU")
+
+
+@onnx_operators.register
+class GeGLUOperator(GgmlGluOperator):
+    GGML_FUNC = staticmethod(ggml.ggml_geglu)
+
+    def __init__(self):
+        super().__init__("GeGLU")
+
+
+@onnx_operators.register
+class SwiGLUOperator(GgmlGluOperator):
+    GGML_FUNC = staticmethod(ggml.ggml_swiglu)
+
+    def __init__(self):
+        super().__init__("SwiGLU")
+
+
+@onnx_operators.register
+class GeGLUErfOperator(GgmlGluOperator):
+    GGML_FUNC = staticmethod(ggml.ggml_geglu_erf)
+
+    def __init__(self):
+        super().__init__("GeGLUErf")
+
+
+@onnx_operators.register
+class GeGLUQuickOperator(GgmlGluOperator):
+    GGML_FUNC = staticmethod(ggml.ggml_geglu_quick)
+
+    def __init__(self):
+        super().__init__("GeGLUQuick")
+
+
+@onnx_operators.register
+class SwiGLUOAIOperator(OnnxOperator):
+    def __init__(self):
+        super().__init__(
+            "SwiGLUOAI",
+            execution=OnnxOperator.EXECUTION_NATIVE,
+            domains=("com.ggml",),
+        )
+
+    def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
+        node_inputs = [ctx.ggml_tensors_dict[inp] for inp in node.input]
+        alpha = self.float_attribute(node, "alpha", 1.702)
+        limit = self.float_attribute(node, "limit", 7.0)
+        result = ggml.ggml_swiglu_oai(
+            ctx.ggml_eval_context, node_inputs[0], node_inputs[1], alpha, limit
+        )
+        output_shape = ctx.shapes.get(node.output[0], ctx.get_tensor_shape(result))
+        ctx.register_native_tensor(
+            node.output[0], result, output_shape, ctx.get_tensor_dtype(node.input[0])
+        )
+
+
+@onnx_operators.register
+class GgmlRollOperator(OnnxOperator):
+    def __init__(self):
+        super().__init__(
+            "Roll", execution=OnnxOperator.EXECUTION_NATIVE, domains=("com.ggml",)
+        )
+
+    def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
+        node_inputs = [ctx.ggml_tensors_dict[inp] for inp in node.input]
+        input_shape = ctx.shapes[node.input[0]]
+        shifts = list(self.ints_attribute(node, "shifts") or ())
+        while len(shifts) < 4:
+            shifts.append(0)
+        storage_shifts = tuple(reversed(shifts[: len(input_shape)]))
+        storage_shifts = storage_shifts + (0,) * (4 - len(storage_shifts))
+        result = ggml.ggml_roll(ctx.ggml_eval_context, node_inputs[0], *storage_shifts)
+        ctx.register_native_tensor(
+            node.output[0], result, input_shape, ctx.get_tensor_dtype(node.input[0])
+        )
+
+
+@onnx_operators.register
+class GgmlFillOperator(OnnxOperator):
+    def __init__(self):
+        super().__init__(
+            "Fill", execution=OnnxOperator.EXECUTION_NATIVE, domains=("com.ggml",)
+        )
+
+    def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
+        node_inputs = [ctx.ggml_tensors_dict[inp] for inp in node.input]
+        value = self.float_attribute(node, "value", 0.0)
+        result = ggml.ggml_fill(ctx.ggml_eval_context, node_inputs[0], value)
+        ctx.register_native_tensor(
+            node.output[0],
+            result,
+            ctx.shapes[node.input[0]],
+            ctx.get_tensor_dtype(node.input[0]),
+        )
+
+
+@onnx_operators.register
+class GgmlArgSortOperator(OnnxOperator):
+    def __init__(self):
+        super().__init__(
+            "ArgSort", execution=OnnxOperator.EXECUTION_NATIVE, domains=("com.ggml",)
+        )
+
+    def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
+        node_inputs = [ctx.ggml_tensors_dict[inp] for inp in node.input]
+        descending = bool(self.int_attribute(node, "descending", 0))
+        order = ggml.GGML_SORT_ORDER_DESC if descending else ggml.GGML_SORT_ORDER_ASC
+        result = ggml.ggml_argsort(ctx.ggml_eval_context, node_inputs[0], order)
+        ctx.register_native_tensor(
+            node.output[0], result, ctx.shapes[node.input[0]], np.dtype(np.int32)
+        )
+
+
+@onnx_operators.register
+class GgmlRopeOperator(OnnxOperator):
+    def __init__(self):
+        super().__init__(
+            "Rope", execution=OnnxOperator.EXECUTION_NATIVE, domains=("com.ggml",)
+        )
+
+    def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
+        node_inputs = [ctx.ggml_tensors_dict[inp] for inp in node.input]
+        n_dims = self.int_attribute(node, "n_dims", ctx.shapes[node.input[0]][-1])
+        mode = self.int_attribute(node, "mode", ggml.GGML_ROPE_TYPE_NORMAL)
+        result = ggml.ggml_rope(
+            ctx.ggml_eval_context, node_inputs[0], node_inputs[1], n_dims, mode
+        )
+        ctx.register_native_tensor(
+            node.output[0],
+            result,
+            ctx.shapes[node.input[0]],
+            ctx.get_tensor_dtype(node.input[0]),
+        )
+
+
+@onnx_operators.register
+class GgmlFlashAttentionOperator(OnnxOperator):
+    def __init__(self):
+        super().__init__(
+            "FlashAttention",
+            execution=OnnxOperator.EXECUTION_NATIVE,
+            domains=("com.ggml",),
+        )
+
+    def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
+        node_inputs = [ctx.ggml_tensors_dict[inp] for inp in node.input if inp]
+        if len(node_inputs) not in {3, 4}:
+            raise ValueError(
+                "com.ggml.FlashAttention requires Q, K, V, and optional mask"
+            )
+        q_shape = ctx.shapes[node.input[0]]
+        scale = self.float_attribute(node, "scale", 1.0 / math.sqrt(q_shape[-1]))
+        max_bias = self.float_attribute(node, "max_bias", 0.0)
+        logit_softcap = self.float_attribute(node, "logit_softcap", 0.0)
+        mask = node_inputs[3] if len(node_inputs) == 4 else None
+        result = ggml.ggml_flash_attn_ext(
+            ctx.ggml_eval_context,
+            node_inputs[0],
+            node_inputs[1],
+            node_inputs[2],
+            mask,
+            scale,
+            max_bias,
+            logit_softcap,
+        )
+        if len(q_shape) == 4:
+            result = ggml.ggml_permute(ctx.ggml_eval_context, result, 0, 2, 1, 3)
+        ctx.register_native_tensor(
+            node.output[0], result, q_shape, ctx.get_tensor_dtype(node.input[0])
+        )
+
+
+@onnx_operators.register
+class GgmlTimestepEmbeddingOperator(OnnxOperator):
+    def __init__(self):
+        super().__init__(
+            "TimestepEmbedding",
+            execution=OnnxOperator.EXECUTION_NATIVE,
+            domains=("com.ggml",),
+        )
+
+    def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
+        node_inputs = [ctx.ggml_tensors_dict[inp] for inp in node.input]
+        dim = self.int_attribute(node, "dim", 0)
+        max_period = self.int_attribute(node, "max_period", 10000)
+        result = ggml.ggml_timestep_embedding(
+            ctx.ggml_eval_context, node_inputs[0], dim, max_period
+        )
+        output_shape = ctx.shapes.get(node.output[0], ctx.get_tensor_shape(result))
+        ctx.register_native_tensor(
+            node.output[0], result, output_shape, np.dtype(np.float32)
+        )
+
+
+@onnx_operators.register
+class GgmlWindowPartitionOperator(OnnxOperator):
+    def __init__(self):
+        super().__init__(
+            "WindowPartition",
+            execution=OnnxOperator.EXECUTION_NATIVE,
+            domains=("com.ggml",),
+        )
+
+    def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
+        node_inputs = [ctx.ggml_tensors_dict[inp] for inp in node.input]
+        window = self.int_attribute(node, "window", 1)
+        result = ggml.ggml_win_part(ctx.ggml_eval_context, node_inputs[0], window)
+        output_shape = ctx.shapes.get(node.output[0], ctx.get_tensor_shape(result))
+        ctx.register_native_tensor(
+            node.output[0], result, output_shape, ctx.get_tensor_dtype(node.input[0])
+        )
+
+
+@onnx_operators.register
+class GgmlWindowUnpartitionOperator(OnnxOperator):
+    def __init__(self):
+        super().__init__(
+            "WindowUnpartition",
+            execution=OnnxOperator.EXECUTION_NATIVE,
+            domains=("com.ggml",),
+        )
+
+    def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
+        node_inputs = [ctx.ggml_tensors_dict[inp] for inp in node.input]
+        width = self.int_attribute(node, "width", 1)
+        height = self.int_attribute(node, "height", 1)
+        window = self.int_attribute(node, "window", 1)
+        result = ggml.ggml_win_unpart(
+            ctx.ggml_eval_context, node_inputs[0], width, height, window
+        )
+        output_shape = ctx.shapes.get(node.output[0], ctx.get_tensor_shape(result))
+        ctx.register_native_tensor(
+            node.output[0], result, output_shape, ctx.get_tensor_dtype(node.input[0])
+        )
+
+
+@onnx_operators.register
+class GgmlGetRelPosOperator(OnnxOperator):
+    def __init__(self):
+        super().__init__(
+            "GetRelPos",
+            execution=OnnxOperator.EXECUTION_NATIVE,
+            domains=("com.ggml",),
+        )
+
+    def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
+        node_inputs = [ctx.ggml_tensors_dict[inp] for inp in node.input]
+        qh = self.int_attribute(node, "qh", 1)
+        kh = self.int_attribute(node, "kh", 1)
+        result = ggml.ggml_get_rel_pos(ctx.ggml_eval_context, node_inputs[0], qh, kh)
+        output_shape = ctx.shapes.get(node.output[0], ctx.get_tensor_shape(result))
+        ctx.register_native_tensor(
+            node.output[0], result, output_shape, ctx.get_tensor_dtype(node.input[0])
+        )
+
+
+@onnx_operators.register
+class GgmlAddRelPosOperator(OnnxOperator):
+    def __init__(self):
+        super().__init__(
+            "AddRelPos",
+            execution=OnnxOperator.EXECUTION_NATIVE,
+            domains=("com.ggml",),
+        )
+
+    def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
+        node_inputs = [ctx.ggml_tensors_dict[inp] for inp in node.input]
+        result = ggml.ggml_add_rel_pos(
+            ctx.ggml_eval_context, node_inputs[0], node_inputs[1], node_inputs[2]
+        )
+        output_shape = ctx.shapes.get(node.output[0], ctx.get_tensor_shape(result))
+        ctx.register_native_tensor(
+            node.output[0], result, output_shape, ctx.get_tensor_dtype(node.input[0])
+        )
+
+
+@onnx_operators.register
+class GgmlSSMConvOperator(OnnxOperator):
+    def __init__(self):
+        super().__init__(
+            "SSMConv", execution=OnnxOperator.EXECUTION_NATIVE, domains=("com.ggml",)
+        )
+
+    def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
+        node_inputs = [ctx.ggml_tensors_dict[inp] for inp in node.input]
+        result = ggml.ggml_ssm_conv(
+            ctx.ggml_eval_context, node_inputs[0], node_inputs[1]
+        )
+        output_shape = ctx.shapes.get(node.output[0], ctx.get_tensor_shape(result))
+        ctx.register_native_tensor(
+            node.output[0], result, output_shape, ctx.get_tensor_dtype(node.input[0])
+        )
+
+
+@onnx_operators.register
+class GgmlSSMScanOperator(OnnxOperator):
+    def __init__(self):
+        super().__init__(
+            "SSMScan", execution=OnnxOperator.EXECUTION_NATIVE, domains=("com.ggml",)
+        )
+
+    def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
+        node_inputs = [ctx.ggml_tensors_dict[inp] for inp in node.input]
+        result = ggml.ggml_ssm_scan(ctx.ggml_eval_context, *node_inputs)
+        output_shape = ctx.shapes.get(node.output[0], ctx.get_tensor_shape(result))
+        ctx.register_native_tensor(
+            node.output[0], result, output_shape, ctx.get_tensor_dtype(node.input[0])
+        )
+
+
+@onnx_operators.register
+class GgmlGatedLinearAttentionOperator(OnnxOperator):
+    def __init__(self):
+        super().__init__(
+            "GatedLinearAttention",
+            execution=OnnxOperator.EXECUTION_NATIVE,
+            domains=("com.ggml",),
+        )
+
+    def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
+        node_inputs = [ctx.ggml_tensors_dict[inp] for inp in node.input]
+        scale = self.float_attribute(node, "scale", 1.0)
+        result = ggml.ggml_gated_linear_attn(
+            ctx.ggml_eval_context,
+            node_inputs[0],
+            node_inputs[1],
+            node_inputs[2],
+            node_inputs[3],
+            node_inputs[4],
+            scale,
+        )
+        output_shape = ctx.shapes.get(node.output[0], ctx.get_tensor_shape(result))
+        ctx.register_native_tensor(
+            node.output[0], result, output_shape, ctx.get_tensor_dtype(node.input[0])
+        )
+
+
+@onnx_operators.register
+class GgmlGatedDeltaNetOperator(OnnxOperator):
+    def __init__(self):
+        super().__init__(
+            "GatedDeltaNet",
+            execution=OnnxOperator.EXECUTION_NATIVE,
+            domains=("com.ggml",),
+        )
+
+    def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
+        node_inputs = [ctx.ggml_tensors_dict[inp] for inp in node.input]
+        result = ggml.ggml_gated_delta_net(ctx.ggml_eval_context, *node_inputs)
+        output_shape = ctx.shapes.get(node.output[0], ctx.get_tensor_shape(result))
+        ctx.register_native_tensor(
+            node.output[0], result, output_shape, ctx.get_tensor_dtype(node.input[0])
+        )
+
+
+@onnx_operators.register
+class GgmlRWKVWKV6Operator(OnnxOperator):
+    def __init__(self):
+        super().__init__(
+            "RWKVWKV6", execution=OnnxOperator.EXECUTION_NATIVE, domains=("com.ggml",)
+        )
+
+    def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
+        node_inputs = [ctx.ggml_tensors_dict[inp] for inp in node.input]
+        result = ggml.ggml_rwkv_wkv6(ctx.ggml_eval_context, *node_inputs)
+        output_shape = ctx.shapes.get(node.output[0], ctx.get_tensor_shape(result))
+        ctx.register_native_tensor(
+            node.output[0], result, output_shape, ctx.get_tensor_dtype(node.input[0])
+        )
+
+
+@onnx_operators.register
+class GgmlRWKVWKV7Operator(OnnxOperator):
+    def __init__(self):
+        super().__init__(
+            "RWKVWKV7", execution=OnnxOperator.EXECUTION_NATIVE, domains=("com.ggml",)
+        )
+
+    def lower(self, ctx: "GgmlOnnxExecutionContext", node: NodeProto) -> None:
+        node_inputs = [ctx.ggml_tensors_dict[inp] for inp in node.input]
+        result = ggml.ggml_rwkv_wkv7(ctx.ggml_eval_context, *node_inputs)
+        output_shape = ctx.shapes.get(node.output[0], ctx.get_tensor_shape(result))
+        ctx.register_native_tensor(
+            node.output[0], result, output_shape, ctx.get_tensor_dtype(node.input[0])
+        )
 
 
 @onnx_operators.register
@@ -12017,11 +13403,11 @@ class TopKOperator(OnnxOperator):
             k = userdata_data.k
 
             if largest:
-                sorted_indices = np.argsort(x, axis=axis)[:, ::-1]
+                sorted_indices = np.argsort(-x, axis=axis, kind="stable")
             else:
-                sorted_indices = np.argsort(x, axis=axis)
+                sorted_indices = np.argsort(x, axis=axis, kind="stable")
 
-            topk_indices = sorted_indices[:, :k]
+            topk_indices = np.take(sorted_indices, np.arange(k), axis=axis)
 
             ctx.set_tensor_data(tensor_out, topk_indices)
 
@@ -12053,15 +13439,10 @@ class TopKOperator(OnnxOperator):
             userdata_data = userdata_data_ptr.contents
 
             axis = userdata_data.axis
-            sorted_flag = bool(userdata_data.sorted)
 
             topk_values = np.take_along_axis(x, topk_indices, axis=axis)
-            if sorted_flag:
-                topk_values_sorted = np.sort(topk_values, axis=axis)
-            else:
-                topk_values_sorted = topk_values
 
-            ctx.set_tensor_data(tensor_out, topk_values_sorted)
+            ctx.set_tensor_data(tensor_out, topk_values)
 
         values = ggml.ggml_map_custom3_inplace(
             ctx.ggml_eval_context,
@@ -12084,6 +13465,7 @@ class TopKOperator(OnnxOperator):
 
         ctx.refs.append(topk_userdata)
 
+        ctx.set_tensor_dtype(node.output[0], ctx.get_tensor_dtype(node.input[0]))
         ctx.set_tensor_dtype(node.output[1], np.dtype(np.int64))
 
 
@@ -13218,7 +14600,7 @@ class GgmlBackendRep(BackendRep):
                         node_index += len(island_nodes)
                         continue
 
-                operator_spec = onnx_operators.get(node.op_type)
+                operator_spec = onnx_operators.get(node.op_type, node.domain)
                 if operator_spec is None:
                     raise NotImplementedError(
                         f'Operator "{node.op_type}" not implemented'
@@ -13250,10 +14632,16 @@ class GgmlBackendRep(BackendRep):
 
 
 class GgmlRuntimeBackend(Backend):
-    ONNX_DTYPE_MAP: ClassVar[Dict[int, npt.DTypeLike]] = {
-        elem_type: np_dtype
-        for elem_type, np_dtype in onnx.mapping.TENSOR_TYPE_TO_NP_TYPE.items()  # type: ignore
-    }
+    try:
+        ONNX_DTYPE_MAP: ClassVar[Dict[int, npt.DTypeLike]] = {
+            elem_type: np_dtype
+            for elem_type, np_dtype in onnx.mapping.TENSOR_TYPE_TO_NP_TYPE.items()  # type: ignore
+        }
+    except AttributeError:
+        ONNX_DTYPE_MAP = {
+            elem_type: mapping.np_dtype
+            for elem_type, mapping in onnx._mapping.TENSOR_TYPE_MAP.items()  # type: ignore[attr-defined]
+        }
 
     @staticmethod
     def _value_info_shape(value_info: ValueInfoProto) -> Tuple[Any, ...]:
@@ -13345,6 +14733,57 @@ class GgmlRuntimeBackend(Backend):
                 continue
             folded_initializers.append(tensor)
             initializer_names.add(tensor.name)
+
+        if not folded_initializers:
+            return model
+
+        folded_model = ModelProto()
+        folded_model.CopyFrom(model)
+        del folded_model.graph.node[:]
+        folded_model.graph.node.extend(remaining_nodes)
+        folded_model.graph.initializer.extend(folded_initializers)
+        return folded_model
+
+    @classmethod
+    def fold_static_cast_nodes(cls, model: ModelProto) -> ModelProto:
+        graph = model.graph
+        initializer_by_name = {
+            initializer.name: initializer for initializer in graph.initializer
+        }
+        initializer_names = set(initializer_by_name)
+        folded_initializers: List[TensorProto] = []
+        remaining_nodes: List[NodeProto] = []
+
+        for node in graph.node:
+            if (
+                node.op_type != "Cast"
+                or node.domain
+                or len(node.input) != 1
+                or len(node.output) != 1
+                or node.input[0] not in initializer_by_name
+                or node.output[0] in initializer_names
+            ):
+                remaining_nodes.append(node)
+                continue
+
+            to_attr = next((attr for attr in node.attribute if attr.name == "to"), None)
+            if to_attr is None:
+                remaining_nodes.append(node)
+                continue
+
+            try:
+                target_dtype = np.dtype(tensor_dtype_to_np_dtype(to_attr.i))
+                casted = onnx.numpy_helper.to_array(
+                    initializer_by_name[node.input[0]]
+                ).astype(target_dtype)
+                tensor = onnx.numpy_helper.from_array(casted, name=node.output[0])
+            except (TypeError, ValueError):
+                remaining_nodes.append(node)
+                continue
+
+            folded_initializers.append(tensor)
+            initializer_by_name[node.output[0]] = tensor
+            initializer_names.add(node.output[0])
 
         if not folded_initializers:
             return model
@@ -13491,6 +14930,11 @@ class GgmlRuntimeBackend(Backend):
             applied_passes.append("fold_constant_nodes")
 
         before = model
+        model = cls.fold_static_cast_nodes(model)
+        if model is not before:
+            applied_passes.append("fold_static_cast_nodes")
+
+        before = model
         model = cls.fold_static_shape_nodes(model)
         if model is not before:
             applied_passes.append("fold_static_shape_nodes")
@@ -13535,6 +14979,7 @@ class GgmlRuntimeBackend(Backend):
                 index=index,
                 name=node.name,
                 op_type=node.op_type,
+                domain=node.domain,
                 inputs=tuple(node.input),
                 outputs=tuple(node.output),
                 attributes=tuple(attr.name for attr in node.attribute),
@@ -13601,7 +15046,7 @@ class GgmlRuntimeBackend(Backend):
         adjusted_nodes = []
         changed = False
         for node in nodes:
-            spec = onnx_operators.get(node.op_type)
+            spec = onnx_operators.get(node.op_type, node.domain)
             if (
                 spec is not None
                 and spec.is_layout_view
@@ -13643,7 +15088,7 @@ class GgmlRuntimeBackend(Backend):
             operator_class = node.operator_class
             allowed = node.allowed
             reason = node.reason
-            spec = onnx_operators.get(node.op_type)
+            spec = onnx_operators.get(node.op_type, node.domain)
             if (
                 spec is not None
                 and spec.execution == OnnxOperator.EXECUTION_NATIVE_OR_NUMPY_RUNTIME
@@ -13771,7 +15216,7 @@ class GgmlRuntimeBackend(Backend):
             if name
         }
         for node in model_ir.nodes:
-            operator = onnx_operators.get(node.op_type)
+            operator = onnx_operators.get(node.op_type, node.domain)
             if operator is None:
                 execution = OnnxOperator.EXECUTION_UNSUPPORTED
                 operator_class = OnnxOperator.CLASS_UNSUPPORTED
@@ -13805,6 +15250,7 @@ class GgmlRuntimeBackend(Backend):
                     index=node.index,
                     name=node.name,
                     op_type=node.op_type,
+                    domain=node.domain,
                     execution=execution,
                     operator_class=operator_class,
                     inputs=node.inputs,

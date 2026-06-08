@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- feat(contrib): map ggml forward ops in the ONNX backend
 - fix(ci): run CUDA auditwheel from the conda environment
 - fix(ci): install auditwheel in accelerator repair steps
 - fix(ci): repair accelerator wheel workflow dispatch publishing

@@ -92,6 +92,7 @@ NATIVE_GENERATOR_OP_TYPES = frozenset(
         "Expand",
         "Flatten",
         "Gather",
+        "Gelu",
         "GlobalAveragePool",
         "GlobalMaxPool",
         "HardSigmoid",
@@ -99,6 +100,7 @@ NATIVE_GENERATOR_OP_TYPES = frozenset(
         "Identity",
         "LeakyRelu",
         "Log",
+        "LpNormalization",
         "MatMul",
         "MaxPool",
         "Mean",
@@ -112,6 +114,7 @@ NATIVE_GENERATOR_OP_TYPES = frozenset(
         "ReduceSumSquare",
         "Relu",
         "Reshape",
+        "RMSNormalization",
         "Sigmoid",
         "Sign",
         "Slice",
@@ -132,6 +135,7 @@ UNARY_OP_TYPES = frozenset(
     {
         "Abs",
         "Elu",
+        "Gelu",
         "Identity",
         "LeakyRelu",
         "Log",
@@ -167,6 +171,22 @@ SPLIT_INPUT_SHAPES = tuple(
     for shape in GRAPH_SHAPES
     if len(shape) <= 4 and any(dim >= 2 for dim in shape)
 )
+MIN_ONNX_OPSET_BY_OP_TYPE = {
+    "Gelu": 20,
+    "LpNormalization": 22,
+    "RMSNormalization": 23,
+}
+
+
+def minimum_opset_version(op_types: typing.Iterable[str]) -> int:
+    return max(
+        [18]
+        + [
+            MIN_ONNX_OPSET_BY_OP_TYPE[op_type]
+            for op_type in op_types
+            if op_type in MIN_ONNX_OPSET_BY_OP_TYPE
+        ]
+    )
 
 
 @dataclass(frozen=True)
@@ -543,6 +563,7 @@ def output_domain(op: GeneratedOpSpec, input_spec: TensorSpec) -> ValueDomain:
         "Abs",
         "Clip",
         "HardSigmoid",
+        "LpNormalization",
         "Pow",
         "ReduceL1",
         "ReduceL2",
@@ -582,6 +603,7 @@ def op_case_output_domain(
         "Abs",
         "Clip",
         "HardSigmoid",
+        "LpNormalization",
         "Pow",
         "ReduceL1",
         "ReduceL2",
@@ -653,8 +675,13 @@ def build_graph_ir(
     ops: typing.Sequence[GeneratedOpSpec],
     fallback_start: typing.Optional[int],
     input_domain: ValueDomain = ValueDomain.ANY_FLOAT,
-    opset_version: int = 18,
+    opset_version: typing.Optional[int] = None,
 ) -> TestGraphIR:
+    resolved_opset_version = (
+        minimum_opset_version(op.op_type for op in ops)
+        if opset_version is None
+        else opset_version
+    )
     input_spec = TensorSpec(
         "X",
         input_shape,
@@ -681,7 +708,7 @@ def build_graph_ir(
         outputs=(current_spec,),
         input_values={"X": np.asarray(input_array, dtype=np.float32)},
         fallback_start=fallback_start,
-        opset_version=opset_version,
+        opset_version=resolved_opset_version,
     )
 
 
@@ -693,9 +720,14 @@ def build_direct_graph_case(
     input_values: typing.Dict[str, npt.NDArray[typing.Any]],
     fallback_start: typing.Optional[int],
     branch_count: int = 0,
-    opset_version: int = 18,
+    opset_version: typing.Optional[int] = None,
     expected_fallback_indices: typing.Sequence[int] = (),
 ) -> GeneratedGraphCase:
+    resolved_opset_version = (
+        minimum_opset_version(op.op_type for op in ops)
+        if opset_version is None
+        else opset_version
+    )
     ir = TestGraphIR(
         name=description,
         inputs=tuple(inputs),
@@ -703,7 +735,7 @@ def build_direct_graph_case(
         outputs=tuple(outputs),
         input_values=input_values,
         fallback_start=fallback_start,
-        opset_version=opset_version,
+        opset_version=resolved_opset_version,
     )
     model = to_onnx_model(ir)
     return GeneratedGraphCase(
@@ -758,7 +790,7 @@ def build_model_case(
     ops: typing.Sequence[GeneratedOpSpec],
     fallback_start: typing.Optional[int],
     input_domain: ValueDomain = ValueDomain.ANY_FLOAT,
-    opset_version: int = 18,
+    opset_version: typing.Optional[int] = None,
     expected_fallback_indices: typing.Sequence[int] = (),
 ) -> GeneratedGraphCase:
     ir = build_graph_ir(
@@ -798,6 +830,8 @@ def op_input_shapes(op_type: str) -> typing.Tuple[typing.Tuple[int, ...], ...]:
         return tuple(shape for shape in GRAPH_SHAPES if len(shape) <= 4)
     if op_type in {"GlobalAveragePool", "GlobalMaxPool"}:
         return ((1, 1, 3, 3), (1, 2, 4, 4), (2, 1, 5, 4))
+    if op_type in {"LpNormalization", "RMSNormalization"}:
+        return tuple(shape for shape in GRAPH_SHAPES if len(shape) <= 4)
     if op_type == "MatMul":
         return ((1, 1), (1, 3), (2, 1), (2, 3), (3, 2))
     if op_type in NATIVE_REDUCE_ALL_OP_TYPES:
@@ -846,6 +880,8 @@ def canonical_input_shape(op_type: str) -> typing.Tuple[int, ...]:
         return (2, 3)
     if op_type in NATIVE_REDUCE_ALL_OP_TYPES:
         return (2, 3)
+    if op_type in {"LpNormalization", "RMSNormalization"}:
+        return (2, 3)
     if op_type == "Flatten":
         return (2, 3, 4)
     if op_type == "Reshape":
@@ -869,8 +905,23 @@ def canonical_generated_op(
         return GeneratedOpSpec(op_type, shape, {"alpha": 1.0 / 6.0, "beta": 0.5})
     if op_type == "HardSwish":
         return GeneratedOpSpec(op_type, shape, {})
+    if op_type == "RMSNormalization":
+        scale = np.linspace(0.5, 1.5, shape[-1], dtype=np.float32)
+        return GeneratedOpSpec(
+            op_type,
+            shape,
+            {"axis": len(shape) - 1},
+            (make_float_initializer("scale", scale),),
+        )
+    if op_type == "LpNormalization":
+        return GeneratedOpSpec(op_type, shape, {"axis": -1, "p": 2})
     if op_type in UNARY_OP_TYPES:
-        attrs = {"alpha": 0.01} if op_type == "LeakyRelu" else {}
+        if op_type == "LeakyRelu":
+            attrs = {"alpha": 0.01}
+        elif op_type == "Gelu":
+            attrs = {"approximate": "none"}
+        else:
+            attrs = {}
         return GeneratedOpSpec(op_type, shape, attrs)
     if op_type in {"ArgMax", "ArgMin"}:
         return GeneratedOpSpec(
@@ -1113,8 +1164,25 @@ def generated_op_strategy(
     if op_type == "HardSwish":
         return GeneratedOpSpec(op_type, shape, {})
 
+    if op_type == "RMSNormalization":
+        scale = draw(float_array_strategy((shape[-1],), POSITIVE_FLOAT32_VALUES))
+        return GeneratedOpSpec(
+            op_type,
+            shape,
+            {"axis": len(shape) - 1},
+            (make_float_initializer("scale", scale),),
+        )
+
+    if op_type == "LpNormalization":
+        return GeneratedOpSpec(op_type, shape, {"axis": -1, "p": 2})
+
     if op_type in UNARY_OP_TYPES:
-        attrs = {"alpha": 0.01} if op_type == "LeakyRelu" else {}
+        if op_type == "LeakyRelu":
+            attrs = {"alpha": 0.01}
+        elif op_type == "Gelu":
+            attrs = {"approximate": "none"}
+        else:
+            attrs = {}
         return GeneratedOpSpec(op_type, shape, attrs)
 
     if op_type in {"ArgMax", "ArgMin"}:
@@ -1979,6 +2047,8 @@ def available_native_ops_for_spec(
     ops.add("Clip")
     if shape:
         ops.update(NATIVE_REDUCE_ALL_OP_TYPES)
+        ops.add("LpNormalization")
+        ops.add("RMSNormalization")
         ops.add("Softmax")
     if shape and len(shape) <= 4:
         ops.add("Concat")
