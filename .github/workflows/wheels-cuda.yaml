@@ -252,6 +252,7 @@ jobs:
           set -euxo pipefail
           mkdir -p wheelhouse
           export LD_LIBRARY_PATH="${CUDA_LIBRARY_PATHS}:${LD_LIBRARY_PATH:-}"
+          python -m pip install auditwheel
           python -m auditwheel repair \
             --exclude libcuda.so \
             --exclude libcuda.so.1 \
