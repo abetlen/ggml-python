@@ -7408,20 +7408,48 @@ class GroupNormalizationOperator(OnnxOperator):
             raise ValueError(
                 f'Error for node "{node.name}": channel dimension must be divisible by num_groups.'
             )
-
         group_size = x_shape[1] // num_groups
         grouped_shape = (x_shape[0], num_groups, group_size, *x_shape[2:])
         x_grouped = x.reshape(grouped_shape)
         axes = tuple(range(2, len(grouped_shape)))
         mean = np.mean(x_grouped, axis=axes, keepdims=True)
         variance = np.var(x_grouped, axis=axes, keepdims=True)
-        broadcast_shape = (1, num_groups, group_size, *((1,) * len(x_shape[2:])))
-        output = (
-            scale.reshape(broadcast_shape)
-            * (x_grouped - mean)
-            / np.sqrt(variance + epsilon)
-            + bias.reshape(broadcast_shape)
-        ).reshape(x_shape)
+        normalized_grouped = (x_grouped - mean) / np.sqrt(variance + epsilon)
+        opset_version = ctx.get_opset_version(node.domain)
+        if opset_version is None:
+            if scale.size == x_shape[1] and bias.size == x_shape[1]:
+                scale_mode = "channel"
+            elif scale.size == num_groups and bias.size == num_groups:
+                scale_mode = "group"
+            else:
+                raise ValueError(
+                    f'Error for node "{node.name}": scale and bias must have one value per channel or one value per group.'
+                )
+        elif opset_version >= 21:
+            if scale.size != x_shape[1] or bias.size != x_shape[1]:
+                raise ValueError(
+                    f'Error for node "{node.name}": scale and bias must have one value per channel.'
+                )
+            scale_mode = "channel"
+        else:
+            if scale.size != num_groups or bias.size != num_groups:
+                raise ValueError(
+                    f'Error for node "{node.name}": scale and bias must have one value per group.'
+                )
+            scale_mode = "group"
+
+        if scale_mode == "channel":
+            normalized = normalized_grouped.reshape(x_shape)
+            broadcast_shape = (1, x_shape[1], *((1,) * len(x_shape[2:])))
+            output = scale.reshape(broadcast_shape) * normalized + bias.reshape(
+                broadcast_shape
+            )
+        else:
+            broadcast_shape = (1, num_groups, *((1,) * (len(grouped_shape) - 2)))
+            output = (
+                scale.reshape(broadcast_shape) * normalized_grouped
+                + bias.reshape(broadcast_shape)
+            ).reshape(x_shape)
         output = output.astype(get_tensor_dtype(node_inputs[0]))
 
         new_tensor = ctx.ggml_tensors_dict[node.output[0]] = ctx.from_numpy(output)
@@ -13799,6 +13827,7 @@ class GgmlOnnxExecutionContext:
         dtypes: Optional[Dict[str, npt.DTypeLike]] = None,
         native_outputs: Optional[Set[str]] = None,
         execution_by_output: Optional[Dict[str, str]] = None,
+        opset_imports: Optional[Dict[str, int]] = None,
     ):
         self.backend = backend
         self.ggml_tensors_dict = ggml_tensors_dict
@@ -13813,6 +13842,7 @@ class GgmlOnnxExecutionContext:
         self.shapes = shapes
         self.native_outputs: Set[str] = set(native_outputs or ())
         self.execution_by_output: Dict[str, str] = dict(execution_by_output or {})
+        self.opset_imports: Dict[str, int] = dict(opset_imports or {})
         self.tensor_states: Dict[str, TensorState] = {}
         self.backend_buffers: List[Any] = []
         for name, tensor in self.ggml_tensors_dict.items():
@@ -13827,6 +13857,9 @@ class GgmlOnnxExecutionContext:
                         name, OnnxOperator.EXECUTION_NATIVE
                     ),
                 )
+
+    def get_opset_version(self, domain: str = "") -> Optional[int]:
+        return self.opset_imports.get(domain)
 
     @staticmethod
     def storage_dtype_for_logical_dtype(dtype: npt.DTypeLike) -> npt.DTypeLike:
@@ -14346,6 +14379,7 @@ class GgmlBackendRep(BackendRep):
         ggml_weights_buffer: Any,
         execution_plan: ExecutionPlan,
         ir_pipeline: OnnxRuntimePipeline,
+        opset_imports: Dict[str, int],
     ):
         super(GgmlBackendRep, self).__init__()
         self.graph = graph
@@ -14360,6 +14394,7 @@ class GgmlBackendRep(BackendRep):
         self.ggml_weights_buffer = ggml_weights_buffer
         self.execution_plan = execution_plan
         self.ir_pipeline = ir_pipeline
+        self.opset_imports = opset_imports
         self.last_numpy_fallback_island_executions: Tuple[FallbackIsland, ...] = ()
 
     @property
@@ -14566,6 +14601,7 @@ class GgmlBackendRep(BackendRep):
                     for output in plan_node.outputs
                     if output
                 },
+                self.opset_imports,
             )
             cleanup.callback(ctx.free_backend_buffers)
             for input_name in input_tensors:
@@ -15337,6 +15373,7 @@ class GgmlRuntimeBackend(Backend):
         ir_pipeline = cls.build_pipeline(model, fallback_policy=fallback_policy)
         model = ir_pipeline.optimized_model
         execution_plan = ir_pipeline.execution_plan
+        opset_imports = {opset.domain: opset.version for opset in model.opset_import}
         if (
             fallback_policy != ExecutionPlan.FALLBACK_COMPAT
             and not execution_plan.is_supported
@@ -15448,6 +15485,7 @@ class GgmlRuntimeBackend(Backend):
                 ggml_weights_buffer=ggml_weights_buffer,
                 execution_plan=execution_plan,
                 ir_pipeline=ir_pipeline,
+                opset_imports=opset_imports,
             )
             cleanup.pop_all()
             return rep

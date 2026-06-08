@@ -1252,9 +1252,10 @@ def test_ggml_onnx_fallback_island_dispatches_reduce_sum_operator_numpy_evaluato
         keepdims=1,
         noop_with_empty_axes=0,
     )
-    reduce_sum_node.attribute.append(
-        helper.make_attribute("axes", [], attr_type=onnx_pb.AttributeProto.INTS)
-    )
+    axes_attr = onnx_pb.AttributeProto()
+    axes_attr.name = "axes"
+    axes_attr.type = onnx_pb.AttributeProto.INTS
+    reduce_sum_node.attribute.append(axes_attr)
     graph = helper.make_graph(
         [
             helper.make_node("Celu", ["X"], ["C"], alpha=1.0),
@@ -2512,12 +2513,91 @@ def test_ggml_onnx_prepare_uses_folded_constant_model():
     np.testing.assert_array_equal(ggml_result[0], np.array([1, 2, 3], dtype=np.int64))
 
 
+@pytest.mark.parametrize(
+    "opset,scale,bias,scale_mode",
+    [
+        (
+            18,
+            np.asarray([0.5, 1.5], dtype=np.float32),
+            np.asarray([0.25, -0.5], dtype=np.float32),
+            "group",
+        ),
+        (
+            21,
+            np.asarray([0.5, 0.75, 1.25, 1.5], dtype=np.float32),
+            np.asarray([0.25, 0.5, -0.25, -0.5], dtype=np.float32),
+            "channel",
+        ),
+    ],
+)
+def test_ggml_onnx_group_normalization_uses_opset_scale_semantics(
+    opset: int,
+    scale: npt.NDArray[np.float32],
+    bias: npt.NDArray[np.float32],
+    scale_mode: str,
+):
+    x = np.arange(8, dtype=np.float32).reshape(1, 4, 2)
+    x_info = helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 4, 2])
+    y_info = helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 4, 2])
+    scale_tensor = onnx.numpy_helper.from_array(scale, name="scale")
+    bias_tensor = onnx.numpy_helper.from_array(bias, name="bias")
+    node = helper.make_node(
+        "GroupNormalization",
+        ["X", "scale", "bias"],
+        ["Y"],
+        num_groups=2,
+        epsilon=1e-5,
+    )
+    graph = helper.make_graph(
+        [node],
+        f"group_normalization_opset_{opset}",
+        [x_info],
+        [y_info],
+        [scale_tensor, bias_tensor],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name=f"group-normalization-opset-{opset}",
+        opset_imports=[helper.make_opsetid("", opset)],
+    )
+
+    grouped = x.reshape(1, 2, 2, 2)
+    mean = np.mean(grouped, axis=(2, 3), keepdims=True)
+    variance = np.var(grouped, axis=(2, 3), keepdims=True)
+    normalized_grouped = (grouped - mean) / np.sqrt(variance + 1e-5)
+    if scale_mode == "group":
+        expected = (
+            scale.reshape(1, 2, 1, 1) * normalized_grouped + bias.reshape(1, 2, 1, 1)
+        ).reshape(1, 4, 2)
+    else:
+        expected = normalized_grouped.reshape(1, 4, 2)
+        expected = scale.reshape(1, 4, 1) * expected + bias.reshape(1, 4, 1)
+
+    ggml_model = GgmlRuntimeBackend.prepare(model)
+    actual = ggml_model.run({"X": x})
+
+    np.testing.assert_allclose(actual[0], expected, rtol=1e-5, atol=1e-5)
+    assert [node.op_type for node in ggml_model.fallback_nodes] == [
+        "GroupNormalization"
+    ]
+
+
 def run_onnxruntime_model(
     model: onnx.ModelProto,
     inputs: typing.Dict[str, npt.NDArray[typing.Any]],
 ):
     model.ir_version = min(model.ir_version, 10)
     return InferenceSession(model.SerializeToString()).run(None, inputs)
+
+
+def run_onnx_operator_numpy_reference(
+    node: onnx.NodeProto,
+    inputs: typing.Sequence[npt.NDArray[typing.Any]],
+):
+    operator = onnx_operators.get(node.op_type, node.domain)
+    assert operator is not None
+    assert operator.has_numpy_evaluator
+    return operator.eval_numpy(node, tuple(inputs))
 
 
 @pytest.mark.parametrize(
@@ -2541,7 +2621,7 @@ def run_onnxruntime_model(
         ),
     ],
 )
-def test_ggml_onnx_standard_native_ggml_mappings_match_onnxruntime(
+def test_ggml_onnx_standard_native_ggml_mappings_match_numpy_reference(
     op_type: str,
     opset: int,
     attrs: typing.Dict[str, typing.Any],
@@ -2566,8 +2646,12 @@ def test_ggml_onnx_standard_native_ggml_mappings_match_onnxruntime(
     input_data = {
         "X": np.asarray([[-1.5, -0.5, 0.25], [0.75, 1.5, 2.25]], dtype=np.float32)
     }
+    reference_inputs = [
+        input_data["X"],
+        *(onnx.numpy_helper.to_array(initializer) for initializer in initializers),
+    ]
 
-    expected = run_onnxruntime_model(model, input_data)
+    expected = run_onnx_operator_numpy_reference(node, reference_inputs)
     ggml_model = GgmlRuntimeBackend.prepare(model, fallback_policy="strict")
     actual = ggml_model.run(input_data)
 
@@ -2579,7 +2663,7 @@ def test_ggml_onnx_standard_native_ggml_mappings_match_onnxruntime(
     )
 
 
-def test_ggml_onnx_attention_matches_onnxruntime_with_numpy_fallback():
+def test_ggml_onnx_attention_matches_numpy_reference_with_numpy_fallback():
     q_info = helper.make_tensor_value_info("Q", TensorProto.FLOAT, [1, 2, 4])
     k_info = helper.make_tensor_value_info("K", TensorProto.FLOAT, [1, 2, 4])
     v_info = helper.make_tensor_value_info("V", TensorProto.FLOAT, [1, 2, 4])
@@ -2600,7 +2684,9 @@ def test_ggml_onnx_attention_matches_onnxruntime_with_numpy_fallback():
     q = np.arange(8, dtype=np.float32).reshape(1, 2, 4) / 10.0
     inputs = {"Q": q, "K": q + 0.1, "V": q + 0.2}
 
-    expected = run_onnxruntime_model(model, inputs)
+    expected = run_onnx_operator_numpy_reference(
+        node, [inputs["Q"], inputs["K"], inputs["V"]]
+    )
     ggml_model = GgmlRuntimeBackend.prepare(model)
     actual = ggml_model.run(inputs)
 
@@ -2608,7 +2694,7 @@ def test_ggml_onnx_attention_matches_onnxruntime_with_numpy_fallback():
     assert [node.op_type for node in ggml_model.fallback_nodes] == ["Attention"]
 
 
-def test_ggml_onnx_rotary_embedding_matches_onnxruntime_with_numpy_fallback():
+def test_ggml_onnx_rotary_embedding_matches_numpy_reference_with_numpy_fallback():
     x_info = helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 2, 4])
     y_info = helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 2, 4])
     cos_values = np.asarray([[[0.8, 0.6], [0.5, 0.25]]], dtype=np.float32)
@@ -2631,7 +2717,9 @@ def test_ggml_onnx_rotary_embedding_matches_onnxruntime_with_numpy_fallback():
     )
     inputs = {"X": np.arange(8, dtype=np.float32).reshape(1, 2, 4)}
 
-    expected = run_onnxruntime_model(model, inputs)
+    expected = run_onnx_operator_numpy_reference(
+        node, [inputs["X"], cos_values, sin_values]
+    )
     ggml_model = GgmlRuntimeBackend.prepare(model)
     actual = ggml_model.run(inputs)
 
