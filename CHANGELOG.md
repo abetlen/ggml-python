@@ -7,9 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- fix(ci): run CUDA auditwheel from the conda environment
-- fix(ci): install auditwheel in accelerator repair steps
-- fix(ci): repair accelerator wheel workflow dispatch publishing
+- feat(contrib): map additional ggml forward ops to onnx backend by @abetlen in #146
+- fix(ci): run CUDA auditwheel from conda environment by @abetlen in #145
+- fix(ci): install auditwheel in accelerator repair steps by @abetlen in #144
+- fix(ci): repair accelerator wheel release dispatch by @abetlen in #143
 
 ## [0.0.41]
 

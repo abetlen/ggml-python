@@ -1,4 +1,5 @@
 import io
+import math
 import typing
 
 import numpy as np
@@ -1244,17 +1245,21 @@ def test_ggml_onnx_fallback_island_dispatches_reduce_sum_operator_numpy_evaluato
     model_input = helper.make_tensor_value_info("X", TensorProto.FLOAT, [2, 2])
     celu_output = helper.make_tensor_value_info("C", TensorProto.FLOAT, [2, 2])
     model_output = helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 1])
+    reduce_sum_node = helper.make_node(
+        "ReduceSum",
+        ["C"],
+        ["Y"],
+        keepdims=1,
+        noop_with_empty_axes=0,
+    )
+    axes_attr = onnx_pb.AttributeProto()
+    axes_attr.name = "axes"
+    axes_attr.type = onnx_pb.AttributeProto.INTS
+    reduce_sum_node.attribute.append(axes_attr)
     graph = helper.make_graph(
         [
             helper.make_node("Celu", ["X"], ["C"], alpha=1.0),
-            helper.make_node(
-                "ReduceSum",
-                ["C"],
-                ["Y"],
-                axes=[],
-                keepdims=1,
-                noop_with_empty_axes=0,
-            ),
+            reduce_sum_node,
         ],
         "fallback_island_reduce_sum_operator_numpy_dispatch",
         [model_input],
@@ -2406,6 +2411,23 @@ def test_ggml_onnx_build_ir_tracks_constant_node_metadata():
     assert not constant_info.initializer
 
 
+def test_ggml_onnx_build_ir_tracks_node_domain():
+    model_input = helper.make_tensor_value_info("X", TensorProto.FLOAT, [2, 3])
+    model_output = helper.make_tensor_value_info("Y", TensorProto.FLOAT, [2, 3])
+    node = helper.make_node("SiLU", ["X"], ["Y"], domain="com.ggml")
+    graph = helper.make_graph([node], "domain_ir", [model_input], [model_output])
+    model = helper.make_model(
+        graph,
+        producer_name="domain-ir",
+        opset_imports=[helper.make_opsetid("", 18), helper.make_opsetid("com.ggml", 1)],
+    )
+
+    model_ir = GgmlRuntimeBackend.build_ir(model)
+
+    assert model_ir.nodes[0].op_type == "SiLU"
+    assert model_ir.nodes[0].domain == "com.ggml"
+
+
 def test_ggml_onnx_build_pipeline_uses_optimized_typed_ir_and_plan():
     constant_node = helper.make_node("Constant", [], ["C"], value_ints=[1, 2, 3])
     identity_node = helper.make_node("Identity", ["C"], ["Y"])
@@ -2489,6 +2511,386 @@ def test_ggml_onnx_prepare_uses_folded_constant_model():
     assert len(ggml_model.graph.node) == 0
     assert ggml_model.execution_plan.nodes == ()
     np.testing.assert_array_equal(ggml_result[0], np.array([1, 2, 3], dtype=np.int64))
+
+
+@pytest.mark.parametrize(
+    "opset,scale,bias,scale_mode",
+    [
+        (
+            18,
+            np.asarray([0.5, 1.5], dtype=np.float32),
+            np.asarray([0.25, -0.5], dtype=np.float32),
+            "group",
+        ),
+        (
+            21,
+            np.asarray([0.5, 0.75, 1.25, 1.5], dtype=np.float32),
+            np.asarray([0.25, 0.5, -0.25, -0.5], dtype=np.float32),
+            "channel",
+        ),
+    ],
+)
+def test_ggml_onnx_group_normalization_uses_opset_scale_semantics(
+    opset: int,
+    scale: npt.NDArray[np.float32],
+    bias: npt.NDArray[np.float32],
+    scale_mode: str,
+):
+    x = np.arange(8, dtype=np.float32).reshape(1, 4, 2)
+    x_info = helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 4, 2])
+    y_info = helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 4, 2])
+    scale_tensor = onnx.numpy_helper.from_array(scale, name="scale")
+    bias_tensor = onnx.numpy_helper.from_array(bias, name="bias")
+    node = helper.make_node(
+        "GroupNormalization",
+        ["X", "scale", "bias"],
+        ["Y"],
+        num_groups=2,
+        epsilon=1e-5,
+    )
+    graph = helper.make_graph(
+        [node],
+        f"group_normalization_opset_{opset}",
+        [x_info],
+        [y_info],
+        [scale_tensor, bias_tensor],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name=f"group-normalization-opset-{opset}",
+        opset_imports=[helper.make_opsetid("", opset)],
+    )
+
+    grouped = x.reshape(1, 2, 2, 2)
+    mean = np.mean(grouped, axis=(2, 3), keepdims=True)
+    variance = np.var(grouped, axis=(2, 3), keepdims=True)
+    normalized_grouped = (grouped - mean) / np.sqrt(variance + 1e-5)
+    if scale_mode == "group":
+        expected = (
+            scale.reshape(1, 2, 1, 1) * normalized_grouped + bias.reshape(1, 2, 1, 1)
+        ).reshape(1, 4, 2)
+    else:
+        expected = normalized_grouped.reshape(1, 4, 2)
+        expected = scale.reshape(1, 4, 1) * expected + bias.reshape(1, 4, 1)
+
+    ggml_model = GgmlRuntimeBackend.prepare(model)
+    actual = ggml_model.run({"X": x})
+
+    np.testing.assert_allclose(actual[0], expected, rtol=1e-5, atol=1e-5)
+    assert [node.op_type for node in ggml_model.fallback_nodes] == [
+        "GroupNormalization"
+    ]
+
+
+def run_onnxruntime_model(
+    model: onnx.ModelProto,
+    inputs: typing.Dict[str, npt.NDArray[typing.Any]],
+):
+    model.ir_version = min(model.ir_version, 10)
+    return InferenceSession(model.SerializeToString()).run(None, inputs)
+
+
+def run_onnx_operator_numpy_reference(
+    node: onnx.NodeProto,
+    inputs: typing.Sequence[npt.NDArray[typing.Any]],
+):
+    operator = onnx_operators.get(node.op_type, node.domain)
+    assert operator is not None
+    assert operator.has_numpy_evaluator
+    return operator.eval_numpy(node, tuple(inputs))
+
+
+@pytest.mark.parametrize(
+    "op_type,opset,attrs,initializers",
+    [
+        ("Gelu", 20, {}, []),
+        ("Gelu", 20, {"approximate": "tanh"}, []),
+        ("LpNormalization", 22, {"axis": 1, "p": 2}, []),
+        (
+            "RMSNormalization",
+            23,
+            {"axis": 1},
+            [
+                helper.make_tensor(
+                    "scale",
+                    TensorProto.FLOAT,
+                    [3],
+                    np.asarray([0.5, 1.0, 1.5], dtype=np.float32),
+                )
+            ],
+        ),
+    ],
+)
+def test_ggml_onnx_standard_native_ggml_mappings_match_numpy_reference(
+    op_type: str,
+    opset: int,
+    attrs: typing.Dict[str, typing.Any],
+    initializers: typing.List[onnx.TensorProto],
+):
+    model_input = helper.make_tensor_value_info("X", TensorProto.FLOAT, [2, 3])
+    model_output = helper.make_tensor_value_info("Y", TensorProto.FLOAT, [2, 3])
+    inputs = ["X", *(initializer.name for initializer in initializers)]
+    node = helper.make_node(op_type, inputs, ["Y"], **attrs)
+    graph = helper.make_graph(
+        [node],
+        f"standard_native_{op_type.lower()}",
+        [model_input],
+        [model_output],
+        initializers,
+    )
+    model = helper.make_model(
+        graph,
+        producer_name=f"standard-native-{op_type.lower()}",
+        opset_imports=[helper.make_opsetid("", opset)],
+    )
+    input_data = {
+        "X": np.asarray([[-1.5, -0.5, 0.25], [0.75, 1.5, 2.25]], dtype=np.float32)
+    }
+    reference_inputs = [
+        input_data["X"],
+        *(onnx.numpy_helper.to_array(initializer) for initializer in initializers),
+    ]
+
+    expected = run_onnx_operator_numpy_reference(node, reference_inputs)
+    ggml_model = GgmlRuntimeBackend.prepare(model, fallback_policy="strict")
+    actual = ggml_model.run(input_data)
+
+    atol = 2e-4 if op_type == "Gelu" and attrs.get("approximate") == "tanh" else 1e-5
+    rtol = 2e-4 if op_type == "Gelu" and attrs.get("approximate") == "tanh" else 1e-5
+    np.testing.assert_allclose(actual[0], expected[0], rtol=rtol, atol=atol)
+    assert ggml_model.coverage_report.summary() == (
+        "100.0% native, 0.0% decomposed, 0.0% fallback, 0.0% unsupported"
+    )
+
+
+def test_ggml_onnx_attention_matches_numpy_reference_with_numpy_fallback():
+    q_info = helper.make_tensor_value_info("Q", TensorProto.FLOAT, [1, 2, 4])
+    k_info = helper.make_tensor_value_info("K", TensorProto.FLOAT, [1, 2, 4])
+    v_info = helper.make_tensor_value_info("V", TensorProto.FLOAT, [1, 2, 4])
+    y_info = helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 2, 4])
+    node = helper.make_node(
+        "Attention",
+        ["Q", "K", "V"],
+        ["Y"],
+        q_num_heads=2,
+        kv_num_heads=2,
+    )
+    graph = helper.make_graph([node], "attention", [q_info, k_info, v_info], [y_info])
+    model = helper.make_model(
+        graph,
+        producer_name="attention",
+        opset_imports=[helper.make_opsetid("", 24)],
+    )
+    q = np.arange(8, dtype=np.float32).reshape(1, 2, 4) / 10.0
+    inputs = {"Q": q, "K": q + 0.1, "V": q + 0.2}
+
+    expected = run_onnx_operator_numpy_reference(
+        node, [inputs["Q"], inputs["K"], inputs["V"]]
+    )
+    ggml_model = GgmlRuntimeBackend.prepare(model)
+    actual = ggml_model.run(inputs)
+
+    np.testing.assert_allclose(actual[0], expected[0], rtol=1e-5, atol=1e-5)
+    assert [node.op_type for node in ggml_model.fallback_nodes] == ["Attention"]
+
+
+def test_ggml_onnx_rotary_embedding_matches_numpy_reference_with_numpy_fallback():
+    x_info = helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 2, 4])
+    y_info = helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 2, 4])
+    cos_values = np.asarray([[[0.8, 0.6], [0.5, 0.25]]], dtype=np.float32)
+    sin_values = np.asarray([[[0.2, 0.4], [0.5, 0.75]]], dtype=np.float32)
+    cos = helper.make_tensor("cos", TensorProto.FLOAT, [1, 2, 2], cos_values.ravel())
+    sin = helper.make_tensor("sin", TensorProto.FLOAT, [1, 2, 2], sin_values.ravel())
+    node = helper.make_node(
+        "RotaryEmbedding",
+        ["X", "cos", "sin"],
+        ["Y"],
+        num_heads=1,
+    )
+    graph = helper.make_graph(
+        [node], "rotary_embedding", [x_info], [y_info], [cos, sin]
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="rotary-embedding",
+        opset_imports=[helper.make_opsetid("", 23)],
+    )
+    inputs = {"X": np.arange(8, dtype=np.float32).reshape(1, 2, 4)}
+
+    expected = run_onnx_operator_numpy_reference(
+        node, [inputs["X"], cos_values, sin_values]
+    )
+    ggml_model = GgmlRuntimeBackend.prepare(model)
+    actual = ggml_model.run(inputs)
+
+    np.testing.assert_allclose(actual[0], expected[0], rtol=1e-5, atol=1e-5)
+    assert [node.op_type for node in ggml_model.fallback_nodes] == ["RotaryEmbedding"]
+
+
+def make_ggml_extension_model(
+    op_type: str,
+    inputs: typing.Sequence[str],
+    outputs: typing.Sequence[str],
+    input_infos: typing.Sequence[onnx.ValueInfoProto],
+    output_infos: typing.Sequence[onnx.ValueInfoProto],
+    attrs: typing.Optional[typing.Dict[str, typing.Any]] = None,
+):
+    node = helper.make_node(
+        op_type,
+        list(inputs),
+        list(outputs),
+        domain="com.ggml",
+        **(attrs or {}),
+    )
+    graph = helper.make_graph(
+        [node], f"ggml_{op_type.lower()}", list(input_infos), list(output_infos)
+    )
+    model = helper.make_model(
+        graph,
+        producer_name=f"ggml-{op_type.lower()}",
+        opset_imports=[helper.make_opsetid("", 18), helper.make_opsetid("com.ggml", 1)],
+    )
+    return model
+
+
+@pytest.mark.parametrize("op_type", ["SiLU", "QuickGelu"])
+def test_ggml_onnx_unary_extension_ops_run_native(op_type: str):
+    x_info = helper.make_tensor_value_info("X", TensorProto.FLOAT, [2, 3])
+    y_info = helper.make_tensor_value_info("Y", TensorProto.FLOAT, [2, 3])
+    model = make_ggml_extension_model(op_type, ["X"], ["Y"], [x_info], [y_info])
+    x = np.linspace(-2.0, 2.0, 6, dtype=np.float32).reshape(2, 3)
+    if op_type == "SiLU":
+        expected = x / (1.0 + np.exp(-x))
+    else:
+        expected = x / (1.0 + np.exp(-1.702 * x))
+
+    ggml_model = GgmlRuntimeBackend.prepare(model, fallback_policy="strict")
+    actual = ggml_model.run({"X": x})
+
+    tolerance = 5e-4 if op_type == "QuickGelu" else 1e-5
+    np.testing.assert_allclose(actual[0], expected, rtol=tolerance, atol=tolerance)
+    assert not ggml_model.fallback_nodes
+
+
+@pytest.mark.parametrize(
+    "op_type", ["ReGLU", "GeGLU", "SwiGLU", "GeGLUErf", "GeGLUQuick"]
+)
+def test_ggml_onnx_glu_extension_ops_run_native(op_type: str):
+    x_info = helper.make_tensor_value_info("X", TensorProto.FLOAT, [2, 4])
+    y_info = helper.make_tensor_value_info("Y", TensorProto.FLOAT, [2, 2])
+    model = make_ggml_extension_model(op_type, ["X"], ["Y"], [x_info], [y_info])
+    x = np.linspace(-2.0, 2.0, 8, dtype=np.float32).reshape(2, 4)
+    gate = x[:, :2]
+    values = x[:, 2:]
+    if op_type == "ReGLU":
+        activation = np.maximum(gate, 0)
+    elif op_type == "SwiGLU":
+        activation = gate / (1.0 + np.exp(-gate))
+    elif op_type == "GeGLUQuick":
+        activation = gate / (1.0 + np.exp(-1.702 * gate))
+    else:
+        erf = np.vectorize(math.erf)
+        if op_type == "GeGLUErf":
+            activation = 0.5 * gate * (1.0 + erf(gate / np.sqrt(2.0)))
+        else:
+            inner = np.sqrt(2.0 / np.pi) * (gate + 0.044715 * np.power(gate, 3))
+            activation = 0.5 * gate * (1.0 + np.tanh(inner))
+    expected = values * activation
+
+    ggml_model = GgmlRuntimeBackend.prepare(model, fallback_policy="strict")
+    actual = ggml_model.run({"X": x})
+
+    tolerance = 1e-3 if op_type != "ReGLU" else 1e-5
+    np.testing.assert_allclose(actual[0], expected, rtol=tolerance, atol=tolerance)
+    assert not ggml_model.fallback_nodes
+
+
+def test_ggml_onnx_flash_attention_extension_runs_native():
+    q_info = helper.make_tensor_value_info("Q", TensorProto.FLOAT, [1, 1, 2, 2])
+    k_info = helper.make_tensor_value_info("K", TensorProto.FLOAT, [1, 1, 2, 2])
+    v_info = helper.make_tensor_value_info("V", TensorProto.FLOAT, [1, 1, 2, 2])
+    y_info = helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 1, 2, 2])
+    model = make_ggml_extension_model(
+        "FlashAttention",
+        ["Q", "K", "V"],
+        ["Y"],
+        [q_info, k_info, v_info],
+        [y_info],
+    )
+    q = np.asarray([[[[0.1, 0.2], [0.3, 0.4]]]], dtype=np.float32)
+    k = np.asarray([[[[0.2, 0.1], [0.5, 0.6]]]], dtype=np.float32)
+    v = np.asarray([[[[1.0, 2.0], [3.0, 4.0]]]], dtype=np.float32)
+    scores = np.matmul(q, np.swapaxes(k, -1, -2)) / np.sqrt(2.0)
+    probabilities = np.exp(scores - np.max(scores, axis=-1, keepdims=True))
+    probabilities = probabilities / np.sum(probabilities, axis=-1, keepdims=True)
+    expected = np.matmul(probabilities, v)
+
+    ggml_model = GgmlRuntimeBackend.prepare(model, fallback_policy="strict")
+    actual = ggml_model.run({"Q": q, "K": k, "V": v})
+
+    np.testing.assert_allclose(actual[0], expected, rtol=1e-5, atol=1e-5)
+    assert not ggml_model.fallback_nodes
+
+
+def test_ggml_onnx_misc_extension_ops_run_native():
+    x_info = helper.make_tensor_value_info("X", TensorProto.FLOAT, [2, 3])
+    roll_output = helper.make_tensor_value_info("Y", TensorProto.FLOAT, [2, 3])
+    roll_model = make_ggml_extension_model(
+        "Roll", ["X"], ["Y"], [x_info], [roll_output], {"shifts": [1, 0]}
+    )
+    x = np.arange(6, dtype=np.float32).reshape(2, 3)
+    roll_runtime = GgmlRuntimeBackend.prepare(roll_model, fallback_policy="strict")
+    roll_actual = roll_runtime.run({"X": x})[0]
+    np.testing.assert_allclose(roll_actual, np.roll(x, 1, axis=0))
+
+    argsort_output = helper.make_tensor_value_info("Y", TensorProto.INT32, [2, 3])
+    argsort_model = make_ggml_extension_model(
+        "ArgSort", ["X"], ["Y"], [x_info], [argsort_output]
+    )
+    argsort_runtime = GgmlRuntimeBackend.prepare(
+        argsort_model, fallback_policy="strict"
+    )
+    argsort_actual = argsort_runtime.run(
+        {"X": np.asarray([[3.0, 1.0, 2.0], [0.0, 2.0, 1.0]], dtype=np.float32)}
+    )[0]
+    np.testing.assert_array_equal(
+        argsort_actual,
+        np.asarray([[1, 2, 0], [0, 2, 1]], dtype=np.int32),
+    )
+
+
+def test_ggml_onnx_registers_forward_ggml_extension_ops():
+    expected_ops = {
+        "AddRelPos",
+        "ArgSort",
+        "Fill",
+        "FlashAttention",
+        "GatedDeltaNet",
+        "GatedLinearAttention",
+        "GeGLU",
+        "GeGLUErf",
+        "GeGLUQuick",
+        "GetRelPos",
+        "ReGLU",
+        "RWKVWKV6",
+        "RWKVWKV7",
+        "Rope",
+        "Roll",
+        "SSMConv",
+        "SSMScan",
+        "SiLU",
+        "SwiGLU",
+        "SwiGLUOAI",
+        "TimestepEmbedding",
+        "WindowPartition",
+        "WindowUnpartition",
+    }
+
+    assert {
+        op_type
+        for domain, op_type in onnx_operators.domain_operators
+        if domain == "com.ggml"
+    }.issuperset(expected_ops)
 
 
 def test_ggml_onnx_fold_static_shape_nodes_folds_shape_and_size():
