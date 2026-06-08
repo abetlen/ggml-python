@@ -252,8 +252,8 @@ jobs:
           set -euxo pipefail
           mkdir -p wheelhouse
           export LD_LIBRARY_PATH="${CUDA_LIBRARY_PATHS}:${LD_LIBRARY_PATH:-}"
-          python -m pip install auditwheel
-          python -m auditwheel repair \
+          auditwheel_bin="${CONDA}/envs/ggml/bin/auditwheel"
+          "${auditwheel_bin}" repair \
             --exclude libcuda.so \
             --exclude libcuda.so.1 \
             --exclude libcudart.so.11.0 \
@@ -269,7 +269,7 @@ jobs:
             dist/*.whl
           rm dist/*.whl
           cp wheelhouse/*.whl dist/
-          python -m auditwheel show dist/*.whl
+          "${auditwheel_bin}" show dist/*.whl
 
       - uses: softprops/action-gh-release@v3
         if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
