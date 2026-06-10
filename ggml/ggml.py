@@ -10879,13 +10879,13 @@ def gguf_get_data(
     ...
 
 
-# GGML_API int          gguf_get_n_kv(const struct gguf_context * ctx);
+# GGML_API int64_t      gguf_get_n_kv(const struct gguf_context * ctx);
 @ggml_function(
     "gguf_get_n_kv",
     [
         gguf_context_p_ctypes,
     ],
-    ctypes.c_int,
+    ctypes.c_int64,
 )
 def gguf_get_n_kv(
     ctx: gguf_context_p,
@@ -10893,14 +10893,14 @@ def gguf_get_n_kv(
     ...
 
 
-# GGML_API int          gguf_find_key(const struct gguf_context * ctx, const char * key);
+# GGML_API int64_t      gguf_find_key(const struct gguf_context * ctx, const char * key);
 @ggml_function(
     "gguf_find_key",
     [
         gguf_context_p_ctypes,
         ctypes.c_char_p,
     ],
-    ctypes.c_int,
+    ctypes.c_int64,
 )
 def gguf_find_key(
     ctx: gguf_context_p,
@@ -10909,320 +10909,320 @@ def gguf_find_key(
     ...
 
 
-# GGML_API const char * gguf_get_key (const struct gguf_context * ctx, int key_id);
+# GGML_API const char * gguf_get_key (const struct gguf_context * ctx, int64_t key_id);
 @ggml_function(
     "gguf_get_key",
     [
         gguf_context_p_ctypes,
-        ctypes.c_int,
+        ctypes.c_int64,
     ],
     ctypes.c_char_p,
 )
 def gguf_get_key(
     ctx: gguf_context_p,
-    key_id: Union[ctypes.c_int, int],
+    key_id: Union[ctypes.c_int64, int],
 ) -> bytes:
     ...
 
 
-# GGML_API enum gguf_type gguf_get_kv_type (const struct gguf_context * ctx, int key_id);
+# GGML_API enum gguf_type gguf_get_kv_type (const struct gguf_context * ctx, int64_t key_id);
 @ggml_function(
     "gguf_get_kv_type",
     [
         gguf_context_p_ctypes,
-        ctypes.c_int,
+        ctypes.c_int64,
     ],
     ctypes.c_int,
 )
 def gguf_get_kv_type(
     ctx: gguf_context_p,
-    key_id: Union[ctypes.c_int, int],
+    key_id: Union[ctypes.c_int64, int],
 ) -> int:
     ...
 
 
-# GGML_API enum gguf_type gguf_get_arr_type(const struct gguf_context * ctx, int key_id);
+# GGML_API enum gguf_type gguf_get_arr_type(const struct gguf_context * ctx, int64_t key_id);
 @ggml_function(
     "gguf_get_arr_type",
     [
         gguf_context_p_ctypes,
-        ctypes.c_int,
+        ctypes.c_int64,
     ],
     ctypes.c_int,
 )
 def gguf_get_arr_type(
     ctx: gguf_context_p,
-    key_id: Union[ctypes.c_int, int],
+    key_id: Union[ctypes.c_int64, int],
 ) -> int:
     ...
 
 
-# // results are undefined if the wrong type is used for the key
-# GGML_API uint8_t      gguf_get_val_u8  (const struct gguf_context * ctx, int key_id);
+# // will abort if the wrong type is used for the key
+# GGML_API uint8_t      gguf_get_val_u8  (const struct gguf_context * ctx, int64_t key_id);
 @ggml_function(
     "gguf_get_val_u8",
     [
         gguf_context_p_ctypes,
-        ctypes.c_int,
+        ctypes.c_int64,
     ],
     ctypes.c_uint8,
 )
 def gguf_get_val_u8(
     ctx: gguf_context_p,
-    key_id: Union[ctypes.c_int, int],
+    key_id: Union[ctypes.c_int64, int],
 ) -> int:
     ...
 
 
-# GGML_API int8_t       gguf_get_val_i8  (const struct gguf_context * ctx, int key_id);
+# GGML_API int8_t       gguf_get_val_i8  (const struct gguf_context * ctx, int64_t key_id);
 @ggml_function(
     "gguf_get_val_i8",
     [
         gguf_context_p_ctypes,
-        ctypes.c_int,
+        ctypes.c_int64,
     ],
     ctypes.c_int8,
 )
 def gguf_get_val_i8(
     ctx: gguf_context_p,
-    key_id: Union[ctypes.c_int, int],
+    key_id: Union[ctypes.c_int64, int],
 ) -> int:
     ...
 
 
-# GGML_API uint16_t     gguf_get_val_u16 (const struct gguf_context * ctx, int key_id);
+# GGML_API uint16_t     gguf_get_val_u16 (const struct gguf_context * ctx, int64_t key_id);
 @ggml_function(
     "gguf_get_val_u16",
     [
         gguf_context_p_ctypes,
-        ctypes.c_int,
+        ctypes.c_int64,
     ],
     ctypes.c_uint16,
 )
 def gguf_get_val_u16(
     ctx: gguf_context_p,
-    key_id: Union[ctypes.c_int, int],
+    key_id: Union[ctypes.c_int64, int],
 ) -> int:
     ...
 
 
-# GGML_API int16_t      gguf_get_val_i16 (const struct gguf_context * ctx, int key_id);
+# GGML_API int16_t      gguf_get_val_i16 (const struct gguf_context * ctx, int64_t key_id);
 @ggml_function(
     "gguf_get_val_i16",
     [
         gguf_context_p_ctypes,
-        ctypes.c_int,
+        ctypes.c_int64,
     ],
     ctypes.c_int16,
 )
 def gguf_get_val_i16(
     ctx: gguf_context_p,
-    key_id: Union[ctypes.c_int, int],
+    key_id: Union[ctypes.c_int64, int],
 ) -> int:
     ...
 
 
-# GGML_API uint32_t     gguf_get_val_u32 (const struct gguf_context * ctx, int key_id);
+# GGML_API uint32_t     gguf_get_val_u32 (const struct gguf_context * ctx, int64_t key_id);
 @ggml_function(
     "gguf_get_val_u32",
     [
         gguf_context_p_ctypes,
-        ctypes.c_int,
+        ctypes.c_int64,
     ],
     ctypes.c_uint32,
 )
 def gguf_get_val_u32(
     ctx: gguf_context_p,
-    key_id: Union[ctypes.c_int, int],
+    key_id: Union[ctypes.c_int64, int],
 ) -> int:
     ...
 
 
-# GGML_API int32_t      gguf_get_val_i32 (const struct gguf_context * ctx, int key_id);
+# GGML_API int32_t      gguf_get_val_i32 (const struct gguf_context * ctx, int64_t key_id);
 @ggml_function(
     "gguf_get_val_i32",
     [
         gguf_context_p_ctypes,
-        ctypes.c_int,
+        ctypes.c_int64,
     ],
     ctypes.c_int32,
 )
 def gguf_get_val_i32(
     ctx: gguf_context_p,
-    key_id: Union[ctypes.c_int, int],
+    key_id: Union[ctypes.c_int64, int],
 ) -> int:
     ...
 
 
-# GGML_API float        gguf_get_val_f32 (const struct gguf_context * ctx, int key_id);
+# GGML_API float        gguf_get_val_f32 (const struct gguf_context * ctx, int64_t key_id);
 @ggml_function(
     "gguf_get_val_f32",
     [
         gguf_context_p_ctypes,
-        ctypes.c_int,
+        ctypes.c_int64,
     ],
     ctypes.c_float,
 )
 def gguf_get_val_f32(
     ctx: gguf_context_p,
-    key_id: Union[ctypes.c_int, int],
+    key_id: Union[ctypes.c_int64, int],
 ) -> float:
     ...
 
 
-# GGML_API uint64_t     gguf_get_val_u64 (const struct gguf_context * ctx, int key_id);
+# GGML_API uint64_t     gguf_get_val_u64 (const struct gguf_context * ctx, int64_t key_id);
 @ggml_function(
     "gguf_get_val_u64",
     [
         gguf_context_p_ctypes,
-        ctypes.c_int,
+        ctypes.c_int64,
     ],
     ctypes.c_uint64,
 )
 def gguf_get_val_u64(
     ctx: gguf_context_p,
-    key_id: Union[ctypes.c_int, int],
+    key_id: Union[ctypes.c_int64, int],
 ) -> int:
     ...
 
 
-# GGML_API int64_t      gguf_get_val_i64 (const struct gguf_context * ctx, int key_id);
+# GGML_API int64_t      gguf_get_val_i64 (const struct gguf_context * ctx, int64_t key_id);
 @ggml_function(
     "gguf_get_val_i64",
     [
         gguf_context_p_ctypes,
-        ctypes.c_int,
+        ctypes.c_int64,
     ],
     ctypes.c_int64,
 )
 def gguf_get_val_i64(
     ctx: gguf_context_p,
-    key_id: Union[ctypes.c_int, int],
+    key_id: Union[ctypes.c_int64, int],
 ) -> int:
     ...
 
 
-# GGML_API double       gguf_get_val_f64 (const struct gguf_context * ctx, int key_id);
+# GGML_API double       gguf_get_val_f64 (const struct gguf_context * ctx, int64_t key_id);
 @ggml_function(
     "gguf_get_val_f64",
     [
         gguf_context_p_ctypes,
-        ctypes.c_int,
+        ctypes.c_int64,
     ],
     ctypes.c_double,
 )
 def gguf_get_val_f64(
     ctx: gguf_context_p,
-    key_id: Union[ctypes.c_int, int],
+    key_id: Union[ctypes.c_int64, int],
 ) -> float:
     ...
 
 
-# GGML_API bool         gguf_get_val_bool(const struct gguf_context * ctx, int key_id);
+# GGML_API bool         gguf_get_val_bool(const struct gguf_context * ctx, int64_t key_id);
 @ggml_function(
     "gguf_get_val_bool",
     [
         gguf_context_p_ctypes,
-        ctypes.c_int,
+        ctypes.c_int64,
     ],
     ctypes.c_bool,
 )
 def gguf_get_val_bool(
     ctx: gguf_context_p,
-    key_id: Union[ctypes.c_int, int],
+    key_id: Union[ctypes.c_int64, int],
 ) -> bool:
     ...
 
 
-# GGML_API const char * gguf_get_val_str (const struct gguf_context * ctx, int key_id);
+# GGML_API const char * gguf_get_val_str (const struct gguf_context * ctx, int64_t key_id);
 @ggml_function(
     "gguf_get_val_str",
     [
         gguf_context_p_ctypes,
-        ctypes.c_int,
+        ctypes.c_int64,
     ],
     ctypes.c_char_p,
 )
 def gguf_get_val_str(
     ctx: gguf_context_p,
-    key_id: Union[ctypes.c_int, int],
+    key_id: Union[ctypes.c_int64, int],
 ) -> bytes:
     ...
 
 
-# GGML_API const void * gguf_get_val_data(const struct gguf_context * ctx, int key_id);
+# GGML_API const void * gguf_get_val_data(const struct gguf_context * ctx, int64_t key_id);
 @ggml_function(
     "gguf_get_val_data",
     [
         gguf_context_p_ctypes,
-        ctypes.c_int,
+        ctypes.c_int64,
     ],
     ctypes.c_void_p,
 )
 def gguf_get_val_data(
     ctx: gguf_context_p,
-    key_id: Union[ctypes.c_int, int],
+    key_id: Union[ctypes.c_int64, int],
 ) -> Optional[int]:
     ...
 
 
-# GGML_API int          gguf_get_arr_n   (const struct gguf_context * ctx, int key_id);
+# GGML_API size_t       gguf_get_arr_n   (const struct gguf_context * ctx, int64_t key_id);
 @ggml_function(
     "gguf_get_arr_n",
     [
         gguf_context_p_ctypes,
-        ctypes.c_int,
+        ctypes.c_int64,
     ],
-    ctypes.c_int,
+    ctypes.c_size_t,
 )
 def gguf_get_arr_n(
     ctx: gguf_context_p,
-    key_id: Union[ctypes.c_int, int],
+    key_id: Union[ctypes.c_int64, int],
 ) -> int:
     ...
 
 
-# GGML_API const void * gguf_get_arr_data(const struct gguf_context * ctx, int key_id);
+# GGML_API const void * gguf_get_arr_data(const struct gguf_context * ctx, int64_t key_id);
 @ggml_function(
     "gguf_get_arr_data",
     [
         gguf_context_p_ctypes,
-        ctypes.c_int,
+        ctypes.c_int64,
     ],
     ctypes.c_void_p,
 )
 def gguf_get_arr_data(
     ctx: gguf_context_p,
-    key_id: Union[ctypes.c_int, int],
+    key_id: Union[ctypes.c_int64, int],
 ) -> Optional[int]:
     ...
 
 
-# GGML_API const char * gguf_get_arr_str (const struct gguf_context * ctx, int key_id, int i);
+# GGML_API const char * gguf_get_arr_str (const struct gguf_context * ctx, int64_t key_id, size_t i);
 @ggml_function(
     "gguf_get_arr_str",
     [
         gguf_context_p_ctypes,
-        ctypes.c_int,
-        ctypes.c_int,
+        ctypes.c_int64,
+        ctypes.c_size_t,
     ],
     ctypes.c_char_p,
 )
 def gguf_get_arr_str(
     ctx: gguf_context_p,
-    key_id: Union[ctypes.c_int, int],
-    i: Union[ctypes.c_int, int],
+    key_id: Union[ctypes.c_int64, int],
+    i: Union[ctypes.c_size_t, int],
 ) -> bytes:
     ...
 
 
-# GGML_API int            gguf_get_n_tensors    (const struct gguf_context * ctx);
+# GGML_API int64_t        gguf_get_n_tensors    (const struct gguf_context * ctx);
 @ggml_function(
     "gguf_get_n_tensors",
     [
         gguf_context_p_ctypes,
     ],
-    ctypes.c_int,
+    ctypes.c_int64,
 )
 def gguf_get_n_tensors(
     ctx: gguf_context_p,
@@ -11230,14 +11230,14 @@ def gguf_get_n_tensors(
     ...
 
 
-# GGML_API int            gguf_find_tensor      (const struct gguf_context * ctx, const char * name);
+# GGML_API int64_t        gguf_find_tensor      (const struct gguf_context * ctx, const char * name);
 @ggml_function(
     "gguf_find_tensor",
     [
         gguf_context_p_ctypes,
         ctypes.c_char_p,
     ],
-    ctypes.c_int,
+    ctypes.c_int64,
 )
 def gguf_find_tensor(
     ctx: gguf_context_p,
@@ -11246,68 +11246,84 @@ def gguf_find_tensor(
     ...
 
 
-# GGML_API size_t         gguf_get_tensor_offset(const struct gguf_context * ctx, int i);
+# GGML_API size_t         gguf_get_tensor_offset(const struct gguf_context * ctx, int64_t tensor_id);
 @ggml_function(
     "gguf_get_tensor_offset",
     [
         gguf_context_p_ctypes,
-        ctypes.c_int,
+        ctypes.c_int64,
     ],
     ctypes.c_size_t,
 )
 def gguf_get_tensor_offset(
     ctx: gguf_context_p,
-    i: Union[ctypes.c_int, int],
+    tensor_id: Union[ctypes.c_int64, int],
 ) -> int:
     ...
 
 
-# GGML_API char *         gguf_get_tensor_name  (const struct gguf_context * ctx, int i);
+# GGML_API const char *   gguf_get_tensor_name  (const struct gguf_context * ctx, int64_t tensor_id);
 @ggml_function(
     "gguf_get_tensor_name",
     [
         gguf_context_p_ctypes,
-        ctypes.c_int,
+        ctypes.c_int64,
     ],
     ctypes.c_char_p,
 )
 def gguf_get_tensor_name(
     ctx: gguf_context_p,
-    i: Union[ctypes.c_int, int],
+    tensor_id: Union[ctypes.c_int64, int],
 ) -> bytes:
     ...
 
 
-# GGML_API enum ggml_type gguf_get_tensor_type  (const struct gguf_context * ctx, int i);
+# GGML_API enum ggml_type gguf_get_tensor_type  (const struct gguf_context * ctx, int64_t tensor_id);
 @ggml_function(
     "gguf_get_tensor_type",
     [
         gguf_context_p_ctypes,
-        ctypes.c_int,
+        ctypes.c_int64,
     ],
     ctypes.c_int,
 )
 def gguf_get_tensor_type(
     ctx: gguf_context_p,
-    i: Union[ctypes.c_int, int],
+    tensor_id: Union[ctypes.c_int64, int],
 ) -> int:
     ...
 
 
-# // removes key if it exists
-# GGML_API void gguf_remove_key(struct gguf_context * ctx, const char * key);
+# GGML_API size_t         gguf_get_tensor_size  (const struct gguf_context * ctx, int64_t tensor_id);
+@ggml_function(
+    "gguf_get_tensor_size",
+    [
+        gguf_context_p_ctypes,
+        ctypes.c_int64,
+    ],
+    ctypes.c_size_t,
+)
+def gguf_get_tensor_size(
+    ctx: gguf_context_p,
+    tensor_id: Union[ctypes.c_int64, int],
+) -> int:
+    ...
+
+
+# // removes key if it exists, returns id that the key had prior to removal (-1 if it didn't exist)
+# GGML_API int64_t gguf_remove_key(struct gguf_context * ctx, const char * key);
 @ggml_function(
     "gguf_remove_key",
     [
         gguf_context_p_ctypes,
         ctypes.c_char_p,
     ],
-    None,
+    ctypes.c_int64,
 )
 def gguf_remove_key(
     ctx: gguf_context_p,
     key: bytes,
-):
+) -> int:
     ...
 
 
@@ -11528,7 +11544,7 @@ def gguf_set_val_str(
     ...
 
 
-# GGML_API void gguf_set_arr_data(struct gguf_context * ctx, const char * key, enum gguf_type type, const void * data, int n);
+# GGML_API void gguf_set_arr_data(struct gguf_context * ctx, const char * key, enum gguf_type type, const void * data, size_t n);
 @ggml_function(
     "gguf_set_arr_data",
     [
@@ -11536,7 +11552,7 @@ def gguf_set_val_str(
         ctypes.c_char_p,
         ctypes.c_int,
         ctypes.c_void_p,
-        ctypes.c_int,
+        ctypes.c_size_t,
     ],
     None,
 )
@@ -11545,19 +11561,19 @@ def gguf_set_arr_data(
     key: bytes,
     type: Union[ctypes.c_int, int],
     data: Union[ctypes.c_void_p, int, None],
-    n: Union[ctypes.c_int, int],
+    n: Union[ctypes.c_size_t, int],
 ):
     ...
 
 
-# GGML_API void gguf_set_arr_str (struct gguf_context * ctx, const char * key, const char ** data, int n);
+# GGML_API void gguf_set_arr_str (struct gguf_context * ctx, const char * key, const char ** data, size_t n);
 @ggml_function(
     "gguf_set_arr_str",
     [
         gguf_context_p_ctypes,
         ctypes.c_char_p,
         ctypes.POINTER(ctypes.c_char_p),
-        ctypes.c_int,
+        ctypes.c_size_t,
     ],
     None,
 )
@@ -11565,13 +11581,13 @@ def gguf_set_arr_str(
     ctx: gguf_context_p,
     key: bytes,
     data: CtypesPointer[ctypes.c_char_p],
-    n: Union[ctypes.c_int, int],
+    n: Union[ctypes.c_size_t, int],
 ):
     ...
 
 
 # // set or add KV pairs from another context
-# GGML_API void gguf_set_kv(struct gguf_context * ctx, struct gguf_context * src);
+# GGML_API void gguf_set_kv(struct gguf_context * ctx, const struct gguf_context * src);
 @ggml_function(
     "gguf_set_kv",
     [
@@ -11620,14 +11636,14 @@ def gguf_set_tensor_type(
     ...
 
 
-# GGML_API void gguf_set_tensor_data(struct gguf_context * ctx, const char * name, const void * data, size_t size);
+# // assumes that at least gguf_get_tensor_size bytes can be read from data
+# GGML_API void gguf_set_tensor_data(struct gguf_context * ctx, const char * name, const void * data);
 @ggml_function(
     "gguf_set_tensor_data",
     [
         gguf_context_p_ctypes,
         ctypes.c_char_p,
         ctypes.c_void_p,
-        ctypes.c_size_t,
     ],
     None,
 )
@@ -11635,7 +11651,6 @@ def gguf_set_tensor_data(
     ctx: gguf_context_p,
     name: bytes,
     data: Union[ctypes.c_void_p, int, None],
-    size: Union[ctypes.c_size_t, int],
     /,
 ):
     ...
@@ -11661,7 +11676,7 @@ def gguf_set_tensor_data(
 
 
 # // write the entire context to a binary file
-# GGML_API void gguf_write_to_file(const struct gguf_context * ctx, const char * fname, bool only_meta);
+# GGML_API bool gguf_write_to_file(const struct gguf_context * ctx, const char * fname, bool only_meta);
 @ggml_function(
     "gguf_write_to_file",
     [
@@ -11669,11 +11684,11 @@ def gguf_set_tensor_data(
         ctypes.c_char_p,
         ctypes.c_bool,
     ],
-    None,
+    ctypes.c_bool,
 )
 def gguf_write_to_file(
     ctx: gguf_context_p, fname: bytes, only_meta: Union[ctypes.c_bool, bool], /
-):
+) -> bool:
     ...
 
 
