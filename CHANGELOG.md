@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- feat: update vendored ggml to 0.15.1 by @abetlen in #157
 - feat(contrib): map additional ggml forward ops to onnx backend by @abetlen in #146
 - fix(ci): run CUDA auditwheel from conda environment by @abetlen in #145
 - fix(ci): install auditwheel in accelerator repair steps by @abetlen in #144
