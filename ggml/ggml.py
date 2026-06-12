@@ -284,9 +284,9 @@ GGML_EXIT_SUCCESS = 0
 GGML_EXIT_ABORTED = 1
 
 GGML_VERSION_MAJOR = 0
-GGML_VERSION_MINOR = 13
+GGML_VERSION_MINOR = 15
 GGML_VERSION_PATCH = 1
-GGML_VERSION = "0.13.1"
+GGML_VERSION = "0.15.1"
 
 GGML_ROPE_TYPE_NORMAL = 0
 GGML_ROPE_TYPE_NEOX = 2
@@ -711,48 +711,49 @@ GGML_OP_CONV_TRANSPOSE_1D = 51
 GGML_OP_IM2COL = 52
 GGML_OP_IM2COL_BACK = 53
 GGML_OP_IM2COL_3D = 54
-GGML_OP_CONV_2D = 55
-GGML_OP_CONV_3D = 56
-GGML_OP_CONV_2D_DW = 57
-GGML_OP_CONV_TRANSPOSE_2D = 58
-GGML_OP_POOL_1D = 59
-GGML_OP_POOL_2D = 60
-GGML_OP_POOL_2D_BACK = 61
-GGML_OP_UPSCALE = 62
-GGML_OP_PAD = 63
-GGML_OP_PAD_REFLECT_1D = 64
-GGML_OP_ROLL = 65
-GGML_OP_ARANGE = 66
-GGML_OP_TIMESTEP_EMBEDDING = 67
-GGML_OP_ARGSORT = 68
-GGML_OP_TOP_K = 69
-GGML_OP_LEAKY_RELU = 70
-GGML_OP_TRI = 71
-GGML_OP_FILL = 72
-GGML_OP_FLASH_ATTN_EXT = 73
-GGML_OP_FLASH_ATTN_BACK = 74
-GGML_OP_SSM_CONV = 75
-GGML_OP_SSM_SCAN = 76
-GGML_OP_WIN_PART = 77
-GGML_OP_WIN_UNPART = 78
-GGML_OP_GET_REL_POS = 79
-GGML_OP_ADD_REL_POS = 80
-GGML_OP_RWKV_WKV6 = 81
-GGML_OP_GATED_LINEAR_ATTN = 82
-GGML_OP_RWKV_WKV7 = 83
-GGML_OP_SOLVE_TRI = 84
-GGML_OP_GATED_DELTA_NET = 85
-GGML_OP_UNARY = 86
-GGML_OP_MAP_CUSTOM1 = 87
-GGML_OP_MAP_CUSTOM2 = 88
-GGML_OP_MAP_CUSTOM3 = 89
-GGML_OP_CUSTOM = 90
-GGML_OP_CROSS_ENTROPY_LOSS = 91
-GGML_OP_CROSS_ENTROPY_LOSS_BACK = 92
-GGML_OP_OPT_STEP_ADAMW = 93
-GGML_OP_OPT_STEP_SGD = 94
-GGML_OP_GLU = 95
-GGML_OP_COUNT = 96
+GGML_OP_COL2IM_1D = 55
+GGML_OP_CONV_2D = 56
+GGML_OP_CONV_3D = 57
+GGML_OP_CONV_2D_DW = 58
+GGML_OP_CONV_TRANSPOSE_2D = 59
+GGML_OP_POOL_1D = 60
+GGML_OP_POOL_2D = 61
+GGML_OP_POOL_2D_BACK = 62
+GGML_OP_UPSCALE = 63
+GGML_OP_PAD = 64
+GGML_OP_PAD_REFLECT_1D = 65
+GGML_OP_ROLL = 66
+GGML_OP_ARANGE = 67
+GGML_OP_TIMESTEP_EMBEDDING = 68
+GGML_OP_ARGSORT = 69
+GGML_OP_TOP_K = 70
+GGML_OP_LEAKY_RELU = 71
+GGML_OP_TRI = 72
+GGML_OP_FILL = 73
+GGML_OP_FLASH_ATTN_EXT = 74
+GGML_OP_FLASH_ATTN_BACK = 75
+GGML_OP_SSM_CONV = 76
+GGML_OP_SSM_SCAN = 77
+GGML_OP_WIN_PART = 78
+GGML_OP_WIN_UNPART = 79
+GGML_OP_GET_REL_POS = 80
+GGML_OP_ADD_REL_POS = 81
+GGML_OP_RWKV_WKV6 = 82
+GGML_OP_GATED_LINEAR_ATTN = 83
+GGML_OP_RWKV_WKV7 = 84
+GGML_OP_SOLVE_TRI = 85
+GGML_OP_GATED_DELTA_NET = 86
+GGML_OP_UNARY = 87
+GGML_OP_MAP_CUSTOM1 = 88
+GGML_OP_MAP_CUSTOM2 = 89
+GGML_OP_MAP_CUSTOM3 = 90
+GGML_OP_CUSTOM = 91
+GGML_OP_CROSS_ENTROPY_LOSS = 92
+GGML_OP_CROSS_ENTROPY_LOSS_BACK = 93
+GGML_OP_OPT_STEP_ADAMW = 94
+GGML_OP_OPT_STEP_SGD = 95
+GGML_OP_GLU = 96
+GGML_OP_COUNT = 97
 
 
 # enum ggml_unary_op {
@@ -7003,6 +7004,37 @@ def ggml_im2col_back(
     ...
 
 
+# // col2im_1d: scatter-add GEMM columns back to 1D signal
+# // a: [K*OC, T_in]  (columns from matmul, K = a->ne[0]/OC)
+# // result: [T_out, OC]  where T_out = (T_in - 1)*s0 + K - 2*p0
+# GGML_API struct ggml_tensor * ggml_col2im_1d(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         int                   s0,
+#         int                   oc,
+#         int                   p0);
+@ggml_function(
+    "ggml_col2im_1d",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_col2im_1d(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    s0: Union[ctypes.c_int, int],
+    oc: Union[ctypes.c_int, int],
+    p0: Union[ctypes.c_int, int],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
 # GGML_API struct ggml_tensor * ggml_conv_depthwise_2d(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a,
@@ -8864,7 +8896,8 @@ def ggml_solve_tri(
 #         struct ggml_tensor  * v,
 #         struct ggml_tensor  * g,
 #         struct ggml_tensor  * beta,
-#         struct ggml_tensor  * state);
+#         struct ggml_tensor  * state,
+#         int64_t               K);
 @ggml_function(
     "ggml_gated_delta_net",
     [
@@ -8875,6 +8908,7 @@ def ggml_solve_tri(
         ctypes.POINTER(ggml_tensor),
         ctypes.POINTER(ggml_tensor),
         ctypes.POINTER(ggml_tensor),
+        ctypes.c_int64,
     ],
     ctypes.POINTER(ggml_tensor),
 )
@@ -8886,6 +8920,7 @@ def ggml_gated_delta_net(
     g: ggml_tensor_p,
     beta: ggml_tensor_p,
     state: ggml_tensor_p,
+    K: Union[ctypes.c_int64, int],
     /,
 ) -> ggml_tensor_p:
     ...
