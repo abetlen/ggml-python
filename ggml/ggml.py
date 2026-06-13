@@ -10772,6 +10772,15 @@ class gguf_init_params(ctypes.Structure):
     ]
 
 
+gguf_reader_callback_t = ctypes.CFUNCTYPE(
+    ctypes.c_size_t,
+    ctypes.c_void_p,
+    ctypes.c_void_p,
+    ctypes.c_uint64,
+    ctypes.c_size_t,
+)
+
+
 # GGML_API struct gguf_context * gguf_init_empty(void);
 @ggml_function("gguf_init_empty", [], gguf_context_p_ctypes)
 def gguf_init_empty() -> Optional[gguf_context_p]:
@@ -10824,6 +10833,35 @@ def gguf_init_from_file(
 def gguf_init_from_buffer(
     data: Union[ctypes.c_void_p, int, None],
     size: Union[ctypes.c_size_t, int],
+    params: gguf_init_params,
+    /,
+) -> Optional[gguf_context_p]:
+    ...
+
+
+# typedef size_t (*gguf_reader_callback_t)(void * userdata, void * output, uint64_t offset, size_t len);
+# GGML_API struct gguf_context * gguf_init_from_callback(
+#     gguf_reader_callback_t callback,
+#     void * userdata,
+#     size_t max_chunk_read,
+#     uint64_t max_expected_size,
+#     struct gguf_init_params params);
+@ggml_function(
+    "gguf_init_from_callback",
+    [
+        gguf_reader_callback_t,
+        ctypes.c_void_p,
+        ctypes.c_size_t,
+        ctypes.c_uint64,
+        gguf_init_params,
+    ],
+    gguf_context_p_ctypes,
+)
+def gguf_init_from_callback(
+    callback: gguf_reader_callback_t,
+    userdata: Union[ctypes.c_void_p, int, None],
+    max_chunk_read: Union[ctypes.c_size_t, int],
+    max_expected_size: Union[ctypes.c_uint64, int],
     params: gguf_init_params,
     /,
 ) -> Optional[gguf_context_p]:
