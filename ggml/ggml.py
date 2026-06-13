@@ -10739,7 +10739,10 @@ GGUF_TYPE_FLOAT32 = 6
 GGUF_TYPE_BOOL = 7
 GGUF_TYPE_STRING = 8
 GGUF_TYPE_ARRAY = 9
-GGUF_TYPE_COUNT = 10
+GGUF_TYPE_UINT64 = 10
+GGUF_TYPE_INT64 = 11
+GGUF_TYPE_FLOAT64 = 12
+GGUF_TYPE_COUNT = 13
 
 # struct gguf_context;
 gguf_context_p = NewType("gguf_context_p", int)
@@ -10775,6 +10778,23 @@ def gguf_init_empty() -> Optional[gguf_context_p]:
     ...
 
 
+# GGML_API struct gguf_context * gguf_init_from_file_ptr(FILE * file, struct gguf_init_params params);
+@ggml_function(
+    "gguf_init_from_file_ptr",
+    [
+        ctypes.c_void_p,
+        gguf_init_params,
+    ],
+    gguf_context_p_ctypes,
+)
+def gguf_init_from_file_ptr(
+    file: Union[ctypes.c_void_p, int, None],
+    params: gguf_init_params,
+    /,
+) -> Optional[gguf_context_p]:
+    ...
+
+
 # GGML_API struct gguf_context * gguf_init_from_file(const char * fname, struct gguf_init_params params);
 @ggml_function(
     "gguf_init_from_file",
@@ -10791,7 +10811,23 @@ def gguf_init_from_file(
     ...
 
 
-# //GGML_API struct gguf_context * gguf_init_from_buffer(..);
+# GGML_API struct gguf_context * gguf_init_from_buffer(const void * data, size_t size, struct gguf_init_params params);
+@ggml_function(
+    "gguf_init_from_buffer",
+    [
+        ctypes.c_void_p,
+        ctypes.c_size_t,
+        gguf_init_params,
+    ],
+    gguf_context_p_ctypes,
+)
+def gguf_init_from_buffer(
+    data: Union[ctypes.c_void_p, int, None],
+    size: Union[ctypes.c_size_t, int],
+    params: gguf_init_params,
+    /,
+) -> Optional[gguf_context_p]:
+    ...
 
 
 # GGML_API void gguf_free(struct gguf_context * ctx);
@@ -11676,6 +11712,25 @@ def gguf_set_tensor_data(
 
 
 # // write the entire context to a binary file
+# GGML_API bool gguf_write_to_file_ptr(const struct gguf_context * ctx, FILE * file, bool only_meta);
+@ggml_function(
+    "gguf_write_to_file_ptr",
+    [
+        gguf_context_p_ctypes,
+        ctypes.c_void_p,
+        ctypes.c_bool,
+    ],
+    ctypes.c_bool,
+)
+def gguf_write_to_file_ptr(
+    ctx: gguf_context_p,
+    file: Union[ctypes.c_void_p, int, None],
+    only_meta: Union[ctypes.c_bool, bool],
+    /,
+) -> bool:
+    ...
+
+
 # GGML_API bool gguf_write_to_file(const struct gguf_context * ctx, const char * fname, bool only_meta);
 @ggml_function(
     "gguf_write_to_file",
