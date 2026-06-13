@@ -12386,6 +12386,35 @@ def ggml_gallocr_reserve(
     ...
 
 
+# GGML_API void ggml_gallocr_reserve_n_size(
+#     ggml_gallocr_t galloc,
+#     struct ggml_cgraph * graph,
+#     const int * node_buffer_ids,
+#     const int * leaf_buffer_ids,
+#     size_t * sizes);
+@ggml_function(
+    "ggml_gallocr_reserve_n_size",
+    [
+        ggml_gallocr_ctypes,
+        ctypes.POINTER(ggml_cgraph),
+        ctypes.POINTER(ctypes.c_int),
+        ctypes.POINTER(ctypes.c_int),
+        ctypes.POINTER(ctypes.c_size_t),
+    ],
+    None,
+)
+def ggml_gallocr_reserve_n_size(
+    galloc: Union[ggml_gallocr, int],
+    graph: ggml_cgraph_p,
+    node_buffer_ids: CtypesPointer[ctypes.c_int],
+    leaf_buffer_ids: CtypesPointer[ctypes.c_int],
+    sizes: CtypesPointer[ctypes.c_size_t],
+    /,
+) -> None:
+    """write the buffer sizes that would be allocated by ggml_gallocr_reserve_n"""
+    ...
+
+
 # GGML_API bool ggml_gallocr_reserve_n(
 #     ggml_gallocr_t galloc,
 #     struct ggml_cgraph * graph,
