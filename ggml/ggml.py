@@ -10199,63 +10199,6 @@ def ggml_build_backward_gradient_checkpointing(
 # // optimization
 # //
 
-# // optimization methods
-# enum ggml_opt_type {
-#     GGML_OPT_TYPE_ADAM,
-#     GGML_OPT_TYPE_LBFGS,
-# };
-GGML_OPT_TYPE_ADAM = 0
-GGML_OPT_TYPE_LBFGS = 1
-
-# // linesearch methods
-# enum ggml_linesearch {
-#     GGML_LINESEARCH_DEFAULT = 1,
-
-#     GGML_LINESEARCH_BACKTRACKING_ARMIJO       = 0,
-#     GGML_LINESEARCH_BACKTRACKING_WOLFE        = 1,
-#     GGML_LINESEARCH_BACKTRACKING_STRONG_WOLFE = 2,
-# };
-GGML_LINESEARCH_DEFAULT = 1
-GGML_LINESEARCH_BACKTRACKING_ARMIJO = 0
-GGML_LINESEARCH_BACKTRACKING_WOLFE = 1
-GGML_LINESEARCH_BACKTRACKING_STRONG_WOLFE = 2
-
-# // optimization return values
-# enum ggml_opt_result {
-#     GGML_OPT_RESULT_OK = 0,
-#     GGML_OPT_RESULT_DID_NOT_CONVERGE,
-#     GGML_OPT_RESULT_NO_CONTEXT,
-#     GGML_OPT_RESULT_INVALID_WOLFE,
-#     GGML_OPT_RESULT_FAIL,
-#     GGML_OPT_RESULT_CANCEL,
-
-#     GGML_LINESEARCH_FAIL = -128,
-#     GGML_LINESEARCH_MINIMUM_STEP,
-#     GGML_LINESEARCH_MAXIMUM_STEP,
-#     GGML_LINESEARCH_MAXIMUM_ITERATIONS,
-#     GGML_LINESEARCH_INVALID_PARAMETERS,
-# };
-GGML_OPT_RESULT_OK = 0
-GGML_OPT_RESULT_DID_NOT_CONVERGE = 1
-GGML_OPT_RESULT_NO_CONTEXT = 2
-GGML_OPT_RESULT_INVALID_WOLFE = 3
-GGML_OPT_RESULT_FAIL = 4
-GGML_OPT_RESULT_CANCEL = 5
-GGML_LINESEARCH_FAIL = -128
-GGML_LINESEARCH_MINIMUM_STEP = -127
-GGML_LINESEARCH_MAXIMUM_STEP = -126
-GGML_LINESEARCH_MAXIMUM_ITERATIONS = -125
-GGML_LINESEARCH_INVALID_PARAMETERS = -124
-
-# typedef void (*ggml_opt_callback)(void * data, int accum_step, float * sched, bool * cancel);
-ggml_opt_callback = ctypes.CFUNCTYPE(
-    None,
-    ctypes.c_void_p,
-    ctypes.c_int,
-    ctypes.POINTER(ctypes.c_float),
-    ctypes.POINTER(ctypes.c_bool),
-)
-
 # typedef void (*ggml_log_callback)(enum ggml_log_level level, const char * text, void * user_data);
 ggml_log_callback = ctypes.CFUNCTYPE(
     None, ctypes.c_int, ctypes.c_char_p, ctypes.c_void_p
@@ -10296,321 +10239,623 @@ def ggml_log_set(
     ...
 
 
-# // optimization parameters
-# //
-# //   see ggml.c (ggml_opt_default_params) for default values
-# //
-# struct ggml_opt_params {
-#     enum ggml_opt_type type;
+# struct ggml_opt_dataset;
+ggml_opt_dataset_t = NewType("ggml_opt_dataset_t", int)
+ggml_opt_dataset_t_ctypes: TypeAlias = ctypes.c_void_p
 
-#     size_t graph_size;
+# struct ggml_opt_context;
+ggml_opt_context_t = NewType("ggml_opt_context_t", int)
+ggml_opt_context_t_ctypes: TypeAlias = ctypes.c_void_p
 
-#     int n_threads;
+# struct ggml_opt_result;
+ggml_opt_result_t = NewType("ggml_opt_result_t", int)
+ggml_opt_result_t_ctypes: TypeAlias = ctypes.c_void_p
 
-#     // delta-based convergence test
-#     //
-#     //   if past == 0 - disabled
-#     //   if past > 0:
-#     //     stop if |f(x) - f(x_past)| < delta * max(1, |f(x)|)
-#     //
-#     int past;
-#     float delta;
-
-#     // maximum number of iterations without improvement
-#     //
-#     //   if 0 - disabled
-#     //   if > 0:
-#     //     assume convergence if no cost improvement in this number of iterations
-#     //
-#     int max_no_improvement;
-
-#     bool print_forward_graph;
-#     bool print_backward_graph;
-
-#     int n_gradient_accumulation;
-
-#     // ADAM parameters
-#     struct {
-#         int n_iter;
-
-#         float sched; // schedule multiplier (fixed, decay or warmup)
-#         float decay; // weight decay for AdamW, use 0.0f to disable
-#         int   decay_min_ndim; // minimum number of tensor dimension to apply weight decay
-#         float alpha; // learning rate
-#         float beta1;
-#         float beta2;
-#         float eps;   // epsilon for numerical stability
-#         float eps_f; // epsilon for convergence test
-#         float eps_g; // epsilon for convergence test
-#         float gclip; // gradient clipping
-#     } adam;
-
-#     // LBFGS parameters
-#     struct {
-#         int m; // number of corrections to approximate the inv. Hessian
-#         int n_iter;
-#         int max_linesearch;
-
-#         float eps;      // convergence tolerance
-#         float ftol;     // line search tolerance
-#         float wolfe;
-#         float min_step;
-#         float max_step;
-
-#         enum ggml_linesearch linesearch;
-#     } lbfgs;
+# enum ggml_opt_loss_type {
+#     GGML_OPT_LOSS_TYPE_MEAN,
+#     GGML_OPT_LOSS_TYPE_SUM,
+#     GGML_OPT_LOSS_TYPE_CROSS_ENTROPY,
+#     GGML_OPT_LOSS_TYPE_MEAN_SQUARED_ERROR,
 # };
+GGML_OPT_LOSS_TYPE_MEAN = 0
+GGML_OPT_LOSS_TYPE_SUM = 1
+GGML_OPT_LOSS_TYPE_CROSS_ENTROPY = 2
+GGML_OPT_LOSS_TYPE_MEAN_SQUARED_ERROR = 3
+
+# enum ggml_opt_build_type {
+#     GGML_OPT_BUILD_TYPE_FORWARD = 10,
+#     GGML_OPT_BUILD_TYPE_GRAD    = 20,
+#     GGML_OPT_BUILD_TYPE_OPT     = 30,
+# };
+GGML_OPT_BUILD_TYPE_FORWARD = 10
+GGML_OPT_BUILD_TYPE_GRAD = 20
+GGML_OPT_BUILD_TYPE_OPT = 30
+
+# enum ggml_opt_optimizer_type {
+#     GGML_OPT_OPTIMIZER_TYPE_ADAMW,
+#     GGML_OPT_OPTIMIZER_TYPE_SGD,
+#     GGML_OPT_OPTIMIZER_TYPE_COUNT
+# };
+GGML_OPT_OPTIMIZER_TYPE_ADAMW = 0
+GGML_OPT_OPTIMIZER_TYPE_SGD = 1
+GGML_OPT_OPTIMIZER_TYPE_COUNT = 2
 
 
-class ggml_opt_params_adam(ctypes.Structure):
+# struct ggml_opt_optimizer_params {
+#     struct {
+#         float alpha; // learning rate
+#         float beta1; // first AdamW momentum
+#         float beta2; // second AdamW momentum
+#         float eps;   // epsilon for numerical stability
+#         float wd;    // weight decay - 0.0f to disable
+#     } adamw;
+class ggml_opt_optimizer_params_adamw(ctypes.Structure):
     _fields_ = [
-        ("n_iter", ctypes.c_int),
-        ("sched", ctypes.c_float),
-        ("decay", ctypes.c_float),
-        ("decay_min_ndim", ctypes.c_int),
         ("alpha", ctypes.c_float),
         ("beta1", ctypes.c_float),
         ("beta2", ctypes.c_float),
         ("eps", ctypes.c_float),
-        ("eps_f", ctypes.c_float),
-        ("eps_g", ctypes.c_float),
-        ("gclip", ctypes.c_float),
+        ("wd", ctypes.c_float),
     ]
 
 
-class ggml_opt_params_lbfgs(ctypes.Structure):
+#     struct {
+#         float alpha; // learning rate
+#         float wd;    // weight decay
+#     } sgd;
+# };
+class ggml_opt_optimizer_params_sgd(ctypes.Structure):
     _fields_ = [
-        ("m", ctypes.c_int),
-        ("n_iter", ctypes.c_int),
-        ("max_linesearch", ctypes.c_int),
-        ("eps", ctypes.c_float),
-        ("ftol", ctypes.c_float),
-        ("wolfe", ctypes.c_float),
-        ("min_step", ctypes.c_float),
-        ("max_step", ctypes.c_float),
-        ("linesearch", ctypes.c_int),
+        ("alpha", ctypes.c_float),
+        ("wd", ctypes.c_float),
     ]
 
 
+# parameters that control which optimizer is used and how said optimizer tries to find the minimal loss
+class ggml_opt_optimizer_params(ctypes.Structure):
+    _fields_ = [
+        ("adamw", ggml_opt_optimizer_params_adamw),
+        ("sgd", ggml_opt_optimizer_params_sgd),
+    ]
+
+
+# typedef struct ggml_opt_optimizer_params (*ggml_opt_get_optimizer_params)(void * userdata);
+# ctypes cannot create Python callbacks that return structs by value, so this
+# callback is exposed as a raw native function pointer.
+ggml_opt_get_optimizer_params = ctypes.c_void_p
+
+
+# struct ggml_opt_params {
+#     ggml_backend_sched_t backend_sched; // defines which backends are used to construct the compute graphs
+#
+#     // by default the forward graph needs to be reconstructed for each eval
+#     // if ctx_compute, inputs, and outputs are set the graphs are instead allocated statically
+#     struct ggml_context * ctx_compute;
+#     struct ggml_tensor  * inputs;
+#     struct ggml_tensor  * outputs;
+#
+#     enum ggml_opt_loss_type  loss_type;
+#     enum ggml_opt_build_type build_type;
+#
+#     int32_t opt_period; // after how many gradient accumulation steps an optimizer step should be done
+#
+#     ggml_opt_get_optimizer_params get_opt_pars;    // callback for calculating optimizer parameters
+#     void *                        get_opt_pars_ud; // userdata for calculating optimizer parameters
+#
+#     // only GGML_OPT_OPTIMIZER_TYPE_ADAMW needs m, v momenta per parameter tensor
+#     enum ggml_opt_optimizer_type optimizer;
+# };
 class ggml_opt_params(ctypes.Structure):
     _fields_ = [
-        ("type", ctypes.c_int),
-        ("graph_size", ctypes.c_size_t),
-        ("n_threads", ctypes.c_int),
-        ("past", ctypes.c_int),
-        ("delta", ctypes.c_float),
-        ("max_no_improvement", ctypes.c_int),
-        ("print_forward_graph", ctypes.c_bool),
-        ("print_backward_graph", ctypes.c_bool),
-        ("n_gradient_accumulation", ctypes.c_int),
-        ("adam", ggml_opt_params_adam),
-        ("lbfgs", ggml_opt_params_lbfgs),
+        ("backend_sched", ctypes.c_void_p),
+        ("ctx_compute", ggml_context_p_ctypes),
+        ("inputs", ctypes.POINTER(ggml_tensor)),
+        ("outputs", ctypes.POINTER(ggml_tensor)),
+        ("loss_type", ctypes.c_int),
+        ("build_type", ctypes.c_int),
+        ("opt_period", ctypes.c_int32),
+        ("get_opt_pars", ggml_opt_get_optimizer_params),
+        ("get_opt_pars_ud", ctypes.c_void_p),
+        ("optimizer", ctypes.c_int),
     ]
 
 
-# struct ggml_opt_context {
-#     struct ggml_context * ctx;
-#     struct ggml_opt_params params;
-
-#     int iter;
-#     int64_t nx; // number of parameter elements
-
-#     bool just_initialized;
-
-#     float loss_before;
-#     float loss_after;
-
-#     struct {
-#         struct ggml_tensor * g;  // current gradient
-#         struct ggml_tensor * m;  // first moment
-#         struct ggml_tensor * v;  // second moment
-#         struct ggml_tensor * pf; // past function values
-#         float fx_best;
-#         float fx_prev;
-#         int n_no_improvement;
-#     } adam;
-
-#     struct {
-#         struct ggml_tensor * x;    // current parameters
-#         struct ggml_tensor * xp;   // previous parameters
-#         struct ggml_tensor * g;    // current gradient
-#         struct ggml_tensor * gp;   // previous gradient
-#         struct ggml_tensor * d;    // search direction
-#         struct ggml_tensor * pf;   // past function values
-#         struct ggml_tensor * lmal; // the L-BFGS memory alpha
-#         struct ggml_tensor * lmys; // the L-BFGS memory ys
-#         struct ggml_tensor * lms;  // the L-BFGS memory s
-#         struct ggml_tensor * lmy;  // the L-BFGS memory y
-#         float fx_best;
-#         float step;
-#         int j;
-#         int k;
-#         int end;
-#         int n_no_improvement;
-#     } lbfgs;
-# };
-
-
-class ggml_opt_context_adam(ctypes.Structure):
-    _fields_ = [
-        ("g", ctypes.POINTER(ggml_tensor)),
-        ("m", ctypes.POINTER(ggml_tensor)),
-        ("v", ctypes.POINTER(ggml_tensor)),
-        ("pf", ctypes.POINTER(ggml_tensor)),
-        ("fx_best", ctypes.c_float),
-        ("fx_prev", ctypes.c_float),
-        ("n_no_improvement", ctypes.c_int),
-    ]
-
-
-class ggml_opt_context_lbfgs(ctypes.Structure):
-    _fields_ = [
-        ("x", ctypes.POINTER(ggml_tensor)),
-        ("xp", ctypes.POINTER(ggml_tensor)),
-        ("g", ctypes.POINTER(ggml_tensor)),
-        ("gp", ctypes.POINTER(ggml_tensor)),
-        ("d", ctypes.POINTER(ggml_tensor)),
-        ("pf", ctypes.POINTER(ggml_tensor)),
-        ("lmal", ctypes.POINTER(ggml_tensor)),
-        ("lmys", ctypes.POINTER(ggml_tensor)),
-        ("lms", ctypes.POINTER(ggml_tensor)),
-        ("lmy", ctypes.POINTER(ggml_tensor)),
-        ("fx_best", ctypes.c_float),
-        ("step", ctypes.c_float),
-        ("j", ctypes.c_int),
-        ("k", ctypes.c_int),
-        ("end", ctypes.c_int),
-        ("n_no_improvement", ctypes.c_int),
-    ]
-
-
-class ggml_opt_context(ctypes.Structure):
-    _fields_ = [
-        ("ctx", ggml_context_p_ctypes),
-        ("params", ggml_opt_params),
-        ("iter", ctypes.c_int),
-        ("nx", ctypes.c_int64),
-        ("just_initialized", ctypes.c_bool),
-        ("loss_before", ctypes.c_float),
-        ("loss_after", ctypes.c_float),
-        ("adam", ggml_opt_context_adam),
-        ("lbfgs", ggml_opt_context_lbfgs),
-    ]
-
-
-ggml_opt_context_p = ctypes.POINTER(ggml_opt_context)
-
-
-# GGML_API struct ggml_opt_params ggml_opt_default_params(enum ggml_opt_type type);
-@ggml_function("ggml_opt_default_params", [ctypes.c_int], ggml_opt_params, enabled=hasattr(lib, "ggml_opt_default_params"))
-def ggml_opt_default_params(type: Union[ctypes.c_int, bool]) -> ggml_opt_params:
-    ...
-
-
-# // optimize the function defined by the tensor f
-# GGML_API enum ggml_opt_result ggml_opt(
-#         struct ggml_context * ctx,
-#         struct ggml_opt_params params,
-#         struct ggml_tensor * f);
-@ggml_function(
-    "ggml_opt",
-    [
-        ggml_context_p_ctypes,
-        ggml_opt_params,
-        ctypes.POINTER(ggml_tensor),
-    ],
-    ctypes.c_int,
-    enabled=hasattr(lib, "ggml_opt"),
+# typedef void (*ggml_opt_epoch_callback)(bool train, ggml_opt_context_t opt_ctx, ggml_opt_dataset_t dataset, ggml_opt_result_t result, int64_t ibatch, int64_t ibatch_max, int64_t t_start_us);
+ggml_opt_epoch_callback = ctypes.CFUNCTYPE(
+    None,
+    ctypes.c_bool,
+    ggml_opt_context_t_ctypes,
+    ggml_opt_dataset_t_ctypes,
+    ggml_opt_result_t_ctypes,
+    ctypes.c_int64,
+    ctypes.c_int64,
+    ctypes.c_int64,
 )
-def ggml_opt(
-    ctx: ggml_context_p,
-    params: ggml_opt_params,
-    f: ggml_tensor_p,
-) -> int:
-    ...
 
 
-# // initialize optimizer context
-# GGML_API void ggml_opt_init(
-#         struct ggml_context     * ctx,
-#         struct ggml_opt_context * opt,
-#         struct ggml_opt_params    params,
-#         int64_t                   nx);
+# GGML_API ggml_opt_dataset_t ggml_opt_dataset_init(enum ggml_type type_data, enum ggml_type type_label, int64_t ne_datapoint, int64_t ne_label, int64_t ndata, int64_t ndata_shard);
 @ggml_function(
-    "ggml_opt_init",
+    "ggml_opt_dataset_init",
     [
-        ggml_context_p_ctypes,
-        ctypes.POINTER(ggml_opt_context),
-        ggml_opt_params,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int64,
+        ctypes.c_int64,
+        ctypes.c_int64,
         ctypes.c_int64,
     ],
-    None,
-    enabled=hasattr(lib, "ggml_opt_init"),
+    ggml_opt_dataset_t_ctypes,
 )
-def ggml_opt_init(
-    ctx: ggml_context_p,
-    opt: "ctypes._Pointer[ggml_opt_context]",  # type: ignore
-    params: ggml_opt_params,
-    nx: Union[ctypes.c_int64, int],
+def ggml_opt_dataset_init(
+    type_data: Union[ctypes.c_int, int],
+    type_label: Union[ctypes.c_int, int],
+    ne_datapoint: Union[ctypes.c_int64, int],
+    ne_label: Union[ctypes.c_int64, int],
+    ndata: Union[ctypes.c_int64, int],
+    ndata_shard: Union[ctypes.c_int64, int],
+    /,
+) -> Optional[ggml_opt_dataset_t]:
+    ...
+
+
+# GGML_API void ggml_opt_dataset_free(ggml_opt_dataset_t dataset);
+@ggml_function("ggml_opt_dataset_free", [ggml_opt_dataset_t_ctypes], None)
+def ggml_opt_dataset_free(dataset: Union[ggml_opt_dataset_t, int], /):
+    ...
+
+
+# GGML_API int64_t ggml_opt_dataset_ndata(ggml_opt_dataset_t dataset);
+@ggml_function("ggml_opt_dataset_ndata", [ggml_opt_dataset_t_ctypes], ctypes.c_int64)
+def ggml_opt_dataset_ndata(dataset: Union[ggml_opt_dataset_t, int], /) -> int:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_opt_dataset_data(ggml_opt_dataset_t dataset);
+@ggml_function(
+    "ggml_opt_dataset_data",
+    [ggml_opt_dataset_t_ctypes],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_opt_dataset_data(
+    dataset: Union[ggml_opt_dataset_t, int],
+) -> Optional[ggml_tensor_p]:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_opt_dataset_labels(ggml_opt_dataset_t dataset);
+@ggml_function(
+    "ggml_opt_dataset_labels",
+    [ggml_opt_dataset_t_ctypes],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_opt_dataset_labels(
+    dataset: Union[ggml_opt_dataset_t, int],
+) -> Optional[ggml_tensor_p]:
+    ...
+
+
+# GGML_API void ggml_opt_dataset_shuffle(ggml_opt_context_t opt_ctx, ggml_opt_dataset_t dataset, int64_t idata);
+@ggml_function(
+    "ggml_opt_dataset_shuffle",
+    [ggml_opt_context_t_ctypes, ggml_opt_dataset_t_ctypes, ctypes.c_int64],
+    None,
+)
+def ggml_opt_dataset_shuffle(
+    opt_ctx: Union[ggml_opt_context_t, int],
+    dataset: Union[ggml_opt_dataset_t, int],
+    idata: Union[ctypes.c_int64, int],
+    /,
 ):
     ...
 
 
-# // continue optimizing the function defined by the tensor f
-# GGML_API enum ggml_opt_result ggml_opt_resume(
-#         struct ggml_context * ctx,
-#         struct ggml_opt_context * opt,
-#         struct ggml_tensor * f);
+# GGML_API void ggml_opt_dataset_get_batch(ggml_opt_dataset_t dataset, struct ggml_tensor * data_batch, struct ggml_tensor * labels_batch, int64_t ibatch);
 @ggml_function(
-    "ggml_opt_resume",
+    "ggml_opt_dataset_get_batch",
     [
-        ggml_context_p_ctypes,
-        ctypes.POINTER(ggml_opt_context),
+        ggml_opt_dataset_t_ctypes,
         ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_int64,
     ],
-    ctypes.c_int,
-    enabled=hasattr(lib, "ggml_opt_resume"),
+    None,
 )
-def ggml_opt_resume(
-    ctx: ggml_context_p,
-    opt: "ctypes._Pointer[ggml_opt_context]",  # type: ignore
-    f: ggml_tensor_p,
-) -> int:
+def ggml_opt_dataset_get_batch(
+    dataset: Union[ggml_opt_dataset_t, int],
+    data_batch: ggml_tensor_p,
+    labels_batch: ggml_tensor_p,
+    ibatch: Union[ctypes.c_int64, int],
+    /,
+):
     ...
 
 
-# // continue optimizing the function defined by the tensor f
-# GGML_API enum ggml_opt_result ggml_opt_resume_g(
-#         struct ggml_context * ctx,
-#         struct ggml_opt_context * opt,
-#         struct ggml_tensor * f,
-#         struct ggml_cgraph * gf,
-#         struct ggml_cgraph * gb,
-#         ggml_opt_callback callback,
-#         void * callback_data);
+# GGML_API void ggml_opt_dataset_get_batch_host(ggml_opt_dataset_t dataset, void * data_batch, size_t nb_data_batch, void * labels_batch, int64_t ibatch);
 @ggml_function(
-    "ggml_opt_resume_g",
+    "ggml_opt_dataset_get_batch_host",
     [
-        ggml_context_p_ctypes,
-        ctypes.POINTER(ggml_opt_context),
-        ctypes.POINTER(ggml_tensor),
-        ctypes.POINTER(ggml_cgraph),
-        ctypes.POINTER(ggml_cgraph),
-        ggml_opt_callback,
+        ggml_opt_dataset_t_ctypes,
         ctypes.c_void_p,
+        ctypes.c_size_t,
+        ctypes.c_void_p,
+        ctypes.c_int64,
     ],
-    ctypes.c_int,
-    enabled=hasattr(lib, "ggml_opt_resume_g"),
+    None,
 )
-def ggml_opt_resume_g(
-    ctx: ggml_context_p,
-    opt: "ctypes._Pointer[ggml_opt_context]",  # type: ignore
-    f: ggml_tensor_p,
+def ggml_opt_dataset_get_batch_host(
+    dataset: Union[ggml_opt_dataset_t, int],
+    data_batch: Union[ctypes.c_void_p, int, None],
+    nb_data_batch: Union[ctypes.c_size_t, int],
+    labels_batch: Union[ctypes.c_void_p, int, None],
+    ibatch: Union[ctypes.c_int64, int],
+    /,
+):
+    ...
+
+
+# GGML_API struct ggml_opt_optimizer_params ggml_opt_get_default_optimizer_params(void * userdata);
+@ggml_function(
+    "ggml_opt_get_default_optimizer_params",
+    [ctypes.c_void_p],
+    ggml_opt_optimizer_params,
+)
+def ggml_opt_get_default_optimizer_params(
+    userdata: Union[ctypes.c_void_p, int, None],
+) -> ggml_opt_optimizer_params:
+    ...
+
+
+# GGML_API struct ggml_opt_optimizer_params ggml_opt_get_constant_optimizer_params(void * userdata);
+@ggml_function(
+    "ggml_opt_get_constant_optimizer_params",
+    [ctypes.c_void_p],
+    ggml_opt_optimizer_params,
+)
+def ggml_opt_get_constant_optimizer_params(
+    userdata: Union[ctypes.c_void_p, int, None],
+) -> ggml_opt_optimizer_params:
+    ...
+
+
+# GGML_API struct ggml_opt_params ggml_opt_default_params(ggml_backend_sched_t backend_sched, enum ggml_opt_loss_type loss_type);
+@ggml_function(
+    "ggml_opt_default_params",
+    [ctypes.c_void_p, ctypes.c_int],
+    ggml_opt_params,
+)
+def ggml_opt_default_params(
+    backend_sched: Union[ctypes.c_void_p, int, None],
+    loss_type: Union[ctypes.c_int, int],
+    /,
+) -> ggml_opt_params:
+    ...
+
+
+# GGML_API ggml_opt_context_t ggml_opt_init(struct ggml_opt_params params);
+@ggml_function("ggml_opt_init", [ggml_opt_params], ggml_opt_context_t_ctypes)
+def ggml_opt_init(params: ggml_opt_params, /) -> Optional[ggml_opt_context_t]:
+    ...
+
+
+# GGML_API void ggml_opt_free(ggml_opt_context_t opt_ctx);
+@ggml_function("ggml_opt_free", [ggml_opt_context_t_ctypes], None)
+def ggml_opt_free(opt_ctx: Union[ggml_opt_context_t, int], /):
+    ...
+
+
+# GGML_API void ggml_opt_reset(ggml_opt_context_t opt_ctx, bool optimizer);
+@ggml_function("ggml_opt_reset", [ggml_opt_context_t_ctypes, ctypes.c_bool], None)
+def ggml_opt_reset(
+    opt_ctx: Union[ggml_opt_context_t, int],
+    optimizer: Union[ctypes.c_bool, bool],
+    /,
+):
+    ...
+
+
+# GGML_API bool ggml_opt_static_graphs(ggml_opt_context_t opt_ctx);
+@ggml_function("ggml_opt_static_graphs", [ggml_opt_context_t_ctypes], ctypes.c_bool)
+def ggml_opt_static_graphs(opt_ctx: Union[ggml_opt_context_t, int], /) -> bool:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_opt_inputs(ggml_opt_context_t opt_ctx);
+@ggml_function(
+    "ggml_opt_inputs", [ggml_opt_context_t_ctypes], ctypes.POINTER(ggml_tensor)
+)
+def ggml_opt_inputs(opt_ctx: Union[ggml_opt_context_t, int], /) -> Optional[ggml_tensor_p]:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_opt_outputs(ggml_opt_context_t opt_ctx);
+@ggml_function(
+    "ggml_opt_outputs", [ggml_opt_context_t_ctypes], ctypes.POINTER(ggml_tensor)
+)
+def ggml_opt_outputs(opt_ctx: Union[ggml_opt_context_t, int], /) -> Optional[ggml_tensor_p]:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_opt_labels(ggml_opt_context_t opt_ctx);
+@ggml_function(
+    "ggml_opt_labels", [ggml_opt_context_t_ctypes], ctypes.POINTER(ggml_tensor)
+)
+def ggml_opt_labels(opt_ctx: Union[ggml_opt_context_t, int], /) -> Optional[ggml_tensor_p]:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_opt_loss(ggml_opt_context_t opt_ctx);
+@ggml_function(
+    "ggml_opt_loss", [ggml_opt_context_t_ctypes], ctypes.POINTER(ggml_tensor)
+)
+def ggml_opt_loss(opt_ctx: Union[ggml_opt_context_t, int], /) -> Optional[ggml_tensor_p]:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_opt_pred(ggml_opt_context_t opt_ctx);
+@ggml_function(
+    "ggml_opt_pred", [ggml_opt_context_t_ctypes], ctypes.POINTER(ggml_tensor)
+)
+def ggml_opt_pred(opt_ctx: Union[ggml_opt_context_t, int], /) -> Optional[ggml_tensor_p]:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_opt_ncorrect(ggml_opt_context_t opt_ctx);
+@ggml_function(
+    "ggml_opt_ncorrect", [ggml_opt_context_t_ctypes], ctypes.POINTER(ggml_tensor)
+)
+def ggml_opt_ncorrect(
+    opt_ctx: Union[ggml_opt_context_t, int],
+) -> Optional[ggml_tensor_p]:
+    ...
+
+
+# GGML_API struct ggml_tensor * ggml_opt_grad_acc(ggml_opt_context_t opt_ctx, struct ggml_tensor * node);
+@ggml_function(
+    "ggml_opt_grad_acc",
+    [ggml_opt_context_t_ctypes, ctypes.POINTER(ggml_tensor)],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_opt_grad_acc(
+    opt_ctx: Union[ggml_opt_context_t, int],
+    node: ggml_tensor_p,
+    /,
+) -> Optional[ggml_tensor_p]:
+    ...
+
+
+# GGML_API enum ggml_opt_optimizer_type ggml_opt_context_optimizer_type(ggml_opt_context_t);
+@ggml_function(
+    "ggml_opt_context_optimizer_type", [ggml_opt_context_t_ctypes], ctypes.c_int
+)
+def ggml_opt_context_optimizer_type(opt_ctx: Union[ggml_opt_context_t, int], /) -> int:
+    ...
+
+
+# GGML_API const char * ggml_opt_optimizer_name(enum ggml_opt_optimizer_type);
+@ggml_function("ggml_opt_optimizer_name", [ctypes.c_int], ctypes.c_char_p)
+def ggml_opt_optimizer_name(optimizer: Union[ctypes.c_int, int], /) -> bytes:
+    ...
+
+
+# GGML_API ggml_opt_result_t ggml_opt_result_init(void);
+@ggml_function("ggml_opt_result_init", [], ggml_opt_result_t_ctypes)
+def ggml_opt_result_init() -> Optional[ggml_opt_result_t]:
+    ...
+
+
+# GGML_API void ggml_opt_result_free(ggml_opt_result_t result);
+@ggml_function("ggml_opt_result_free", [ggml_opt_result_t_ctypes], None)
+def ggml_opt_result_free(result: Union[ggml_opt_result_t, int], /):
+    ...
+
+
+# GGML_API void ggml_opt_result_reset(ggml_opt_result_t result);
+@ggml_function("ggml_opt_result_reset", [ggml_opt_result_t_ctypes], None)
+def ggml_opt_result_reset(result: Union[ggml_opt_result_t, int], /):
+    ...
+
+
+# GGML_API void ggml_opt_result_ndata(ggml_opt_result_t result, int64_t * ndata);
+@ggml_function(
+    "ggml_opt_result_ndata",
+    [ggml_opt_result_t_ctypes, ctypes.POINTER(ctypes.c_int64)],
+    None,
+)
+def ggml_opt_result_ndata(
+    result: Union[ggml_opt_result_t, int],
+    ndata: CtypesPointer[ctypes.c_int64],
+    /,
+):
+    ...
+
+
+# GGML_API void ggml_opt_result_loss(ggml_opt_result_t result, double * loss, double * unc);
+@ggml_function(
+    "ggml_opt_result_loss",
+    [
+        ggml_opt_result_t_ctypes,
+        ctypes.POINTER(ctypes.c_double),
+        ctypes.POINTER(ctypes.c_double),
+    ],
+    None,
+)
+def ggml_opt_result_loss(
+    result: Union[ggml_opt_result_t, int],
+    loss: CtypesPointer[ctypes.c_double],
+    unc: Optional[CtypesPointer[ctypes.c_double]],
+    /,
+):
+    ...
+
+
+# GGML_API void ggml_opt_result_pred(ggml_opt_result_t result, int32_t * pred);
+@ggml_function(
+    "ggml_opt_result_pred",
+    [ggml_opt_result_t_ctypes, ctypes.POINTER(ctypes.c_int32)],
+    None,
+)
+def ggml_opt_result_pred(
+    result: Union[ggml_opt_result_t, int],
+    pred: CtypesPointer[ctypes.c_int32],
+    /,
+):
+    ...
+
+
+# GGML_API void ggml_opt_result_accuracy(ggml_opt_result_t result, double * accuracy, double * unc);
+@ggml_function(
+    "ggml_opt_result_accuracy",
+    [
+        ggml_opt_result_t_ctypes,
+        ctypes.POINTER(ctypes.c_double),
+        ctypes.POINTER(ctypes.c_double),
+    ],
+    None,
+)
+def ggml_opt_result_accuracy(
+    result: Union[ggml_opt_result_t, int],
+    accuracy: CtypesPointer[ctypes.c_double],
+    unc: Optional[CtypesPointer[ctypes.c_double]],
+    /,
+):
+    ...
+
+
+# GGML_API void ggml_opt_prepare_alloc(ggml_opt_context_t opt_ctx, struct ggml_context * ctx_compute, struct ggml_cgraph * gf, struct ggml_tensor * inputs, struct ggml_tensor * outputs);
+@ggml_function(
+    "ggml_opt_prepare_alloc",
+    [
+        ggml_opt_context_t_ctypes,
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_cgraph),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+    ],
+    None,
+)
+def ggml_opt_prepare_alloc(
+    opt_ctx: Union[ggml_opt_context_t, int],
+    ctx_compute: ggml_context_p,
     gf: ggml_cgraph_p,
-    gb: ggml_cgraph_p,
-    callback: "ctypes._CFuncPtr[None, ctypes.c_void_p, ctypes.c_int, ctypes.POINTER(ctypes.c_float), ctypes.POINTER(ctypes.c_bool)]",  # type: ignore
-    callback_data: Union[ctypes.c_void_p, int, None],
-) -> int:
+    inputs: ggml_tensor_p,
+    outputs: ggml_tensor_p,
+    /,
+):
+    ...
+
+
+# GGML_API void ggml_opt_alloc(ggml_opt_context_t opt_ctx, bool backward);
+@ggml_function("ggml_opt_alloc", [ggml_opt_context_t_ctypes, ctypes.c_bool], None)
+def ggml_opt_alloc(
+    opt_ctx: Union[ggml_opt_context_t, int],
+    backward: Union[ctypes.c_bool, bool],
+    /,
+):
+    ...
+
+
+# GGML_API void ggml_opt_eval(ggml_opt_context_t opt_ctx, ggml_opt_result_t result);
+@ggml_function(
+    "ggml_opt_eval",
+    [ggml_opt_context_t_ctypes, ggml_opt_result_t_ctypes],
+    None,
+)
+def ggml_opt_eval(
+    opt_ctx: Union[ggml_opt_context_t, int],
+    result: Union[ggml_opt_result_t, int, None],
+    /,
+):
+    ...
+
+
+# GGML_API void ggml_opt_epoch(ggml_opt_context_t opt_ctx, ggml_opt_dataset_t dataset, ggml_opt_result_t result_train, ggml_opt_result_t result_eval, int64_t idata_split, ggml_opt_epoch_callback callback_train, ggml_opt_epoch_callback callback_eval);
+@ggml_function(
+    "ggml_opt_epoch",
+    [
+        ggml_opt_context_t_ctypes,
+        ggml_opt_dataset_t_ctypes,
+        ggml_opt_result_t_ctypes,
+        ggml_opt_result_t_ctypes,
+        ctypes.c_int64,
+        ggml_opt_epoch_callback,
+        ggml_opt_epoch_callback,
+    ],
+    None,
+)
+def ggml_opt_epoch(
+    opt_ctx: Union[ggml_opt_context_t, int],
+    dataset: Union[ggml_opt_dataset_t, int],
+    result_train: Union[ggml_opt_result_t, int, None],
+    result_eval: Union[ggml_opt_result_t, int, None],
+    idata_split: Union[ctypes.c_int64, int],
+    callback_train: Optional[ggml_opt_epoch_callback],
+    callback_eval: Optional[ggml_opt_epoch_callback],
+    /,
+):
+    ...
+
+
+# GGML_API void ggml_opt_epoch_callback_progress_bar(bool train, ggml_opt_context_t opt_ctx, ggml_opt_dataset_t dataset, ggml_opt_result_t result, int64_t ibatch, int64_t ibatch_max, int64_t t_start_us);
+@ggml_function(
+    "ggml_opt_epoch_callback_progress_bar",
+    [
+        ctypes.c_bool,
+        ggml_opt_context_t_ctypes,
+        ggml_opt_dataset_t_ctypes,
+        ggml_opt_result_t_ctypes,
+        ctypes.c_int64,
+        ctypes.c_int64,
+        ctypes.c_int64,
+    ],
+    None,
+)
+def ggml_opt_epoch_callback_progress_bar(
+    train: Union[ctypes.c_bool, bool],
+    opt_ctx: Union[ggml_opt_context_t, int],
+    dataset: Union[ggml_opt_dataset_t, int],
+    result: Union[ggml_opt_result_t, int],
+    ibatch: Union[ctypes.c_int64, int],
+    ibatch_max: Union[ctypes.c_int64, int],
+    t_start_us: Union[ctypes.c_int64, int],
+    /,
+):
+    ...
+
+
+# GGML_API void ggml_opt_fit(ggml_backend_sched_t backend_sched, struct ggml_context * ctx_compute, struct ggml_tensor * inputs, struct ggml_tensor * outputs, ggml_opt_dataset_t dataset, enum ggml_opt_loss_type loss_type, enum ggml_opt_optimizer_type optimizer, ggml_opt_get_optimizer_params get_opt_pars, int64_t nepoch, int64_t nbatch_logical, float val_split, bool silent);
+@ggml_function(
+    "ggml_opt_fit",
+    [
+        ctypes.c_void_p,
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ggml_opt_dataset_t_ctypes,
+        ctypes.c_int,
+        ctypes.c_int,
+        ggml_opt_get_optimizer_params,
+        ctypes.c_int64,
+        ctypes.c_int64,
+        ctypes.c_float,
+        ctypes.c_bool,
+    ],
+    None,
+)
+def ggml_opt_fit(
+    backend_sched: Union[ctypes.c_void_p, int, None],
+    ctx_compute: ggml_context_p,
+    inputs: ggml_tensor_p,
+    outputs: ggml_tensor_p,
+    dataset: Union[ggml_opt_dataset_t, int],
+    loss_type: Union[ctypes.c_int, int],
+    optimizer: Union[ctypes.c_int, int],
+    get_opt_pars: Union[ctypes.c_void_p, int, None],
+    nepoch: Union[ctypes.c_int64, int],
+    nbatch_logical: Union[ctypes.c_int64, int],
+    val_split: Union[ctypes.c_float, float],
+    silent: Union[ctypes.c_bool, bool],
+    /,
+):
     ...
 
 
