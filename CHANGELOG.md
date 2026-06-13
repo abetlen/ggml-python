@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- feat(gguf): add buffer and file pointer APIs by @aisk in #158
 - fix: sync updated GGUF API signatures by @aisk in #155
 - feat: update vendored ggml to 0.15.1 by @abetlen in #157
 - feat(contrib): map additional ggml forward ops to onnx backend by @abetlen in #146
