@@ -14927,6 +14927,26 @@ def ggml_backend_webgpu_reg() -> Optional[ggml_backend_reg_t]:
 
 
 #####################################################
+# GGML VirtGPU API
+# source: include/ggml-virtgpu.h
+#####################################################
+
+
+GGML_USE_VIRTGPU = hasattr(lib, "ggml_backend_virtgpu_reg")
+
+
+# GGML_BACKEND_API ggml_backend_reg_t ggml_backend_virtgpu_reg();
+@ggml_function(
+    "ggml_backend_virtgpu_reg",
+    [],
+    ggml_backend_reg_t_ctypes,
+    enabled=GGML_USE_VIRTGPU,
+)
+def ggml_backend_virtgpu_reg() -> Optional[ggml_backend_reg_t]:
+    ...
+
+
+#####################################################
 # GGML ZenDNN API
 # source: src/ggml-zendnn.h
 #####################################################
