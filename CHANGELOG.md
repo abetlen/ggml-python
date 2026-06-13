@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.42]
+
 - feat: sync ggml optimizer bindings by @abetlen in #163
 - feat: add missing backend runtime bindings by @abetlen in #162
 - feat: add VirtGPU backend registry binding by @abetlen in #161
