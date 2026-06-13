@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- feat: add missing backend runtime bindings by @abetlen in #162
 - feat: add VirtGPU backend registry binding by @abetlen in #161
 - feat(gguf): add callback reader initialization binding by @abetlen in #160
 - feat: add graph allocator reserve size binding by @abetlen in #159
