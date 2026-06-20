@@ -12649,11 +12649,13 @@ def ggml_gallocr_new(
 # GGML_API ggml_gallocr_t ggml_gallocr_new_n(ggml_backend_buffer_type_t * bufts, int n_bufs);
 @ggml_function(
     "ggml_gallocr_new_n",
-    [ggml_backend_buffer_type_t_ctypes, ctypes.c_int],
+    [ctypes.POINTER(ggml_backend_buffer_type_t_ctypes), ctypes.c_int],
     ggml_gallocr_ctypes,
 )
 def ggml_gallocr_new_n(
-    bufts: Union[ggml_backend_buffer_type_t, int], n_bufs: int, /
+    bufts: "ctypes._Pointer[ggml_backend_buffer_type_t]",  # type: ignore
+    n_bufs: int,
+    /,
 ) -> Optional[ggml_gallocr]:
     ...
 
