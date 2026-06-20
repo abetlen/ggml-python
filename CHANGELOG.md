@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- feat: update vendored ggml to 0.15.2 by @abetlen in #167
 - fix: correct ggml_blck_size return type by @aisk in #166
 
 ## [0.0.42]
