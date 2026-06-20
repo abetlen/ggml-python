@@ -7,7 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- fix: sync ggml binding signatures by @aisk in #170
+- fix: bind ggml abort and backend guid API by @aisk in #169
+- fix: sync updated gguf and backend binding signatures by @aisk in #170
 
 ## [0.0.43]
 
