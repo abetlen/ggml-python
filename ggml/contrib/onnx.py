@@ -14238,7 +14238,14 @@ class GgmlOnnxExecutionContext:
             raise RuntimeError("Failed to get GGML backend buffer base")
         alignment = ggml.ggml_backend_buffer_get_alignment(buffer)
         offset = (alignment - (base % alignment)) % alignment
-        ggml.ggml_backend_tensor_alloc(buffer, tensor, ctypes.c_void_p(base + offset))
+        status = ggml.ggml_backend_tensor_alloc(
+            buffer, tensor, ctypes.c_void_p(base + offset)
+        )
+        if status != ggml.GGML_STATUS_SUCCESS:
+            status_text = ggml.ggml_status_to_string(status).decode(
+                "utf-8", errors="replace"
+            )
+            raise RuntimeError(f"Failed to allocate GGML backend tensor: {status_text}")
 
     def alloc_backend_buffer_for_tensor(
         self, tensor: ggml.ggml_tensor_p

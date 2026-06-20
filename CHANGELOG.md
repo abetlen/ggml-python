@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- fix: sync ggml binding signatures by @aisk in #170
+
 ## [0.0.43]
 
 - feat: update vendored ggml to 0.15.2 by @abetlen in #167

@@ -11141,13 +11141,13 @@ def gguf_type_name(
     ...
 
 
-# GGML_API int    gguf_get_version    (const struct gguf_context * ctx);
+# GGML_API uint32_t gguf_get_version    (const struct gguf_context * ctx);
 @ggml_function(
     "gguf_get_version",
     [
         gguf_context_p_ctypes,
     ],
-    ctypes.c_int,
+    ctypes.c_uint32,
 )
 def gguf_get_version(
     ctx: gguf_context_p,
@@ -14524,7 +14524,7 @@ ggml_backend_eval_callback = ctypes.CFUNCTYPE(
 
 
 # // Compare the output of two backends
-# GGML_API bool ggml_backend_compare_graph_backend(ggml_backend_t backend1, ggml_backend_t backend2, struct ggml_cgraph * graph, ggml_backend_eval_callback callback, void * user_data);
+# GGML_API bool ggml_backend_compare_graph_backend(ggml_backend_t backend1, ggml_backend_t backend2, struct ggml_cgraph * graph, ggml_backend_eval_callback callback, void * user_data, struct ggml_tensor const * const * test_nodes, size_t num_test_nodes);
 @ggml_function(
     "ggml_backend_compare_graph_backend",
     [
@@ -14533,6 +14533,8 @@ ggml_backend_eval_callback = ctypes.CFUNCTYPE(
         ctypes.POINTER(ggml_cgraph),
         ggml_backend_eval_callback,
         ctypes.c_void_p,
+        ctypes.POINTER(ctypes.POINTER(ggml_tensor)),
+        ctypes.c_size_t,
     ],
     ctypes.c_bool,
 )
@@ -14542,12 +14544,14 @@ def ggml_backend_compare_graph_backend(
     graph: ggml_cgraph_p,
     callback,  # type: ignore
     user_data: Union[ctypes.c_void_p, int, None],
+    test_nodes: Optional[CtypesPointer[ggml_tensor_p]],
+    num_test_nodes: Union[ctypes.c_size_t, int],
 ) -> bool:
     ...
 
 
 # // Tensor initialization
-# GGML_API void ggml_backend_tensor_alloc(ggml_backend_buffer_t buffer, struct ggml_tensor * tensor, void * addr);
+# GGML_API enum ggml_status ggml_backend_tensor_alloc(ggml_backend_buffer_t buffer, struct ggml_tensor * tensor, void * addr);
 @ggml_function(
     "ggml_backend_tensor_alloc",
     [
@@ -14555,29 +14559,26 @@ def ggml_backend_compare_graph_backend(
         ctypes.POINTER(ggml_tensor),
         ctypes.c_void_p,
     ],
-    None,
+    ctypes.c_int,
 )
 def ggml_backend_tensor_alloc(
     buffer: Union[ggml_backend_buffer_t, int],
     tensor: ggml_tensor_p,
     addr: Union[ctypes.c_void_p, int, None],
     /,
-):
+) -> int:
     ...
 
 
-# GGML_API void ggml_backend_view_init(ggml_backend_buffer_t buffer, struct ggml_tensor * tensor);
+# GGML_API enum ggml_status ggml_backend_view_init(struct ggml_tensor * tensor);
 @ggml_function(
     "ggml_backend_view_init",
     [
-        ggml_backend_buffer_t_ctypes,
         ctypes.POINTER(ggml_tensor),
     ],
-    None,
+    ctypes.c_int,
 )
-def ggml_backend_view_init(
-    buffer: Union[ggml_backend_buffer_t, int], tensor: ggml_tensor_p, /
-):
+def ggml_backend_view_init(tensor: ggml_tensor_p, /) -> int:
     ...
 
 
