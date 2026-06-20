@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- ci: add Pyodide wheel builds by @abetlen in #171
 - fix: bind ggml abort and backend guid API by @aisk in #169
 - fix: sync updated gguf and backend binding signatures by @aisk in #170
 

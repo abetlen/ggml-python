@@ -80,17 +80,25 @@ from typing import (
 from typing_extensions import TypeAlias
 
 
+_EMSCRIPTEN_SIDE_MODULE_SUFFIX = ".cpython-00-wasm32-emscripten.so"
+
+
 # Load the library
 def load_shared_library(module_name: str, lib_base_name: str):
     # Construct the paths to the possible shared library names
     base_path = pathlib.Path(__file__).parent.resolve() / "lib"
     # Searching for the library in the current directory under the name "libggml" (default name
     # for ggml) and "ggml" (default name for this repo)
-    lib_names: List[str] = [
-        f"lib{lib_base_name}.so",
-        f"lib{lib_base_name}.dylib",
-        f"{lib_base_name}.dll",
-    ]
+    if sys.platform == "emscripten":
+        lib_names: List[str] = [
+            f"lib{lib_base_name}{_EMSCRIPTEN_SIDE_MODULE_SUFFIX}",
+        ]
+    else:
+        lib_names = [
+            f"lib{lib_base_name}.so",
+            f"lib{lib_base_name}.dylib",
+            f"{lib_base_name}.dll",
+        ]
 
     path: Optional[pathlib.Path] = None
 
@@ -115,15 +123,30 @@ def load_shared_library(module_name: str, lib_base_name: str):
         os.environ["PATH"] = str(base_path) + os.pathsep + os.environ["PATH"]
         os.add_dll_directory(str(base_path))
         cdll_args["winmode"] = 0
+    elif sys.platform == "emscripten":
+        cdll_args["mode"] = ctypes.RTLD_GLOBAL
+        lib_dir = str(base_path)
+        ld_library_path = os.environ.get("LD_LIBRARY_PATH", "")
+        if lib_dir not in ld_library_path.split(os.pathsep):
+            os.environ["LD_LIBRARY_PATH"] = (
+                lib_dir
+                if not ld_library_path
+                else f"{lib_dir}{os.pathsep}{ld_library_path}"
+            )
 
     preloaded_libraries: List[ctypes.CDLL] = []
 
     def preload_local_library(dep_base_name: str):
-        dep_names = [
-            f"lib{dep_base_name}.so",
-            f"lib{dep_base_name}.dylib",
-            f"{dep_base_name}.dll",
-        ]
+        if sys.platform == "emscripten":
+            dep_names = [
+                f"lib{dep_base_name}{_EMSCRIPTEN_SIDE_MODULE_SUFFIX}",
+            ]
+        else:
+            dep_names = [
+                f"lib{dep_base_name}.so",
+                f"lib{dep_base_name}.dylib",
+                f"{dep_base_name}.dll",
+            ]
         cdll_dep_args = dict(cdll_args)
         if hasattr(ctypes, "RTLD_GLOBAL") and sys.platform != "win32":
             cdll_dep_args["mode"] = ctypes.RTLD_GLOBAL

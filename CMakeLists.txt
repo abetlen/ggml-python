@@ -16,6 +16,27 @@ endif()
 
 set(BUILD_SHARED_LIBS "On")
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+if(EMSCRIPTEN)
+    if(DEFINED EMSCRIPTEN_SYSTEM_PROCESSOR)
+        set(CMAKE_SYSTEM_PROCESSOR ${EMSCRIPTEN_SYSTEM_PROCESSOR} CACHE STRING "Target processor" FORCE)
+    else()
+        set(CMAKE_SYSTEM_PROCESSOR wasm32 CACHE STRING "Target processor" FORCE)
+    endif()
+
+    set(GGML_NATIVE "Off" CACHE BOOL "ggml: enable -march=native" FORCE)
+    set(GGML_OPENMP "Off" CACHE BOOL "ggml: use OpenMP" FORCE)
+    set(GGML_METAL "Off" CACHE BOOL "ggml: use Metal" FORCE)
+    set(GGML_BLAS "Off" CACHE BOOL "ggml: use BLAS" FORCE)
+    set(GGML_CUDA "Off" CACHE BOOL "ggml: use CUDA" FORCE)
+    set(GGML_HIP "Off" CACHE BOOL "ggml: use HIP" FORCE)
+    set(GGML_VULKAN "Off" CACHE BOOL "ggml: use Vulkan" FORCE)
+    set(GGML_OPENCL "Off" CACHE BOOL "ggml: use OpenCL" FORCE)
+    set(GGML_RPC "Off" CACHE BOOL "ggml: use RPC" FORCE)
+
+    set(CMAKE_INSTALL_BINDIR ggml/lib CACHE PATH "Install binaries" FORCE)
+    set(CMAKE_INSTALL_INCLUDEDIR ggml/include CACHE PATH "Install headers" FORCE)
+    set(CMAKE_INSTALL_LIBDIR ggml/lib CACHE PATH "Install libraries" FORCE)
+endif()
 if(APPLE)
     set(CMAKE_INSTALL_RPATH "@loader_path")
 else()
@@ -64,6 +85,12 @@ set(GGML_PYTHON_TARGETS
 
 foreach(GGML_PYTHON_TARGET IN LISTS GGML_PYTHON_TARGETS)
     if(TARGET ${GGML_PYTHON_TARGET})
+        if(EMSCRIPTEN)
+            set_target_properties(${GGML_PYTHON_TARGET} PROPERTIES
+                OUTPUT_NAME "${GGML_PYTHON_TARGET}.cpython-00-wasm32-emscripten"
+            )
+        endif()
+
         if(UNIX AND NOT APPLE)
             set_target_properties(${GGML_PYTHON_TARGET} PROPERTIES
                 NO_SONAME TRUE

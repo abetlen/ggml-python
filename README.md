@@ -93,6 +93,19 @@ pip install ggml-python \
   --extra-index-url https://abetlen.github.io/ggml-python/whl/hip-radeon
 ```
 
+Pre-built Pyodide wheels are available for browser runtimes:
+
+```python
+import micropip
+
+await micropip.install(["numpy", "typing_extensions"])
+await micropip.install(
+    "ggml-python",
+    deps=False,
+    index_urls=["https://abetlen.github.io/ggml-python/whl/cpu"],
+)
+```
+
 When installing from source, pip compiles ggml with CMake and requires a C compiler installed on your system.
 To build ggml with specific features (ie. OpenBLAS, GPU Support, etc) you can pass specific cmake options through the `cmake.args` pip install configuration setting. For example to install ggml-python with cuBLAS support you can run:
 
