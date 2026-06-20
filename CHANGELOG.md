@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- fix: correct ggml_blck_size return type by @aisk in #166
+
 ## [0.0.42]
 
 - feat: sync ggml optimizer bindings by @abetlen in #163
