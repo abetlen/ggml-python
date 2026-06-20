@@ -1576,8 +1576,8 @@ def ggml_nbytes_pad(tensor: ggml_tensor_p, /) -> int:
     ...
 
 
-# GGML_API GGML_CALL int    ggml_blck_size(enum ggml_type type);
-@ggml_function("ggml_blck_size", [ctypes.c_int], ctypes.c_int)
+# GGML_API GGML_CALL int64_t ggml_blck_size(enum ggml_type type);
+@ggml_function("ggml_blck_size", [ctypes.c_int], ctypes.c_int64)
 def ggml_blck_size(type: Union[ctypes.c_int, int], /) -> int:
     ...
 
