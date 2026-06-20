@@ -333,6 +333,21 @@ def ggml_set_abort_callback(callback: ggml_abort_callback_t, /) -> ggml_abort_ca
     ...
 
 
+# GGML_API void ggml_abort(const char * file, int line, const char * fmt, ...);
+@ggml_function(
+    "ggml_abort",
+    [ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p],
+    None,
+)
+def ggml_abort(
+    file: bytes,
+    line: Union[ctypes.c_int, int],
+    fmt: bytes,
+    *args: Any,
+) -> None:
+    ...
+
+
 # // ieee 754-2008 half-precision float16
 # // todo: make this not an integral type
 # typedef uint16_t ggml_fp16_t;
@@ -13061,7 +13076,14 @@ def ggml_backend_buffer_reset(buffer: Union[ggml_backend_buffer_t, int], /):
 
 
 # GGML_API ggml_guid_t  ggml_backend_guid(ggml_backend_t backend);
-def ggml_backend_guid(backend: Union[ggml_backend_t, int], /) -> int:
+@ggml_function(
+    "ggml_backend_guid",
+    [ggml_backend_t_ctypes],
+    ggml_guid_t_ctypes,
+)
+def ggml_backend_guid(
+    backend: Union[ggml_backend_t, int], /
+) -> Optional[ggml_guid_t]:
     ...
 
 
