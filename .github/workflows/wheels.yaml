@@ -91,9 +91,40 @@ jobs:
           name: wheels_arm64
           path: ./wheelhouse/*.whl
 
+  build_wheels_pyodide:
+    name: Build Pyodide wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: "recursive"
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Build wheel
+        uses: pypa/cibuildwheel@v4.1.0
+        env:
+          CIBW_PLATFORM: "pyodide"
+          CIBW_BUILD: "cp314-pyodide_wasm32"
+          CIBW_BUILD_VERBOSITY: "1"
+          CIBW_REPAIR_WHEEL_COMMAND: ""
+          CIBW_TEST_COMMAND: >
+            python -c "import ggml; params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024, mem_buffer=None); ctx = ggml.ggml_init(params); assert ctx is not None; x = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1); a = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1); b = ggml.ggml_new_tensor_1d(ctx, ggml.GGML_TYPE_F32, 1); x2 = ggml.ggml_mul(ctx, x, x); f = ggml.ggml_add(ctx, ggml.ggml_mul(ctx, a, x2), b); gf = ggml.ggml_new_graph(ctx); ggml.ggml_build_forward_expand(gf, f); ggml.ggml_set_f32(x, 2.0); ggml.ggml_set_f32(a, 3.0); ggml.ggml_set_f32(b, 4.0); ggml.ggml_graph_compute_with_ctx(ctx, gf, 1); assert ggml.ggml_get_f32_1d(f, 0) == 16.0; ggml.ggml_free(ctx); print('ggml pyodide ok', ggml.ggml_version().decode())"
+          CMAKE_ARGS: "-DEMSCRIPTEN_SYSTEM_PROCESSOR=wasm32 -DGGML_NATIVE=OFF -DGGML_OPENMP=OFF -DGGML_METAL=OFF -DGGML_BLAS=OFF -DGGML_CUDA=OFF -DGGML_HIP=OFF -DGGML_VULKAN=OFF -DGGML_OPENCL=OFF -DGGML_RPC=OFF -DGGML_SYCL=OFF -DGGML_CANN=OFF -DGGML_WEBGPU=OFF"
+        with:
+          output-dir: wheelhouse
+
+      - name: Upload wheels as artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheels_pyodide
+          path: ./wheelhouse/*.whl
+
   release:
     name: Release
-    needs: [build_wheels, build_wheels_arm64]
+    needs: [build_wheels, build_wheels_arm64, build_wheels_pyodide]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
 
