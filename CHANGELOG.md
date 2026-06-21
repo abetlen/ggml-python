@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- docs: add JupyterLite browser playground by @abetlen in #173
+
 ## [0.0.44]
 
 - ci: add Pyodide wheel builds by @abetlen in #171

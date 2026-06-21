@@ -53,7 +53,17 @@ extend-exclude = ["ggml/contrib/onnx.py", "tests/test_ggml_onnx.py"]
 
 [project.optional-dependencies]
 test = ["pytest"]
-docs = ["mkdocs", "mkdocstrings[python]", "mkdocs-material", "pillow", "cairosvg"]
+docs = [
+    "mkdocs",
+    "mkdocstrings[python]",
+    "mkdocs-material",
+    "pillow",
+    "cairosvg",
+    "jupyter-server>=2",
+    "jupyterlab-server>=2",
+    "jupyterlite-core>=0.7.0,<0.8",
+    "jupyterlite-pyodide-kernel>=0.7.0,<0.8",
+]
 publish = ["build"]
 convert = [
     "accelerate==0.30.1",
