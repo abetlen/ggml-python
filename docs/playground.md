@@ -4,7 +4,7 @@ title: Playground
 
 # Playground
 
-This JupyterLite notebook runs entirely in your browser and installs the Pyodide wheel from the ggml-python wheel index.
+This JupyterLite notebook runs entirely in your browser and installs the bundled Pyodide wheel from the local playground package index.
 
 <iframe id="ggml-python-playground" title="ggml-python JupyterLite playground" width="100%" height="820" style="border: 1px solid var(--md-default-fg-color--lightest); border-radius: 4px;"></iframe>
 
