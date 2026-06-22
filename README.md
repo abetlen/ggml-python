@@ -129,6 +129,8 @@ pip install ggml-python --config-settings=cmake.args='-DGGML_CUDA=ON'
 
 # Usage
 
+You can also try this example in the browser using the [ggml-python playground](https://ggml-python.readthedocs.io/en/latest/playground/).
+
 ```python
 import ggml
 import ctypes

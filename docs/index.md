@@ -120,6 +120,7 @@ Below are the available options for building ggml-python with additional options
 ## Basic Example
 
 Below is a simple example of using ggml-python low level api to compute the value of a function.
+You can also try this example in the browser using the [ggml-python playground](playground.md).
 
 ```python
 import ggml
