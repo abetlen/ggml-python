@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- feat: add buffer protocol support to utils by @aisk in #175
+
 ## [0.0.45]
 
 - feat: update vendored ggml to 0.15.3 and sync SYCL bindings by @abetlen in #177
