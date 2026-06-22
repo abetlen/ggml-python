@@ -1,3 +1,5 @@
+import array
+
 import ggml
 import ggml.utils
 
@@ -17,6 +19,33 @@ def test_utils():
     assert t.contents.ne[:1] == [3]
     assert t.contents.type == ggml.GGML_TYPE_F32
     assert np.allclose(ggml.utils.to_numpy(t), x)
+    ggml.ggml_free(ctx)
+
+
+def test_from_buffer_and_to_buffer():
+    params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024)
+    ctx = ggml.ggml_init(params)
+    assert ctx is not None
+    # build a tensor from a plain array.array (no numpy)
+    data = array.array("f", [1, 2, 3, 4, 5, 6])
+    t = ggml.utils.from_buffer(data, ctx, ggml.utils.GGML_TYPE.F32, (2, 3))
+    assert ggml.utils.get_shape(t) == (3, 2)
+    # to_buffer exposes a writable zero-copy view of the same bytes
+    buf = ggml.utils.to_buffer(t)
+    assert buf.nbytes == data.itemsize * len(data)
+    assert buf.readonly is False
+    assert bytes(buf) == data.tobytes()
+    ggml.ggml_free(ctx)
+
+
+def test_from_buffer_size_mismatch():
+    params = ggml.ggml_init_params(mem_size=16 * 1024 * 1024)
+    ctx = ggml.ggml_init(params)
+    assert ctx is not None
+    with pytest.raises(ValueError):
+        ggml.utils.from_buffer(
+            array.array("f", [1, 2, 3]), ctx, ggml.utils.GGML_TYPE.F32, (2, 3)
+        )
     ggml.ggml_free(ctx)
 
 
