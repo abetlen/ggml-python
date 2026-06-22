@@ -52,6 +52,27 @@ NUMPY_DTYPE_TO_GGML_TYPE = {
 GGML_TYPE_TO_NUMPY_DTYPE = {v: k for k, v in NUMPY_DTYPE_TO_GGML_TYPE.items()}
 
 
+def to_buffer(tensor: ggml.ggml_tensor_p) -> memoryview:
+    """Get a writable memoryview of a ggml tensor's raw data (zero-copy).
+
+    The returned buffer exposes the tensor's full byte span via the Python
+    buffer protocol. Its contents are only valid while the owning ggml context
+    is alive.
+
+    Parameters:
+        tensor: ggml tensor
+
+    Returns:
+        Writable memoryview backed by the tensor data
+    """
+    data = ggml.ggml_get_data(tensor)
+    if data is None:
+        raise ValueError("tensor data is None")
+    nbytes = ggml.ggml_nbytes(tensor)
+    array = (ctypes.c_char * nbytes).from_address(data)
+    return memoryview(array)
+
+
 def to_numpy(
     tensor: ggml.ggml_tensor_p,
     shape: Optional[Tuple[int, ...]] = None,
@@ -65,23 +86,13 @@ def to_numpy(
         Numpy array with a view of data from tensor
     """
     ggml_type = GGML_TYPE(tensor.contents.type)
-    if ggml_type == GGML_TYPE.F16:
-        ctypes_type = ctypes.c_uint16
-    else:
-        ctypes_type = np.ctypeslib.as_ctypes_type(GGML_TYPE_TO_NUMPY_DTYPE[ggml_type])
-
-    data = ggml.ggml_get_data(tensor)
-    if data is None:
-        raise ValueError("tensor data is None")
-    array = (ctypes_type * ggml.ggml_nelements(tensor)).from_address(data)
+    dtype = GGML_TYPE_TO_NUMPY_DTYPE[ggml_type]
+    array = np.frombuffer(to_buffer(tensor), dtype=dtype)
     n_dims = ggml.ggml_n_dims(tensor)
     shape_ = tuple(reversed(tensor.contents.ne[:n_dims]))
     strides = tuple(reversed(tensor.contents.nb[:n_dims]))
-    output = np.ctypeslib.as_array(array)
-    if ggml_type == GGML_TYPE.F16:
-        output.dtype = np.float16  # type: ignore
     return np.lib.stride_tricks.as_strided(
-        output, shape=shape if shape is not None else shape_, strides=strides
+        array, shape=shape if shape is not None else shape_, strides=strides
     )
 
 
@@ -108,6 +119,47 @@ def from_numpy(x: npt.NDArray[Any], ctx: ggml.ggml_context_p) -> ggml.ggml_tenso
     )
     if ggml.ggml_get_data(tensor) is not None:
         to_numpy(tensor)[:] = x
+    return tensor
+
+
+def from_buffer(
+    buffer: Any,
+    ctx: ggml.ggml_context_p,
+    type: GGML_TYPE,
+    shape: Tuple[int, ...],
+) -> ggml.ggml_tensor_p:
+    """Create a new ggml tensor with data copied from a buffer-protocol object.
+
+    The buffer is assumed to be contiguous and laid out in row-major (C) order
+    with the given shape and ggml type. Unlike :func:`from_numpy`, this does not
+    require numpy and works with any object exposing the buffer protocol
+    (``bytes``, ``bytearray``, ``memoryview``, ``array.array``, etc.).
+
+    Parameters:
+        buffer: source buffer-protocol object
+        ctx: ggml context
+        type: ggml type of the tensor
+        shape: shape of the tensor in row-major (C) order
+
+    Returns:
+        New ggml tensor with data copied from buffer
+    """
+    ne = tuple(reversed(shape))
+    tensor = ggml.ggml_new_tensor(
+        ctx,
+        type.value,
+        len(ne),
+        (ctypes.c_int64 * len(ne))(*ne),
+    )
+    src = memoryview(buffer).cast("B")
+    if ggml.ggml_get_data(tensor) is not None:
+        dst = to_buffer(tensor).cast("B")
+        if len(src) != len(dst):
+            raise ValueError(
+                f"buffer size ({len(src)} bytes) does not match tensor size "
+                f"({len(dst)} bytes)"
+            )
+        dst[:] = src
     return tensor
 
 
