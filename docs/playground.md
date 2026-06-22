@@ -11,7 +11,7 @@ This JupyterLite notebook runs entirely in your browser and installs the bundled
 Open the <a id="ggml-python-playground-link" href="#">JupyterLite workspace</a> in a full page if the embedded view is too small.
 
 <script>
-  const ggmlPythonPlayground = "lite/lab/index.html?path=ggml-python-playground.ipynb";
+  const ggmlPythonPlayground = "lite-2026/lab/index.html?path=ggml-python-playground.ipynb";
   document.getElementById("ggml-python-playground").src = ggmlPythonPlayground;
   document.getElementById("ggml-python-playground-link").href = ggmlPythonPlayground;
 </script>
