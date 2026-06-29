@@ -308,8 +308,8 @@ GGML_EXIT_ABORTED = 1
 
 GGML_VERSION_MAJOR = 0
 GGML_VERSION_MINOR = 15
-GGML_VERSION_PATCH = 2
-GGML_VERSION = "0.15.2"
+GGML_VERSION_PATCH = 3
+GGML_VERSION = "0.15.3"
 
 GGML_ROPE_TYPE_NORMAL = 0
 GGML_ROPE_TYPE_NEOX = 2
@@ -15248,6 +15248,50 @@ def ggml_backend_sycl_split_buffer_type(
     tensor_split: CtypesArray[ctypes.c_float],
     /,
 ) -> Optional[ggml_backend_buffer_type_t]:
+    ...
+
+
+# GGML_API GGML_CALL void * ggml_backend_sycl_comm_init(ggml_backend_t * backends, size_t n_backends);
+@ggml_function(
+    "ggml_backend_sycl_comm_init",
+    [ctypes.POINTER(ggml_backend_t_ctypes), ctypes.c_size_t],
+    ctypes.c_void_p,
+    enabled=GGML_USE_SYCL_BACKEND,
+)
+def ggml_backend_sycl_comm_init(
+    backends: CtypesPointer[ggml_backend_t_ctypes],
+    n_backends: Union[ctypes.c_size_t, int],
+    /,
+) -> Optional[ctypes.c_void_p]:
+    ...
+
+
+# GGML_API GGML_CALL void ggml_backend_sycl_comm_free(void * comm_ctx);
+@ggml_function(
+    "ggml_backend_sycl_comm_free",
+    [ctypes.c_void_p],
+    None,
+    enabled=GGML_USE_SYCL_BACKEND,
+)
+def ggml_backend_sycl_comm_free(
+    comm_ctx: Optional[ctypes.c_void_p],
+    /,
+) -> None:
+    ...
+
+
+# GGML_API GGML_CALL bool ggml_backend_sycl_comm_allreduce_tensor(void * comm_ctx, struct ggml_tensor ** tensors);
+@ggml_function(
+    "ggml_backend_sycl_comm_allreduce_tensor",
+    [ctypes.c_void_p, ctypes.POINTER(ctypes.POINTER(ggml_tensor))],
+    ctypes.c_bool,
+    enabled=GGML_USE_SYCL_BACKEND,
+)
+def ggml_backend_sycl_comm_allreduce_tensor(
+    comm_ctx: Optional[ctypes.c_void_p],
+    tensors: CtypesPointer[ggml_tensor_p],
+    /,
+) -> bool:
     ...
 
 
