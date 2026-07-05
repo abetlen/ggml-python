@@ -30,6 +30,9 @@ def test_from_buffer_and_to_buffer():
     data = array.array("f", [1, 2, 3, 4, 5, 6])
     t = ggml.utils.from_buffer(data, ctx, ggml.utils.GGML_TYPE.F32, (2, 3))
     assert ggml.utils.get_shape(t) == (3, 2)
+    assert np.array_equal(
+        ggml.utils.to_numpy(t), np.array(data, dtype=np.float32).reshape(2, 3)
+    )
     # to_buffer exposes a writable zero-copy view of the same bytes
     buf = ggml.utils.to_buffer(t)
     assert buf.nbytes == data.itemsize * len(data)
