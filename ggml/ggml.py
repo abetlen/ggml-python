@@ -307,9 +307,9 @@ GGML_EXIT_SUCCESS = 0
 GGML_EXIT_ABORTED = 1
 
 GGML_VERSION_MAJOR = 0
-GGML_VERSION_MINOR = 15
-GGML_VERSION_PATCH = 3
-GGML_VERSION = "0.15.3"
+GGML_VERSION_MINOR = 16
+GGML_VERSION_PATCH = 0
+GGML_VERSION = "0.16.0"
 
 GGML_ROPE_TYPE_NORMAL = 0
 GGML_ROPE_TYPE_NEOX = 2
@@ -483,7 +483,8 @@ ggml_context_p_ctypes = ctypes.c_void_p  # type: ignore
 #     GGML_TYPE_MXFP4   = 39,
 #     GGML_TYPE_NVFP4   = 40,
 #     GGML_TYPE_Q1_0    = 41,
-#     GGML_TYPE_COUNT   = 42,
+#     GGML_TYPE_Q2_0    = 42,
+#     GGML_TYPE_COUNT   = 43,
 # };
 GGML_TYPE_F32 = 0
 GGML_TYPE_F16 = 1
@@ -519,7 +520,8 @@ GGML_TYPE_TQ2_0 = 35
 GGML_TYPE_MXFP4 = 39
 GGML_TYPE_NVFP4 = 40
 GGML_TYPE_Q1_0 = 41
-GGML_TYPE_COUNT = 42
+GGML_TYPE_Q2_0 = 42
+GGML_TYPE_COUNT = 43
 
 
 # // precision
@@ -576,6 +578,7 @@ GGML_BACKEND_TYPE_GPU_SPLIT = 20
 #     GGML_FTYPE_MOSTLY_MXFP4   = 25, // except 1d tensors
 #     GGML_FTYPE_MOSTLY_NVFP4   = 26, // except 1d tensors
 #     GGML_FTYPE_MOSTLY_Q1_0    = 27, // except 1d tensors
+#     GGML_FTYPE_MOSTLY_Q2_0    = 28, // except 1d tensors
 # };
 GGML_FTYPE_UNKNOWN = -1
 GGML_FTYPE_ALL_F32 = 0
@@ -604,6 +607,7 @@ GGML_FTYPE_MOSTLY_BF16 = 24
 GGML_FTYPE_MOSTLY_MXFP4 = 25
 GGML_FTYPE_MOSTLY_NVFP4 = 26
 GGML_FTYPE_MOSTLY_Q1_0 = 27
+GGML_FTYPE_MOSTLY_Q2_0 = 28
 
 
 # // available tensor operations:
@@ -15780,20 +15784,6 @@ def ggml_backend_cuda_allreduce_tensor(
     n_backends: Union[ctypes.c_size_t, int],
     /,
 ) -> bool:
-    ...
-
-
-# GGML_API GGML_CALL ggml_backend_buffer_type_t ggml_backend_cuda_split_buffer_type(int main_device, const float * tensor_split);
-@ggml_function(
-    "ggml_backend_cuda_split_buffer_type",
-    [ctypes.c_int, ctypes.POINTER(ctypes.c_float)],
-    ggml_backend_buffer_type_t_ctypes,
-    enabled=GGML_USE_CUDA,
-)
-def ggml_backend_cuda_split_buffer_type(
-    main_device: Union[ctypes.c_int, int],
-    tensor_split: CtypesArray[ctypes.c_float],
-) -> Optional[ggml_backend_buffer_type_t]:
     ...
 
 
