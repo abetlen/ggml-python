@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- feat: update ggml to 0.16.0 by @abetlen in #183
 - feat: add buffer protocol support to utils by @aisk in #175
 
 ## [0.0.45]
