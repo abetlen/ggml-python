@@ -7,6 +7,17 @@ import ggml
 import numpy as np
 
 
+def test_ggml_version_constants_match_runtime_library():
+    version = ggml.ggml_version().decode("utf-8")
+
+    assert ggml.GGML_VERSION == version
+    assert (
+        ggml.GGML_VERSION_MAJOR,
+        ggml.GGML_VERSION_MINOR,
+        ggml.GGML_VERSION_PATCH,
+    ) == tuple(int(component) for component in version.split("."))
+
+
 def test_ggml():
     assert ggml.GGML_FILE_VERSION == 2
 

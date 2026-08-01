@@ -103,8 +103,18 @@ def load_shared_library(module_name: str, lib_base_name: str):
     path: Optional[pathlib.Path] = None
 
     for lib_name in lib_names:
+        local_path = base_path / lib_name
+        if local_path.exists():
+            path = local_path
+            break
+
         try:
-            with importlib_resources.as_file(importlib_resources.files(module_name).joinpath("lib", lib_name)) as p: # type: ignore
+            resource = (
+                importlib_resources.files(module_name)
+                .joinpath("lib")
+                .joinpath(lib_name)
+            )
+            with importlib_resources.as_file(resource) as p:  # type: ignore
                 p = cast(pathlib.Path, p)
                 if os.path.exists(p):
                     path = p
@@ -306,10 +316,12 @@ GGML_EXIT_SUCCESS = 0
 # #define GGML_EXIT_ABORTED 1
 GGML_EXIT_ABORTED = 1
 
-GGML_VERSION_MAJOR = 0
-GGML_VERSION_MINOR = 15
-GGML_VERSION_PATCH = 3
-GGML_VERSION = "0.15.3"
+lib.ggml_version.argtypes = []
+lib.ggml_version.restype = ctypes.c_char_p
+GGML_VERSION = lib.ggml_version().decode("utf-8")
+GGML_VERSION_MAJOR, GGML_VERSION_MINOR, GGML_VERSION_PATCH = (
+    int(component) for component in GGML_VERSION.split(".")
+)
 
 GGML_ROPE_TYPE_NORMAL = 0
 GGML_ROPE_TYPE_NEOX = 2
