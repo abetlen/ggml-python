@@ -324,6 +324,9 @@ GGUF_MAGIC = "GGUF"
 # define GGUF_VERSION 3
 GGUF_VERSION = 3
 
+# define GGUF_KEY_GENERAL_ALIGNMENT "general.alignment"
+GGUF_KEY_GENERAL_ALIGNMENT = "general.alignment"
+
 # #define GGUF_DEFAULT_ALIGNMENT 32
 GGUF_DEFAULT_ALIGNMENT = 32
 
@@ -15582,6 +15585,8 @@ def ggml_backend_hexagon_reg() -> Optional[ggml_backend_reg_t]:
 
 GGML_USE_WEBGPU = hasattr(lib, "ggml_backend_webgpu_init")
 
+GGML_WEBGPU_NAME = "WebGPU"
+
 
 # GGML_API GGML_CALL ggml_backend_t ggml_backend_webgpu_init(void);
 @ggml_function(
@@ -15723,6 +15728,8 @@ GGML_USE_CUDA = hasattr(lib, "ggml_backend_cuda_init")
 GGML_USE_CUDA_LOG_CALLBACK = hasattr(lib, "ggml_backend_cuda_log_set_callback")
 
 
+GGML_CUDA_NAME = "CUDA"
+GGML_CUBLAS_NAME = "cuBLAS"
 GGML_CUDA_MAX_DEVICES = 16
 
 
