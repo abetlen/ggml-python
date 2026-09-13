@@ -103,8 +103,13 @@ def load_shared_library(module_name: str, lib_base_name: str):
     path: Optional[pathlib.Path] = None
 
     for lib_name in lib_names:
+        # Prefer a plain filesystem lookup, which works regardless of how the
+        # package loader exposes resources (e.g. editable installs).
+        if (base_path / lib_name).exists():
+            path = base_path / lib_name
+            break
         try:
-            with importlib_resources.as_file(importlib_resources.files(module_name).joinpath("lib", lib_name)) as p: # type: ignore
+            with importlib_resources.as_file(importlib_resources.files(module_name).joinpath("lib").joinpath(lib_name)) as p: # type: ignore
                 p = cast(pathlib.Path, p)
                 if os.path.exists(p):
                     path = p
