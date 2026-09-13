@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - feat: add buffer protocol support to utils by @aisk in #175
+- fix: keep tests and lint passing with newer scikit-build-core and ruff by @aisk
 
 ## [0.0.45]
 
