@@ -307,9 +307,9 @@ GGML_EXIT_SUCCESS = 0
 GGML_EXIT_ABORTED = 1
 
 GGML_VERSION_MAJOR = 0
-GGML_VERSION_MINOR = 15
-GGML_VERSION_PATCH = 3
-GGML_VERSION = "0.15.3"
+GGML_VERSION_MINOR = 23
+GGML_VERSION_PATCH = 0
+GGML_VERSION = "0.23.0"
 
 GGML_ROPE_TYPE_NORMAL = 0
 GGML_ROPE_TYPE_NEOX = 2
@@ -483,7 +483,8 @@ ggml_context_p_ctypes = ctypes.c_void_p  # type: ignore
 #     GGML_TYPE_MXFP4   = 39,
 #     GGML_TYPE_NVFP4   = 40,
 #     GGML_TYPE_Q1_0    = 41,
-#     GGML_TYPE_COUNT   = 42,
+#     GGML_TYPE_Q2_0    = 42,
+#     GGML_TYPE_COUNT   = 43,
 # };
 GGML_TYPE_F32 = 0
 GGML_TYPE_F16 = 1
@@ -519,7 +520,8 @@ GGML_TYPE_TQ2_0 = 35
 GGML_TYPE_MXFP4 = 39
 GGML_TYPE_NVFP4 = 40
 GGML_TYPE_Q1_0 = 41
-GGML_TYPE_COUNT = 42
+GGML_TYPE_Q2_0 = 42
+GGML_TYPE_COUNT = 43
 
 
 # // precision
@@ -576,6 +578,7 @@ GGML_BACKEND_TYPE_GPU_SPLIT = 20
 #     GGML_FTYPE_MOSTLY_MXFP4   = 25, // except 1d tensors
 #     GGML_FTYPE_MOSTLY_NVFP4   = 26, // except 1d tensors
 #     GGML_FTYPE_MOSTLY_Q1_0    = 27, // except 1d tensors
+#     GGML_FTYPE_MOSTLY_Q2_0    = 28, // except 1d tensors
 # };
 GGML_FTYPE_UNKNOWN = -1
 GGML_FTYPE_ALL_F32 = 0
@@ -604,6 +607,7 @@ GGML_FTYPE_MOSTLY_BF16 = 24
 GGML_FTYPE_MOSTLY_MXFP4 = 25
 GGML_FTYPE_MOSTLY_NVFP4 = 26
 GGML_FTYPE_MOSTLY_Q1_0 = 27
+GGML_FTYPE_MOSTLY_Q2_0 = 28
 
 
 # // available tensor operations:
@@ -781,17 +785,21 @@ GGML_OP_GATED_LINEAR_ATTN = 83
 GGML_OP_RWKV_WKV7 = 84
 GGML_OP_SOLVE_TRI = 85
 GGML_OP_GATED_DELTA_NET = 86
-GGML_OP_UNARY = 87
-GGML_OP_MAP_CUSTOM1 = 88
-GGML_OP_MAP_CUSTOM2 = 89
-GGML_OP_MAP_CUSTOM3 = 90
-GGML_OP_CUSTOM = 91
-GGML_OP_CROSS_ENTROPY_LOSS = 92
-GGML_OP_CROSS_ENTROPY_LOSS_BACK = 93
-GGML_OP_OPT_STEP_ADAMW = 94
-GGML_OP_OPT_STEP_SGD = 95
-GGML_OP_GLU = 96
-GGML_OP_COUNT = 97
+GGML_OP_LIGHTNING_INDEXER = 87
+GGML_OP_DSV4_HC_COMB = 88
+GGML_OP_DSV4_HC_PRE = 89
+GGML_OP_DSV4_HC_POST = 90
+GGML_OP_UNARY = 91
+GGML_OP_MAP_CUSTOM1 = 92
+GGML_OP_MAP_CUSTOM2 = 93
+GGML_OP_MAP_CUSTOM3 = 94
+GGML_OP_CUSTOM = 95
+GGML_OP_CROSS_ENTROPY_LOSS = 96
+GGML_OP_CROSS_ENTROPY_LOSS_BACK = 97
+GGML_OP_OPT_STEP_ADAMW = 98
+GGML_OP_OPT_STEP_SGD = 99
+GGML_OP_GLU = 100
+GGML_OP_COUNT = 101
 
 
 # enum ggml_unary_op {
@@ -842,6 +850,7 @@ GGML_UNARY_OP_COUNT = 22
 #     GGML_GLU_OP_SWIGLU_OAI,
 #     GGML_GLU_OP_GEGLU_ERF,
 #     GGML_GLU_OP_GEGLU_QUICK,
+#     GGML_GLU_OP_SWIGLU_CLAMP,
 #     GGML_GLU_OP_COUNT,
 # };
 GGML_GLU_OP_REGLU = 0
@@ -850,7 +859,8 @@ GGML_GLU_OP_SWIGLU = 2
 GGML_GLU_OP_SWIGLU_OAI = 3
 GGML_GLU_OP_GEGLU_ERF = 4
 GGML_GLU_OP_GEGLU_QUICK = 5
-GGML_GLU_OP_COUNT = 6
+GGML_GLU_OP_SWIGLU_CLAMP = 6
+GGML_GLU_OP_COUNT = 7
 
 # enum ggml_object_type {
 #     GGML_OBJECT_TYPE_TENSOR,
@@ -1757,6 +1767,45 @@ def ggml_is_contiguous_2(tensor: ggml_tensor_p, /) -> bool:
 
     Returns:
         True if tensor is contiguous for dims >= 2 else False"""
+    ...
+
+
+# GGML_API bool ggml_is_contiguous_to_1(const struct ggml_tensor * tensor); // contiguous for dims < 1
+@ggml_function("ggml_is_contiguous_to_1", [ctypes.POINTER(ggml_tensor)], ctypes.c_bool)
+def ggml_is_contiguous_to_1(tensor: ggml_tensor_p, /) -> bool:
+    """Check if a tensor is contiguous for dimensions < 1
+
+    Parameters:
+        tensor: tensor
+
+    Returns:
+        True if tensor is contiguous for dims < 1 else False"""
+    ...
+
+
+# GGML_API bool ggml_is_contiguous_to_2(const struct ggml_tensor * tensor); // contiguous for dims < 2
+@ggml_function("ggml_is_contiguous_to_2", [ctypes.POINTER(ggml_tensor)], ctypes.c_bool)
+def ggml_is_contiguous_to_2(tensor: ggml_tensor_p, /) -> bool:
+    """Check if a tensor is contiguous for dimensions < 2
+
+    Parameters:
+        tensor: tensor
+
+    Returns:
+        True if tensor is contiguous for dims < 2 else False"""
+    ...
+
+
+# GGML_API bool ggml_is_contiguous_to_3(const struct ggml_tensor * tensor); // contiguous for dims < 3
+@ggml_function("ggml_is_contiguous_to_3", [ctypes.POINTER(ggml_tensor)], ctypes.c_bool)
+def ggml_is_contiguous_to_3(tensor: ggml_tensor_p, /) -> bool:
+    """Check if a tensor is contiguous for dimensions < 3
+
+    Parameters:
+        tensor: tensor
+
+    Returns:
+        True if tensor is contiguous for dims < 3 else False"""
     ...
 
 
@@ -4776,6 +4825,31 @@ def ggml_swiglu_oai(
     ...
 
 
+# GGML_API struct ggml_tensor * ggml_swiglu_clamp(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         struct ggml_tensor  * b,
+#         float                 limit);
+@ggml_function(
+    "ggml_swiglu_clamp",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_float,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_swiglu_clamp(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    b: ggml_tensor_p,
+    limit: Union[ctypes.c_float, float],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
 # // normalize along rows
 # GGML_API struct ggml_tensor * ggml_norm(
 #         struct ggml_context * ctx,
@@ -6913,8 +6987,6 @@ def ggml_rope_multi_back(
     ...
 
 
-# // clamp
-# // in-place, returns view(a)
 # GGML_API struct ggml_tensor * ggml_clamp(
 #         struct ggml_context * ctx,
 #         struct ggml_tensor  * a,
@@ -6947,6 +7019,63 @@ def ggml_clamp(
 
     Returns:
         Pointer to ggml_tensor"""
+    ...
+
+
+# // in-place, returns view(a)
+# GGML_API struct ggml_tensor * ggml_clamp_inplace(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * a,
+#         float                 min,
+#         float                 max);
+@ggml_function(
+    "ggml_clamp_inplace",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_float,
+        ctypes.c_float,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_clamp_inplace(
+    ctx: ggml_context_p,
+    a: ggml_tensor_p,
+    min: Union[ctypes.c_float, float],
+    max: Union[ctypes.c_float, float],
+    /,
+) -> ggml_tensor_p:
+    """Clamp tensor values between min and max in-place, returns view(a)
+
+    Parameters:
+        ctx: ggml context
+        a: tensor
+        min: minimum value
+        max: maximum value
+
+    Returns:
+        Pointer to ggml_tensor"""
+    ...
+
+
+# // set the offset dims for RoPE
+# // a must be GGML_OP_ROPE or GGML_OP_ROPE_BACK
+# // vision RoPE is not supported
+# // example: (marking: x = rotated, 0 = unrotated)
+# //     n_embd = 10, n_dims = 4, offset = 2 --> [00xxxx0000]
+# GGML_API struct ggml_tensor * ggml_rope_set_offset(
+#         struct ggml_tensor  * a,
+#         int                   n_offs);
+@ggml_function(
+    "ggml_rope_set_offset",
+    [ctypes.POINTER(ggml_tensor), ctypes.c_int],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_rope_set_offset(
+    a: ggml_tensor_p,
+    n_offs: Union[ctypes.c_int, int],
+    /,
+) -> ggml_tensor_p:
     ...
 
 
@@ -8522,6 +8651,24 @@ def ggml_flash_attn_ext_get_prec(a: ggml_tensor_p, /) -> int:
     ...
 
 
+# // Use finite mask entries as a sparse K/V set. Set 0 to disable.
+# // n_kv_max must bound the number of finite entries in every mask row.
+# GGML_API void ggml_flash_attn_ext_set_n_kv_max(
+#         struct ggml_tensor * a,
+#         int32_t              n_kv_max);
+@ggml_function(
+    "ggml_flash_attn_ext_set_n_kv_max",
+    [ctypes.POINTER(ggml_tensor), ctypes.c_int32],
+    None,
+)
+def ggml_flash_attn_ext_set_n_kv_max(
+    a: ggml_tensor_p,
+    n_kv_max: Union[ctypes.c_int32, int],
+    /,
+) -> None:
+    ...
+
+
 # GGML_API void ggml_flash_attn_ext_add_sinks(
 #         struct ggml_tensor * a,
 #         struct ggml_tensor * sinks);
@@ -8934,8 +9081,7 @@ def ggml_solve_tri(
 #         struct ggml_tensor  * v,
 #         struct ggml_tensor  * g,
 #         struct ggml_tensor  * beta,
-#         struct ggml_tensor  * state,
-#         int64_t               K);
+#         struct ggml_tensor  * state);
 @ggml_function(
     "ggml_gated_delta_net",
     [
@@ -8946,7 +9092,6 @@ def ggml_solve_tri(
         ctypes.POINTER(ggml_tensor),
         ctypes.POINTER(ggml_tensor),
         ctypes.POINTER(ggml_tensor),
-        ctypes.c_int64,
     ],
     ctypes.POINTER(ggml_tensor),
 )
@@ -8958,7 +9103,134 @@ def ggml_gated_delta_net(
     g: ggml_tensor_p,
     beta: ggml_tensor_p,
     state: ggml_tensor_p,
-    K: Union[ctypes.c_int64, int],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# // DSA lightning indexer
+# //
+# // q:       [n_embd_idx, n_head_idx, n_batch, ne3 ]
+# // k:       [n_embd_idx, 1,          n_kv,    ne3 ]
+# // weights: [n_head_idx, n_batch,    1,       ne3 ] !! prescaled !!
+# // mask:    [n_kv,       n_batch,    1,       ne33] !! f16 !!
+# // res:     [n_kv,       n_batch,    1,       ne3 ]
+# //
+# // broadcast:
+# //   ne3 % ne33 == 0
+# //
+# GGML_API struct ggml_tensor * ggml_lightning_indexer(
+#     struct ggml_context * ctx,
+#     struct ggml_tensor  * q,
+#     struct ggml_tensor  * k,
+#     struct ggml_tensor  * weights,
+#     struct ggml_tensor  * mask);
+@ggml_function(
+    "ggml_lightning_indexer",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_lightning_indexer(
+    ctx: ggml_context_p,
+    q: ggml_tensor_p,
+    k: ggml_tensor_p,
+    weights: ggml_tensor_p,
+    mask: ggml_tensor_p,
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# // DeepSeek V4 hyper-connections (ref. https://arxiv.org/pdf/2512.24880)
+# //
+# // hc_comb: mixes [(2 + hc)*hc, n_tokens], scale [3], base [(2 + hc)*hc]
+# //          -> [dst_hc, src_hc, n_tokens]
+# GGML_API struct ggml_tensor * ggml_dsv4_hc_comb(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * mixes,
+#         struct ggml_tensor  * scale,
+#         struct ggml_tensor  * base,
+#         float                 eps,
+#         int32_t               n_iter);
+@ggml_function(
+    "ggml_dsv4_hc_comb",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.c_float,
+        ctypes.c_int32,
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_dsv4_hc_comb(
+    ctx: ggml_context_p,
+    mixes: ggml_tensor_p,
+    scale: ggml_tensor_p,
+    base: ggml_tensor_p,
+    eps: Union[ctypes.c_float, float],
+    n_iter: Union[ctypes.c_int32, int],
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# // hc_pre: x [n_embd, hc, n_tokens], weights [hc, n_tokens] -> [n_embd, n_tokens]
+# GGML_API struct ggml_tensor * ggml_dsv4_hc_pre(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * x,
+#         struct ggml_tensor  * weights);
+@ggml_function(
+    "ggml_dsv4_hc_pre",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_dsv4_hc_pre(
+    ctx: ggml_context_p,
+    x: ggml_tensor_p,
+    weights: ggml_tensor_p,
+    /,
+) -> ggml_tensor_p:
+    ...
+
+
+# // hc_post: x [n_embd, n_tokens], residual [n_embd, hc, n_tokens],
+# //          post [hc, n_tokens], comb [dst_hc, src_hc, n_tokens]
+# //          -> [n_embd, hc, n_tokens]
+# GGML_API struct ggml_tensor * ggml_dsv4_hc_post(
+#         struct ggml_context * ctx,
+#         struct ggml_tensor  * x,
+#         struct ggml_tensor  * residual,
+#         struct ggml_tensor  * post,
+#         struct ggml_tensor  * comb);
+@ggml_function(
+    "ggml_dsv4_hc_post",
+    [
+        ggml_context_p_ctypes,
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+        ctypes.POINTER(ggml_tensor),
+    ],
+    ctypes.POINTER(ggml_tensor),
+)
+def ggml_dsv4_hc_post(
+    ctx: ggml_context_p,
+    x: ggml_tensor_p,
+    residual: ggml_tensor_p,
+    post: ggml_tensor_p,
+    comb: ggml_tensor_p,
     /,
 ) -> ggml_tensor_p:
     ...
@@ -9755,6 +10027,27 @@ def ggml_build_forward_expand(
     Parameters:
         cgraph: The graph.
         tensor: The tensor."""
+    ...
+
+
+# // add the tensor and its parents to the graph without marking them for compute
+# // the flag is set later, when the tensor is reached from a node that computes
+# GGML_API void ggml_build_forward_order(
+#         struct ggml_cgraph * cgraph,
+#         struct ggml_tensor * tensor);
+@ggml_function(
+    "ggml_build_forward_order",
+    [
+        ctypes.POINTER(ggml_cgraph),
+        ctypes.POINTER(ggml_tensor),
+    ],
+    None,
+)
+def ggml_build_forward_order(
+    cgraph: ggml_cgraph_p,
+    tensor: ggml_tensor_p,
+    /,
+) -> None:
     ...
 
 
@@ -11635,6 +11928,22 @@ def gguf_get_tensor_name(
     ...
 
 
+# GGML_API const int64_t * gguf_get_tensor_ne    (const struct gguf_context * ctx, int64_t tensor_id); // returns ne, an array of GGML_MAX_DIMS elements; ne[dim] is 1 for dim >= n_dims
+@ggml_function(
+    "gguf_get_tensor_ne",
+    [
+        gguf_context_p_ctypes,
+        ctypes.c_int64,
+    ],
+    ctypes.POINTER(ctypes.c_int64),
+)
+def gguf_get_tensor_ne(
+    ctx: gguf_context_p,
+    tensor_id: Union[ctypes.c_int64, int],
+) -> CtypesArray[ctypes.c_int64]:
+    ...
+
+
 # GGML_API enum ggml_type gguf_get_tensor_type  (const struct gguf_context * ctx, int64_t tensor_id);
 @ggml_function(
     "gguf_get_tensor_type",
@@ -12180,6 +12489,12 @@ def ggml_cpu_get_sve_cnt() -> int:
 # GGML_API int ggml_cpu_has_sme        (void);
 @ggml_function("ggml_cpu_has_sme", [], ctypes.c_int)
 def ggml_cpu_has_sme() -> int:
+    ...
+
+
+# GGML_API int ggml_cpu_has_sme2       (void);
+@ggml_function("ggml_cpu_has_sme2", [], ctypes.c_int)
+def ggml_cpu_has_sme2() -> int:
     ...
 
 
@@ -13852,6 +14167,8 @@ GGML_BACKEND_DEVICE_TYPE_META = 4
 #     bool buffer_from_host_ptr;
 #     // event synchronization
 #     bool events;
+#     // mmap is supported for loading
+#     bool mmap_support;
 # };
 class ggml_backend_dev_caps(ctypes.Structure):
     _fields_ = [
@@ -13859,6 +14176,7 @@ class ggml_backend_dev_caps(ctypes.Structure):
         ("host_buffer", ctypes.c_bool),
         ("buffer_from_host_ptr", ctypes.c_bool),
         ("events", ctypes.c_bool),
+        ("mmap_support", ctypes.c_bool),
     ]
 
 
@@ -15780,20 +16098,6 @@ def ggml_backend_cuda_allreduce_tensor(
     n_backends: Union[ctypes.c_size_t, int],
     /,
 ) -> bool:
-    ...
-
-
-# GGML_API GGML_CALL ggml_backend_buffer_type_t ggml_backend_cuda_split_buffer_type(int main_device, const float * tensor_split);
-@ggml_function(
-    "ggml_backend_cuda_split_buffer_type",
-    [ctypes.c_int, ctypes.POINTER(ctypes.c_float)],
-    ggml_backend_buffer_type_t_ctypes,
-    enabled=GGML_USE_CUDA,
-)
-def ggml_backend_cuda_split_buffer_type(
-    main_device: Union[ctypes.c_int, int],
-    tensor_split: CtypesArray[ctypes.c_float],
-) -> Optional[ggml_backend_buffer_type_t]:
     ...
 
 
