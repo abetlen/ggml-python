@@ -319,7 +319,10 @@ def slice_tensor(
 
     # calculate slice
     start = tuple(idx.start or 0 for idx in indices)
-    end = tuple(idx.stop or get_shape(tensor)[i] for i, idx in enumerate(indices))
+    end = tuple(
+        idx.stop if idx.stop is not None else get_shape(tensor)[i]
+        for i, idx in enumerate(indices)
+    )
     step = tuple(idx.step or 1 for idx in indices)
 
     # get the shape of the slice
