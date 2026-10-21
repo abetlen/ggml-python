@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - feat: add buffer protocol support to utils by @aisk in #175
+- fix(utils): preserve explicit zero slice stops by @dajiaohuang in #201
 
 ## [0.0.45]
 
